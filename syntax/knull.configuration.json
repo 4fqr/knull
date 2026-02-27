@@ -1,0 +1,146 @@
+{
+  "comments": {
+    "lineComment": "//",
+    "blockComment": ["/*", "*/"]
+  },
+  "brackets": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"]
+  ],
+  "autoClosingPairs": [
+    { "open": "{", "close": "}" },
+    { "open": "[", "close": "]" },
+    { "open": "(", "close": ")" },
+    { "open": "\"", "close": "\"", "notIn": ["string"] },
+    { "open": "'", "close": "'", "notIn": ["string", "comment"] },
+    { "open": "`", "close": "`", "notIn": ["string", "comment"] }
+  ],
+  "surroundingPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    ["\"", "\""],
+    ["'", "'"],
+    ["`", "`"]
+  ],
+  "folding": {
+    "markers": {
+      "start": "^\\s*//\\s*#?region\\b",
+      "end": "^\\s*//\\s*#?endregion\\b"
+    },
+    "offSide": true
+  },
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(fn|struct|enum|trait|impl|if|else|match|loop|while|for|unsafe|comptime)\\b.*\\{?$",
+    "decreaseIndentPattern": "^\\s*\\}"
+  },
+  "wordSeparators": "`~!@#%^&*()-=+[{]}\\|;:'\",.<>/?",
+  "onEnterRules": [
+    {
+      "beforeText": "^\\s*//.*$",
+      "afterText": "^\\s*//.*$",
+      "action": { "indent": "none", "appendText": "// " }
+    },
+    {
+      "beforeText": "^\\s*/\\*.*",
+      "afterText": "^\\s*.*\\*/$",
+      "action": { "indent": "none", "appendText": "* " }
+    },
+    {
+      "beforeText": "^\\s*\\*\\s/",
+      "action": { "indent": "none", "removeText": 1 }
+    }
+  ],
+  "tokenColors": [
+    {
+      "scope": "keyword.control.knull",
+      "settings": {
+        "foreground": "#C586C0",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": "storage.type.primitive",
+      "settings": {
+        "foreground": "#4EC9B0"
+      }
+    },
+    {
+      "scope": "storage.type.collection",
+      "settings": {
+        "foreground": "#4EC9B0"
+      }
+    },
+    {
+      "scope": "entity.name.function",
+      "settings": {
+        "foreground": "#DCDCAA"
+      }
+    },
+    {
+      "scope": "entity.name.type",
+      "settings": {
+        "foreground": "#4EC9B0"
+      }
+    },
+    {
+      "scope": "variable.language",
+      "settings": {
+        "foreground": "#569CD6"
+      }
+    },
+    {
+      "scope": "constant.numeric",
+      "settings": {
+        "foreground": "#B5CEA8"
+      }
+    },
+    {
+      "scope": "constant.language",
+      "settings": {
+        "foreground": "#569CD6"
+      }
+    },
+    {
+      "scope": "string",
+      "settings": {
+        "foreground": "#CE9178"
+      }
+    },
+    {
+      "scope": "comment",
+      "settings": {
+        "foreground": "#6A9955",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": "keyword.operator",
+      "settings": {
+        "foreground": "#D4D4D4"
+      }
+    }
+  ],
+  "semanticHighlighting": true,
+  "formatOnPaste": true,
+  "formatOnType": true,
+  "quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": false
+  },
+  "suggestOnTriggerCharacters": true,
+  "acceptSuggestionOnEnter": "on",
+  "tabSize": 4,
+  "insertSpaces": true,
+  "detectIndentation": true,
+  "trimAutoWhitespace": true,
+  "insertFinalNewline": true,
+  "renderWhitespace": "selection",
+  "renderLineHighlight": "line",
+  "cursorBlinking": "blink",
+  "cursorStyle": "line",
+  "wordWrap": "off",
+  "automaticLayout": true
+}

@@ -1,0 +1,40 @@
+[package]
+name = "photon"
+version = "0"
+edition =0.1. "2024"
+entry = "src/main.knull"
+authors = ["Knull Team <team@knull-lang.dev>"]
+license = "MIT"
+desc = "A blazing fast web framework for Knull"
+homepage = "https://knull-lang.dev"
+repository = "https://github.com/knull-lang/photon"
+
+[dependencies]
+http = "^0.2"
+router = "^1.0"
+templates = "^0.1"
+json = "^2.0"
+logger = "^0.3"
+
+[dev-dependencies]
+bench = "^0.1"
+mock = "^1.0"
+
+[features]
+default = ["server", "json", "templates"]
+
+server = []
+json = []
+templates = []
+websocket = ["server"]
+tls = ["server"]
+
+[build]
+script = "build.knull"
+
+[target.x86_64-unknown-linux-knull]
+opt-level = 3
+lto = true
+
+[target.aarch64-unknown-linux-knull]
+opt-level = 3

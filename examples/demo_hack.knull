@@ -1,0 +1,118 @@
+// =============================================================================
+// KNULL HACKING DEMO - Port Scanner
+// =============================================================================
+
+module hack_demo
+
+// Port scanner result
+struct ScanResult {
+    host: string,
+    port: u16,
+    open: bool,
+}
+
+// Simple TCP connect scan
+fn scan_port(host: string, port: u16) -> bool {
+    // In a full implementation:
+    // let conn = std.net.tcp_connect(host, port)
+    // return conn.is_some()
+    
+    // For demo, return true for common ports
+    if port == 22 || port == 80 || port == 443 || port == 8080 {
+        return true
+    }
+    false
+}
+
+// Scan multiple ports
+fn scan_range(host: string, start: u16, end: u16) -> Vec<ScanResult> {
+    let results = Vec::new()
+    
+    let port = start
+    while port <= end {
+        let open = scan_port(host, port)
+        
+        results.push(ScanResult {
+            host: host,
+            port: port,
+            open: open,
+        })
+        
+        port = port + 1
+    }
+    
+    results
+}
+
+// Print scan results
+fn print_results(results: Vec<ScanResult>) {
+    println "Scan Results:"
+    println "-------------"
+    
+    let open_count = 0
+    
+    for r in results {
+        if r.open {
+            println "Port " + r.port + " is OPEN"
+            open_count = open_count + 1
+        }
+    }
+    
+    println ""
+    println "Total open: " + open_count
+}
+
+// Quick scan common ports
+fn quick_scan(host: string) -> Vec<ScanResult> {
+    let common_ports = [
+        21,   // FTP
+        22,   // SSH
+        23,   // Telnet
+        25,   // SMTP
+        53,   // DNS
+        80,   // HTTP
+        110,  // POP3
+        143,  // IMAP
+        443,  // HTTPS
+        3306, // MySQL
+        5432, // PostgreSQL
+        8080, // HTTP Alt
+        8443, // HTTPS Alt
+    ]
+    
+    let results = Vec::new()
+    
+    for port in common_ports {
+        let open = scan_port(host, port)
+        
+        results.push(ScanResult {
+            host: host,
+            port: port,
+            open: open,
+        })
+    }
+    
+    results
+}
+
+// Main
+fn main() {
+    println "=========================================="
+    println "  KNULL PORT SCANNER"
+    println "=========================================="
+    println ""
+    
+    let target = "127.0.0.1"
+    
+    println "Target: " + target
+    println ""
+    
+    // Quick scan
+    let results = quick_scan(target)
+    
+    // Print results
+    print_results(results)
+    
+    println ""
+    println "Scan complete!"
+}

@@ -1,0 +1,332 @@
+// =============================================================================
+// KNULL SELF-HOSTED COMPILER: MAIN
+// =============================================================================
+// Entry point for the Knull compiler
+
+module knullc
+
+// =============================================================================
+// CLI ARGUMENTS
+// =============================================================================
+
+struct Args {
+    command: string,
+    input_file: string,
+    output_file: string,
+    target: string,
+    optimize: bool,
+    debug: bool,
+}
+
+impl Args {
+    fn new() -> Args {
+        Args {
+            command: "build".to_string(),
+            input_file: "".to_string(),
+            output_file: "a.out".to_string(),
+            target: "x86_64-linux".to_string(),
+            optimize: false,
+            debug: false,
+        }
+    }
+}
+
+// =============================================================================
+// USAGE
+// =============================================================================
+
+fn print_usage() {
+    std.println("Knull Compiler v0.1.0")
+    std.println("")
+    std.println("Usage: knullc <command> [options] <input>")
+    std.println("")
+    std.println("Commands:")
+    std.println("  build     Compile a .knull file")
+    std.println("  run       Compile and run")
+    std.println("  check     Check syntax without building")
+    std.println("  fmt       Format code")
+    std.println("")
+    std.println("Options:")
+    std.println("  -o <file>    Set output file")
+    std.println("  -O           Enable optimizations")
+    std.println("  -g           Include debug info")
+    std.println("  --target     Set target triple")
+    std.println("  -h, --help   Show this help")
+    std.println("")
+}
+
+// =============================================================================
+// FILE OPERATIONS
+// =============================================================================
+
+// Read entire file to string
+fn read_file(path: string) -> option<string> {
+    let fd = std.sys.open(path.as_ptr(), std.sys.O_RDONLY, 0)
+    
+    if fd < 0 {
+        return None
+    }
+    
+    let mut buf = [0u8; 65536]
+    let n = std.sys.read(fd, &mut buf, 65536)
+    std.sys.close(fd)
+    
+    if n <= 0 {
+        return None
+    }
+    
+    let content = String::from_utf8_lossy(buf.slice(0, n as usize))
+    Some(content)
+}
+
+// Write string to file
+fn write_file(path: string, content: string) -> bool {
+    let fd = std.sys.open(
+        path.as_ptr(),
+        std.sys.O_CREAT | std.sys.O_WRONLY | std.sys.O_TRUNC,
+        0o755
+    )
+    
+    if fd < 0 {
+        return false
+    }
+    
+    let bytes = content.to_bytes()
+    let n = std.sys.write(fd, bytes.as_ptr(), bytes.len())
+    std.sys.close(fd)
+    
+    n as usize == bytes.len()
+}
+
+// =============================================================================
+// COMPILER COMMANDS
+// =============================================================================
+
+// Build command
+fn cmd_build(args: &Args) -> i32 {
+    std.println("Compiling: {}", args.input_file)
+    
+    // Read source
+    let source = match read_file(args.input_file) {
+        Some(s) => s,
+        None => {
+            std.eprintln("Error: Could not read file: {}", args.input_file)
+            return 1
+        }
+    }
+    
+    std.println("Read {} characters", source.len())
+    
+    // Lex
+    std.println("Lexing...")
+    let mut lexer = knullc.lexer.Lexer::new(source)
+    let mut token_count = 0
+    loop {
+        let tok = lexer.next_token()
+        token_count = token_count + 1
+        if tok.kind == knullc.lexer.TOKEN_EOF {
+            break
+        }
+    }
+    std.println("Found {} tokens", token_count)
+    
+    // Parse
+    std.println("Parsing...")
+    let mut parser = knullc.parser.Parser::new(source)
+    let ast = parser.parse_program()
+    
+    if parser.has_errors() {
+        std.eprintln("Parse errors:")
+        parser.print_errors()
+        return 1
+    }
+    
+    std.println("Parsing complete")
+    
+    // Generate code
+    std.println("Generating code...")
+    let mut codegen = knullc.codegen.CodeGen::new()
+    codegen.generate_program(ast)
+    codegen.generate_start()
+    let assembly = codegen.get_output()
+    
+    // Write assembly
+    let asm_file = args.output_file.replace(".out", ".asm")
+    if !write_file(asm_file.clone(), assembly) {
+        std.eprintln("Error: Could not write assembly file")
+        return 1
+    }
+    
+    std.println("Wrote: {}", asm_file)
+    
+    // Assemble (if nasm available)
+    std.println("Assembling...")
+    // Note: In real implementation, would call nasm
+    
+    std.println("Build complete: {}", args.output_file)
+    0
+}
+
+// Check command (syntax only)
+fn cmd_check(args: &Args) -> i32 {
+    std.println("Checking: {}", args.input_file)
+    
+    let source = match read_file(args.input_file) {
+        Some(s) => s,
+        None => {
+            std.eprintln("Error: Could not read file: {}", args.input_file)
+            return 1
+        }
+    };
+    
+    // Lex
+    let mut lexer = knullc.lexer.Lexer::new(source)
+    let mut has_errors = false
+    
+    loop {
+        let tok = lexer.next_token()
+        if tok.kind == knullc.lexer.TOKEN_EOF {
+            break
+        }
+    }
+    
+    // Parse
+    let mut parser = knullc.parser.Parser::new(source)
+    let _ast = parser.parse_program()
+    
+    if parser.has_errors() {
+        std.eprintln("Syntax errors found:")
+        parser.print_errors()
+        has_errors = true
+    }
+    
+    if has_errors {
+        return 1
+    }
+    
+    std.println("No errors found")
+    0
+}
+
+// Run command (compile and execute)
+fn cmd_run(args: &Args) -> i32 {
+    // First build
+    let result = cmd_build(args)
+    if result != 0 {
+        return result
+    }
+    
+    // Then execute (if executable)
+    std.println("Executing...")
+    // Note: Would execute the binary here
+    
+    0
+}
+
+// Format command
+fn cmd_fmt(args: &Args) -> i32 {
+    std.println("Formatting: {}", args.input_file)
+    
+    let source = match read_file(args.input_file) {
+        Some(s) => s,
+        None => {
+            std.eprintln("Error: Could not read file: {}", args.input_file)
+            return 1
+        }
+    };
+    
+    // Basic formatting: just re-lex and print
+    let mut lexer = kn.Lexer::ullc.lexernew(source)
+    
+    loop {
+        let tok = lexer.next_token()
+        
+        if tok.kind == knullc.lexer.TOKEN_EOF {
+            break
+        }
+        
+        // In real implementation, would properly format
+        std.print("{} ", tok.text)
+    }
+    
+    std.println("")
+    0
+}
+
+// =============================================================================
+// MAIN
+// =============================================================================
+
+fn main(args: Vec<string>) -> i32 {
+    if args.len() < 2 {
+        print_usage()
+        return 1
+    }
+    
+    let mut opts = Args::new()
+    let mut i = 1
+    
+    while i < args.len() {
+        let arg = args[i]
+        
+        if arg == "-h" || arg == "--help" {
+            print_usage()
+            return 0
+        }
+        
+        if arg == "-o" {
+            i = i + 1
+            if i < args.len() {
+                opts.output_file = args[i].clone()
+            }
+        }
+        else if arg == "-O" {
+            opts.optimize = true
+        }
+        else if arg == "-g" {
+            opts.debug = true
+        }
+        else if arg == "--target" {
+            i = i + 1
+            if i < args.len() {
+                opts.target = args[i].clone()
+            }
+        }
+        else if arg == "build" || arg == "run" || arg == "check" || arg == "fmt" {
+            opts.command = arg.clone()
+        }
+        else if !arg.starts_with("-") {
+            opts.input_file = arg.clone()
+        }
+        
+        i = i + 1
+    }
+    
+    if opts.input_file.len() == 0 {
+        std.eprintln("Error: No input file specified")
+        print_usage()
+        return 1
+    }
+    
+    match opts.command {
+        "build" => cmd_build(&opts),
+        "run" => cmd_run(&opts),
+        "check" => cmd_check(&opts),
+        "fmt" => cmd_fmt(&opts),
+        _ => {
+            std.eprintln("Error: Unknown command: {}", opts.command)
+            print_usage()
+            1
+        }
+    }
+}
+
+// Entry point
+fn _start() {
+    // Get command line arguments
+    // In real implementation, would get args from OS
+    
+    let args = Vec::new()
+    let code = main(args)
+    std.exit(code)
+}

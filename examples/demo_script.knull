@@ -1,0 +1,125 @@
+// =============================================================================
+// KNULL SCRIPTING DEMO - File Automation
+// =============================================================================
+
+module script_demo
+
+// File info
+struct FileInfo {
+    name: string,
+    path: string,
+    size: u64,
+    is_dir: bool,
+}
+
+// Get file extension
+fn get_extension(filename: string) -> string {
+    // Simple extension extraction
+    let parts = filename.split(".")
+    if parts.len > 1 {
+        return parts[parts.len - 1]
+    }
+    ""
+}
+
+// Rename file
+fn rename_file(old_name: string, new_name: string) -> bool {
+    // In real implementation:
+    // std.fs.rename(old_name, new_name)
+    println "Would rename: " + old_name + " -> " + new_name
+    true
+}
+
+// Batch rename files
+fn batch_rename(files: Vec<string>, prefix: string, suffix: string) -> i32 {
+    let count = 0
+    
+    for f in files {
+        let ext = get_extension(f)
+        let new_name = prefix + f + suffix + "." + ext
+        rename_file(f, new_name)
+        count = count + 1
+    }
+    
+    count
+}
+
+// Process directory
+fn process_directory(dir: string, ext_filter: string) -> Vec<FileInfo> {
+    let results = Vec::new()
+    
+    // In real implementation:
+    // let files = std.fs.read_dir(dir)
+    
+    // Demo: simulated files
+    let demo_files = [
+        "document.txt",
+        "image.png",
+        "script.knull",
+        "data.json",
+        "readme.md",
+    ]
+    
+    for f in demo_files {
+        let ext = get_extension(f)
+        
+        if ext_filter == "" || ext == ext_filter {
+            results.push(FileInfo {
+                name: f,
+                path: dir + "/" + f,
+                size: 1024,
+                is_dir: false,
+            })
+        }
+    }
+    
+    results
+}
+
+// Print file list
+fn print_files(files: Vec<FileInfo>) {
+    println "Files:"
+    println "------"
+    
+    for f in files {
+        let type_str = if f.is_dir { "[DIR]" } else { "[FILE]" }
+        println type_str + " " + f.name + " (" + f.size + " bytes)"
+    }
+}
+
+// Main
+fn main() {
+    println "=========================================="
+    println "  KNULL FILE AUTOMATION"
+    println "=========================================="
+    println ""
+    
+    // Process current directory
+    let dir = "."
+    let ext = "knull"
+    
+    println "Scanning: " + dir
+    println "Extension filter: " + ext
+    println ""
+    
+    let files = process_directory(dir, ext)
+    
+    print_files(files)
+    
+    println ""
+    println "Found " + files.len + " files"
+    
+    // Example: add prefix
+    println ""
+    println "Adding prefix 'backup_' to all files..."
+    let names = Vec::new()
+    for f in files {
+        names.push(f.name)
+    }
+    
+    let renamed = batch_rename(names, "backup_", "")
+    println "Renamed " + renamed + " files"
+    
+    println ""
+    println "Done!"
+}

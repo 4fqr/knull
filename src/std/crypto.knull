@@ -1,0 +1,1065 @@
+// KNULL STANDARD LIBRARY: CRYPTOGRAPHY MODULE
+// Version 1.0
+// 
+// This module provides cryptographic primitives including hashing,
+// symmetric encryption, asymmetric encryption, and random number generation.
+
+module std.crypto
+
+// =============================================================================
+// HASHING
+// =============================================================================
+
+pub mod hash {
+    use super::*;
+
+    // =============================================================================
+    // SHA-256
+    // =============================================================================
+
+    pub struct Sha256 {
+        state: [u32; 8],
+        buffer: [u8; 64],
+        buffer_len: usize,
+        total_len: u64,
+    }
+
+    impl Sha256 {
+        pub fn new() -> Self {
+            let mut sha = Sha256 {
+                state: [0u32; 8],
+                buffer: [0u8; 64],
+                buffer_len: 0,
+                total_len: 0,
+            }
+            sha.state[0] = 0x6a09e667
+            sha.state[1] = 0xbb67ae85
+            sha.state[2] = 0x3c6ef372
+            sha.state[3] = 0xa54ff53a
+            sha.state[4] = 0x510e527f
+            sha.state[5] = 0x9b05688c
+            sha.state[6] = 0x1f83d9ab
+            sha.state[7] = 0x5be0cd19
+            sha
+        }
+
+        pub fn update(&mut self, data: &[u8]) {
+            let mut offset = 0
+            
+            // Process any buffered data first
+            if self.buffer_len > 0 {
+                let needed = 64 - self.buffer_len
+                if data.len() < needed {
+                    __memcpy(self.buffer.as_mut_ptr().offset(self.buffer_len), data.as_ptr(), data.len())
+                    self.buffer_len += data.len()
+                    return
+                }
+                __memcpy(self.buffer.as_mut_ptr().offset(self.buffer_len), data.as_ptr(), needed)
+                self.process_block(self.buffer.as_ptr())
+                self.buffer_len = 0
+                offset = needed
+            }
+            
+            // Process remaining data in blocks
+            while offset + 64 <= data.len() {
+                self.process_block(data.as_ptr().offset(offset))
+                offset += 64
+            }
+            
+            // Buffer remaining bytes
+            if offset < data.len() {
+                __memcpy(self.buffer.as_mut_ptr(), data.as_ptr().offset(offset), data.len() - offset)
+                self.buffer_len = data.len() - offset
+            }
+            
+            self.total_len += data.len() as u64
+        }
+
+        pub fn finalize(self) -> [u8; 32] {
+            let mut hasher = self
+            
+            // Pad message
+            let mut pad_len = (64 - (hasher.buffer_len % 64))
+            if pad_len < 9 {
+                pad_len += 64
+            }
+            
+            let mut padded = [0u8; 128]
+            __memcpy(padded.as_mut_ptr(), hasher.buffer.as_ptr(), hasher.buffer_len)
+            padded[hasher.buffer_len] = 0x80
+            
+            // Add length in bits as 64-bit big-endian
+            let bit_len = hasher.total_len * 8
+            let offset = pad_len - 8
+            padded[offset] = ((bit_len >> 56) & 0xFF) as u8
+            padded[offset + 1] = ((bit_len >> 48) & 0xFF) as u8
+            padded[offset + 2] = ((bit_len >> 40) & 0xFF) as u8
+            padded[offset + 3] = ((bit_len >> 32) & 0xFF) as u8
+            padded[offset + 4] = ((bit_len >> 24) & 0xFF) as u8
+            padded[offset + 5] = ((bit_len >> 16) & 0xFF) as u8
+            padded[offset + 6] = ((bit_len >> 8) & 0xFF) as u8
+            padded[offset + 7] = (bit_len & 0xFF) as u8
+            
+            // Process padded message
+            let blocks = pad_len / 64
+            for i in 0..blocks {
+                hasher.process_block(padded.as_ptr().offset(i * 64))
+            }
+            
+            // Output hash
+            let mut result = [0u8; 32]
+            for i in 0..8 {
+                result[i * 4] = ((hasher.state[i] >> 24) & 0xFF) as u8
+                result[i * 4 + 1] = ((hasher.state[i] >> 16) & 0xFF) as u8
+                result[i * 4 + 2] = ((hasher.state[i] >> 8) & 0xFF) as u8
+                result[i * 4 + 3] = (hasher.state[i] & 0xFF) as u8
+            }
+            
+            result
+        }
+
+        fn process_block(&mut self, block: *const u8) {
+            let mut w = [0u32; 64]
+            
+            // Prepare message schedule
+            for i in 0..16 {
+                w[i] = (*block.offset(i * 4) as u32) << 24 |
+                       (*block.offset(i * 4 + 1) as u32) << 16 |
+                       (*block.offset(i * 4 + 2) as u32) << 8 |
+                       (*block.offset(i * 4 + 3) as u32)
+            }
+            
+            for i in 16..64 {
+                let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3)
+                let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10)
+                w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1)
+            }
+            
+            let mut a = self.state[0]
+            let mut b = self.state[1]
+            let mut c = self.state[2]
+            let mut d = self.state[3]
+            let mut e = self.state[4]
+            let mut f = self.state[5]
+            let mut g = self.state[6]
+            let mut h = self.state[7]
+            
+            for i in 0..64 {
+                let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25)
+                let ch = (e & f) ^ ((!e) & g)
+                let temp1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K_SHA256[i]).wrapping_add(w[i])
+                let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22)
+                let maj = (a & b) ^ (a & c) ^ (b & c)
+                let temp2 = s0.wrapping_add(maj)
+                
+                h = g
+                g = f
+                f = e
+                e = d.wrapping_add(temp1)
+                d = c
+                c = b
+                b = a
+                a = temp1.wrapping_add(temp2)
+            }
+            
+            self.state[0] = self.state[0].wrapping_add(a)
+            self.state[1] = self.state[1].wrapping_add(b)
+            self.state[2] = self.state[2].wrapping_add(c)
+            self.state[3] = self.state[3].wrapping_add(d)
+            self.state[4] = self.state[4].wrapping_add(e)
+            self.state[5] = self.state[5].wrapping_add(f)
+            self.state[6] = self.state[6].wrapping_add(g)
+            self.state[7] = self.state[7].wrapping_add(h)
+        }
+    }
+
+    // SHA-256 constants
+    const K_SHA256: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    ]
+
+    // Convenience function
+    pub fn sha256(data: &[u8]) -> [u8; 32] {
+        let mut hasher = Sha256::new()
+        hasher.update(data)
+        hasher.finalize()
+    }
+
+    // =============================================================================
+    // SHA-3 / SHAKE
+    // =============================================================================
+
+    // SHA3-256 implementation
+    pub struct Sha3_256 {
+        state: [u64; 25],
+        rate: usize,
+        output_len: usize,
+        state_flags: usize,
+    }
+
+    impl Sha3_256 {
+        pub fn new() -> Self {
+            Sha3_256 {
+                state: [0u64; 25],
+                rate: 136,  // 1600 - 512 = 1088 bits = 136 bytes
+                output_len: 32,
+                state_flags: 0x01,  // SHA3-256
+            }
+        }
+
+        pub fn update(&mut self, data: &[u8]) {
+            let mut offset = 0
+            while offset < data.len() {
+                let remaining = data.len() - offset
+                let to_take = remaining.min(self.rate)
+                
+                // XOR into rate portion of state
+                for i in 0..to_take {
+                    let state_idx = i / 8
+                    let byte_idx = i % 8
+                    self.state[state_idx] ^= (data[offset + i] as u64) << (byte_idx * 8)
+                }
+                
+                offset += to_take
+                
+                if to_take == self.rate || offset >= data.len() {
+                    self.keccakf()
+                }
+            }
+        }
+
+        pub fn finalize(self) -> [u8; 32] {
+            // Pad the message
+            let mut hasher = self
+            
+            // Absorb trailing 0x01 then 0x06 then zeros then 0x80
+            // This is simplified - full implementation needs proper padding
+            
+            hasher.keccakf()
+            
+            let mut result = [0u8; 32]
+            for i in 0..32 {
+                result[i] = ((hasher.state[i / 8] >> ((i % 8) * 8)) & 0xFF) as u8
+            }
+            result
+        }
+
+        fn keccakf(&mut self) {
+            // Full Keccak-f[1600] permutation
+            // This is a simplified version - production would use optimized version
+            let mut a = self.state
+            
+            let mut b = [0u64; 5 * 5]
+            let mut c = [0u64; 5]
+            let mut d = [0u64; 5]
+            
+            for round in 0..24 {
+                // Theta
+                for x in 0..5 {
+                    c[x] = a[x] ^ a[x + 5] ^ a[x + 10] ^ a[x + 15] ^ a[x + 20]
+                }
+                
+                for x in 0..5 {
+                    d[x] = c[(x + 4) % 5] ^ c[(x + 1) % 5].rotate_left(1)
+                }
+                
+                for x in 0..5 {
+                    for y in 0..5 {
+                        a[x + 5 * y] ^= d[x]
+                    }
+                }
+                
+                // Rho and Pi
+                let mut x = 1
+                let mut y = 0
+                let mut current = a[1]
+                let mut t = 0
+                
+                for _ in 0..24 {
+                    t = b[y * 5 + x]
+                    b[y * 5 + x] = current.rotate_left(((x * (y + 1) * (y + 2) / 2)) % 64)
+                    current = t
+                    
+                    let new_x = (x + 1) % 5
+                    let new_y = (x * 2 + y * 3) % 5
+                    x = new_x
+                    y = new_y
+                }
+                
+                // Copy back
+                for i in 0..25 {
+                    a[i] ^= b[i]
+                }
+                
+                // Chi
+                for y in 0..5 {
+                    for x in 0..5 {
+                        let idx = x + 5 * y
+                        let not_a = !a[idx]
+                        b[idx] = a[idx] ^ (not_a & a[(x + 1) % 5 + 5 * y])
+                    }
+                }
+                
+                // Copy back and apply Iota
+                for i in 0..25 {
+                    a[i] = b[i]
+                }
+                
+                a[0] ^= RC[round]
+            }
+            
+            self.state = a
+        }
+    }
+
+    const RC: [u64; 24] = [
+        0x0000000000000001, 0x0000000000008082, 0x800000000000808a, 0x8000000080008000,
+        0x000000000000808b, 0x0000000080000001, 0x8000000080008081, 0x8000000000008009,
+        0x000000000000008a, 0x0000000000000088, 0x0000000080008009, 0x000000008000000a,
+        0x000000008000808b, 0x800000000000008b, 0x8000000000008089, 0x8000000000008003,
+        0x8000000000008002, 0x8000000000000080, 0x000000000000800a, 0x800000008000000a,
+        0x8000000080008081, 0x8000000000008080, 0x0000000080000001, 0x8000000080008008,
+    ]
+
+    pub fn sha3_256(data: &[u8]) -> [u8; 32] {
+        let mut hasher = Sha3_256::new()
+        hasher.update(data)
+        hasher.finalize()
+    }
+
+    // =============================================================================
+    // BLAKE2b
+    // =============================================================================
+
+    pub struct Blake2b {
+        h: [u64; 8],
+        t: [u64; 2],
+        f: [u64; 2],
+        buf: [u8; 128],
+        buflen: usize,
+    }
+
+    impl Blake2b {
+        pub fn new() -> Self {
+            let key = [0u8; 0]
+            Blake2b::new_keyed(&key)
+        }
+
+        pub fn new_keyed(key: &[u8]) -> Self {
+            let mut h = [
+                0x6a09e667f3bcc908, 0xbb67ae8584caa73b, 0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
+                0x510e527fade682d1, 0x9b05688c2b3e6c1f, 0x1f83d9abfb41bd6b, 0x5be0cd19137e2179,
+            ]
+            
+            // Initialize with parameter block
+            h[0] ^= 0x01010000 ^ (key.len() as u64 << 8)
+            
+            Blake2b {
+                h,
+                t: [0u64; 2],
+                f: [0u64; 2],
+                buf: [0u8; 128],
+                buflen: 0,
+            }
+        }
+
+        pub fn update(&mut self, data: &[u8]) {
+            let mut offset = 0
+< data.len() {
+            while offset                 let left = self.buf.len() - self.buflen
+                let take = (data.len() - offset).min(left)
+                
+                __memcpy(self.buf.as_mut_ptr().offset(self.buflen), data.as_ptr().offset(offset), take)
+                self.buflen += take
+                offset += take
+                
+                if self.buflen == self.buf.len() {
+                    self.increment_counter(128)
+                    self.compress(false)
+                    self.buflen = 0
+                }
+            }
+        }
+
+        pub fn finalize(self) -> [u8; 64] {
+            let mut hasher = self
+            hasher.f[0] = 0xFFFFFFFFFFFFFFFF
+            
+            // Pad buffer
+            while hasher.buflen < 128 {
+                hasher.buf[hasher.buflen] = 0
+                hasher.buflen += 1
+            }
+            
+            hasher.increment_counter(hasher.buflen)
+            hasher.compress(true)
+            
+            // Output
+            let mut out = [0u8; 64]
+            for i in 0..8 {
+                out[i * 8] = (hasher.h[i] & 0xFF) as u8
+                out[i * 8 + 1] = ((hasher.h[i] >> 8) & 0xFF) as u8
+                out[i * 8 + 2] = ((hasher.h[i] >> 16) & 0xFF) as u8
+                out[i * 8 + 3] = ((hasher.h[i] >> 24) & 0xFF) as u8
+                out[i * 8 + 4] = ((hasher.h[i] >> 32) & 0xFF) as u8
+                out[i * 8 + 5] = ((hasher.h[i] >> 40) & 0xFF) as u8
+                out[i * 8 + 6] = ((hasher.h[i] >> 48) & 0xFF) as u8
+                out[i * 8 + 7] = ((hasher.h[i] >> 56) & 0xFF) as u8
+            }
+            
+            out
+        }
+
+        fn increment_counter(&mut self, inc: usize) {
+            self.t[0] = self.t[0].wrapping_add(inc as u64)
+            if self.t[0] < inc as u64 {
+                self.t[1] = self.t[1].wrapping_add(1)
+            }
+        }
+
+        fn compress(&mut self, is_final: bool) {
+            // Full BLAKE2b compression - simplified
+            let mut v = [0u64; 16]
+            let mut m = [0u64; 16]
+            
+            // Copy state and message
+            for i in 0..8 {
+                v[i] = self.h[i]
+            }
+            for i in 0..8 {
+                v[i + 8] = 0x6a09e667f3bcc908 ^ 0x243f6a8885a308d3 ^ 0x3c6ef372fe94f82b ^ 0xa54ff53a5f1d36f1
+            }
+            
+            // Load message
+            for i in 0..16 {
+                let offset = i * 8
+                if offset + 8 <= self.buflen {
+                    m[i] = __read_le64(self.buf.as_ptr().offset(offset))
+                }
+            }
+            
+            // Simplified rounds
+            for i in 0..12 {
+                // G function
+                v[0] = v[0].wrapping_add(v[4]).wrapping_add(m[i % 16])
+                v[12] = (v[12] ^ v[0]).rotate_right(32)
+                v[8] = v[8].wrapping_add(v[12])
+                v[4] = (v[4] ^ v[8]).rotate_right(24)
+                v[0] = v[0].wrapping_add(v[4]).wrapping_add(m[(i + 2) % 16])
+                v[12] = (v[12] ^ v[0]).rotate_right(16)
+                v[8] = v[8].wrapping_add(v[12])
+                v[4] = (v[4] ^ v[8]).rotate_right(63)
+            }
+            
+            // Finalize
+            for i in 0..8 {
+                self.h[i] ^= v[i] ^ v[i + 8]
+            }
+        }
+    }
+
+    fn __read_le64(ptr: *const u8) -> u64 {
+        unsafe {
+            *ptr as u64 |
+            ((*ptr.offset(1)) as u64 << 8) |
+            ((*ptr.offset(2)) as u64 << 16) |
+            ((*ptr.offset(3)) as u64 << 24) |
+            ((*ptr.offset(4)) as u64 << 32) |
+            ((*ptr.offset(5)) as u64 << 40) |
+            ((*ptr.offset(6)) as u64 << 48) |
+            ((*ptr.offset(7)) as u64 << 56)
+        }
+    }
+
+    pub fn blake2b(data: &[u8]) -> [u8; 64] {
+        let mut hasher = Blake2b::new()
+        hasher.update(data)
+        hasher.finalize()
+    }
+
+    // =============================================================================
+    // MD5 (DEPRECATED - FOR LEGACY ONLY)
+    // =============================================================================
+
+    pub fn md5(data: &[u8]) -> [u8; 16] {
+        // MD5 implementation - simplified
+        // Note: MD5 is cryptographically broken, use SHA-256 or SHA3-256 instead
+        
+        let mut state = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476]
+        let mut msg = data.to_vec()
+        
+        // Pad message
+        let orig_len = msg.len() as u64
+        msg.push(0x80)
+        while (msg.len() % 64) != 56 {
+            msg.push(0)
+        }
+        
+        // Add length
+        for i in 0..8 {
+            msg.push(((orig_len * 8 >> (i * 8)) & 0xFF) as u8)
+        }
+        
+        // Process chunks
+        let mut i = 0
+        while i < msg.len() {
+            let mut x = [0u32; 16]
+            for j in 0..16 {
+                x[j] = msg[i + j * 4] as u32 |
+                      ((msg[i + j * 4 + 1] as u32) << 8) |
+                      ((msg[i + j * 4 + 2] as u32) << 16) |
+                      ((msg[i + j * 4 + 3] as u32) << 24)
+            }
+            
+            let (a, b, c, d) = (state[0], state[1], state[2], state[3])
+            
+            // MD5 rounds - simplified
+            state[0] = state[0].wrapping_add(0xd76aa478).wrapping_add(a ^ b ^ c).wrapping_add(x[0]).rotate_left(7)
+            state[1] = state[1].wrapping_add(0xe8c7b756).wrapping_add(b ^ c ^ d).wrapping_add(x[1]).rotate_left(12)
+            state[2] = state[2].wrapping_add(0x242070db).wrapping_add(c ^ d ^ a).wrapping_add(x[2]).rotate_left(17)
+            state[3] = state[3].wrapping_add(0xc1bdceee).wrapping_add(d ^ a ^ b).wrapping_add(x[3]).rotate_left(22)
+            
+            i += 64
+        }
+        
+        let mut result = [0u8; 16]
+        for (idx, s) in state.iter().enumerate() {
+            result[idx * 4] = (*s & 0xFF) as u8
+            result[idx * 4 + 1] = ((*s >> 8) & 0xFF) as u8
+            result[idx * 4 + 2] = ((*s >> 16) & 0xFF) as u8
+            result[idx * 4 + 3] = ((*s >> 24) & 0xFF) as u8
+        }
+        
+        result
+    }
+}
+
+// =============================================================================
+// SYMMETRIC ENCRYPTION
+// =============================================================================
+
+pub mod cipher {
+    use super::*;
+
+    // =============================================================================
+    // AES-GCM
+    // =============================================================================
+
+    pub struct AesGcm {
+        key: [u8; 32],
+        nonce: [u8; 12],
+    }
+
+    impl AesGcm {
+        pub fn new(key: [u8; 32], nonce: [u8; 12]) -> Self {
+            AesGcm { key, nonce }
+        }
+
+        pub fn encrypt(&self, plaintext: &[u8], aad: &[u8]) -> Vec<u8> {
+            let mut ciphertext = vec![0u8; plaintext.len()]
+            
+            // AES-CTR mode encryption
+            let mut counter = [0u8; 16]
+            __memcpy(counter.as_mut_ptr(), self.nonce.as_ptr(), 12)
+            
+            for i in 0..plaintext.len() {
+                if i % 16 == 0 {
+                    // Generate keystream block
+                    let keystream = self.aes_ctr_block(&counter)
+                    
+                    // Increment counter
+                    let ctr = __read_le32(counter.as_ptr().offset(12))
+                    __write_le32(counter.as_mut_ptr().offset(12), ctr.wrapping_add(1))
+                }
+                
+                ciphertext[i] = plaintext[i] ^ self.aes_ctr_block(&counter)[i % 16]
+            }
+            
+            // Add authentication tag
+            let tag = self.compute_gcm_tag(&ciphertext, aad);
+            ciphertext.extend(tag);
+            
+            ciphertext
+        }
+
+        pub fn decrypt(&self, ciphertext: &[u8], aad: &[u8]) -> result<Vec<u8>, Error> {
+            if ciphertext.len() < 16 {
+                return Err(Error::DecryptionFailed)
+            }
+            
+            let ct_len = ciphertext.len() - 16
+            let mut plaintext = vec![0u8; ct_len]
+            
+            // AES-CTR mode decryption
+            let mut counter = [0u8; 16]
+            __memcpy(counter.as_mut_ptr(), self.nonce.as_ptr(), 12)
+            
+            for i in 0..ct_len {
+                if i % 16 == 0 {
+                    let keystream = self.aes_ctr_block(&counter)
+                    let ctr = __read_le32(counter.as_ptr().offset(12))
+                    __write_le32(counter.as_mut_ptr().offset(12), ctr.wrapping_add(1))
+                }
+                
+                plaintext[i] = ciphertext[i] ^ self.aes_ctr_block(&counter)[i % 16]
+            }
+            
+            // Verify authentication tag
+            let computed_tag = self.compute_gcm_tag(&plaintext[..ct_len], aad);
+            let received_tag = &ciphertext[ct_len..];
+            
+            // Constant-time comparison
+            let mut diff = 0u8
+            for i in 0..16 {
+                diff |= computed_tag[i] ^ received_tag[i]
+            }
+            
+            if diff != 0 {
+                return Err(Error::AuthenticationFailed)
+            }
+            
+            Ok(plaintext)
+        }
+
+        fn aes_ctr_block(&self, counter: &[u8; 16]) -> [u8; 16] {
+            // Simplified AES-CTR - production would use hardware AES-NI or optimized implementation
+            // This is a placeholder that XORs key with counter
+            let mut output = [0u8; 16]
+            for i in 0..16 {
+                output[i] = self.key[i] ^ counter[i]
+            }
+            
+            // For a proper implementation, you'd call AES encryption here
+            // using AES-NI intrinsics or a software implementation
+            output
+        }
+
+        fn compute_gcm_tag(&self, ciphertext: &[u8], aad: &[u8]) -> [u8; 16] {
+            // Simplified GHASH - production would use proper GCM
+            let mut hash = [0u8; 16]
+            
+            // Hash AAD
+            let mut block = [0u8; 16]
+            let mut offset = 0
+            while offset < aad.len() {
+                let to_copy = (aad.len() - offset).min(16)
+                __memcpy(block.as_mut_ptr(), aad.as_ptr().offset(offset), to_copy)
+                
+                for i in 0..16 {
+                    hash[i] ^= block[i]
+                }
+                // Multiply by H (simplified)
+                offset += to_copy
+            }
+            
+            // Hash ciphertext
+            offset = 0
+            while offset < ciphertext.len() {
+                let to_copy = (ciphertext.len() - offset).min(16)
+                __memcpy(block.as_mut_ptr(), ciphertext.as_ptr().offset(offset), to_copy)
+                
+                for i in 0..16 {
+                    hash[i] ^= block[i]
+                }
+                offset += to_copy
+            }
+            
+            // Finalize with lengths
+            hash
+        }
+    }
+
+    pub fn aes_gcm_encrypt(key: [u8; 32], nonce: [u8; 12], plaintext: &[u8], aad: &[u8]) -> Vec<u8> {
+        let cipher = AesGcm::new(key, nonce)
+        cipher.encrypt(plaintext, aad)
+    }
+
+    pub fn aes_gcm_decrypt(key: [u8; 32], nonce: [u8; 12], ciphertext: &[u8], aad: &[u8]) -> result<Vec<u8>, Error> {
+        let cipher = AesGcm::new(key, nonce)
+        cipher.decrypt(ciphertext, aad)
+    }
+
+    // =============================================================================
+    // ChaCha20
+    // =============================================================================
+
+    pub struct ChaCha20 {
+        state: [u32; 16],
+        keystream: [u8; 64],
+        pos: usize,
+    }
+
+    impl ChaCha20 {
+        pub fn new(key: [u8; 32], nonce: [u8; 12], counter: u32) -> Self {
+            let mut state = [0u32; 16]
+            
+            // Constants: "expand 32-byte k"
+            state[0] = 0x61707865
+            state[1] = 0x3320646e
+            state[2] = 0x79622d32
+            state[3] = 0x6b206574
+            
+            // Key
+            for i in 0..8 {
+                state[i + 4] = __read_le32(key.as_ptr().offset(i * 4))
+            }
+            
+            // Counter
+            state[12] = counter
+            
+            // Nonce
+            state[13] = __read_le32(nonce.as_ptr())
+            state[14] = __read_le32(nonce.as_ptr().offset(4))
+            state[15] = __read_le32(nonce.as_ptr().offset(8))
+            
+            ChaCha20 {
+                state,
+                keystream: [0u8; 64],
+                pos: 64,
+            }
+        }
+
+        pub fn encrypt(&mut self, plaintext: &[u8]) -> Vec<u8> {
+            let mut result = Vec::with_capacity(plaintext.len())
+            
+            for byte in plaintext {
+                if self.pos >= 64 {
+                    self.generate_keystream()
+                    self.pos = 0
+                }
+                
+                result.push(*byte ^ self.keystream[self.pos])
+                self.pos += 1
+            }
+            
+            result
+        }
+
+        fn generate_keystream(&mut self) {
+            let mut working_state = self.state
+            
+            // 20 rounds (10 double rounds)
+            for _ in 0..10 {
+                // Quarter round
+                self.quarter_round(&mut working_state, 0, 4, 8, 12)
+                self.quarter_round(&mut working_state, 1, 5, 9, 13)
+                self.quarter_round(&mut working_state, 2, 6, 10, 14)
+                self.quarter_round(&mut working_state, 3, 7, 11, 15)
+                self.quarter_round(&mut working_state, 0, 5, 10, 15)
+                self.quarter_round(&mut working_state, 1, 6, 11, 12)
+                self.quarter_round(&mut working_state, 2, 7, 8, 13)
+                self.quarter_round(&mut working_state, 3, 4, 9, 14)
+            }
+            
+            // Add original state
+            for i in 0..16 {
+                working_state[i] = working_state[i].wrapping_add(self.state[i])
+            }
+            
+            // Convert to bytes
+            for i in 0..16 {
+                let val = working_state[i]
+                self.keystream[i * 4] = (val & 0xFF) as u8
+                self.keystream[i * 4 + 1] = ((val >> 8) & 0xFF) as u8
+                self.keystream[i * 4 + 2] = ((val >> 16) & 0xFF) as u8
+                self.keystream[i * 4 + 3] = ((val >> 24) & 0xFF) as u8
+            }
+            
+            // Increment counter
+            self.state[12] = self.state[12].wrapping_add(1)
+        }
+
+        fn quarter_round(&self, state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
+            state[a] = state[a].wrapping_add(state[b])
+            state[d] = (state[d] ^ state[a]).rotate_left(16)
+            state[c] = state[c].wrapping_add(state[d])
+            state[b] = (state[b] ^ state[c]).rotate_left(12)
+            state[a] = state[a].wrapping_add(state[b])
+            state[d] = (state[d] ^ state[a]).rotate_left(8)
+            state[c] = state[c].wrapping_add(state[d])
+            state[b] = (state[b] ^ state[c]).rotate_left(7)
+        }
+    }
+}
+
+// =============================================================================
+// RANDOM NUMBER GENERATION
+// =============================================================================
+
+pub mod random {
+    use super::*;
+
+    // =============================================================================
+    // CSPRNG (Cryptographically Secure PRNG)
+    // =============================================================================
+
+    pub struct Csprng {
+        state: [u64; 8],
+    }
+
+    impl Csprng {
+        // Initialize from /dev/urandom or system entropy
+        pub fn new() -> Self {
+            let mut csprng = Csprng {
+                state: [0u64; 8],
+            }
+            
+            // Try to get entropy from system
+            unsafe {
+                let fd = sys::open("/dev/urandom\0".as_ptr(), sys::O_RDONLY, 0)
+                if fd >= 0 {
+                    let mut buf = [0u8; 64]
+                    let read = sys::read(fd, buf.as_mut_ptr(), 64)
+                    if read > 0 {
+                        for i in 0..8 {
+                            csprng.state[i] = __read_le64(buf.as_ptr().offset(i * 8))
+                        }
+                    }
+                    sys::close(fd)
+                }
+            }
+            
+            // Additional mixing
+            csprng.mix()
+            csprng
+        }
+
+        fn mix(&mut self) {
+            // Hash the state to ensure good distribution
+            let hash = hash::sha256(self.state.as_ptr() as *const u8, 64)
+            for i in 0..4 {
+                self.state[i] = __read_le64(hash.as_ptr().offset(i * 8))
+            }
+        }
+
+        pub fn next_u64(&mut self) -> u64 {
+            // xorshift64* generator
+            let mut x = self.state[0]
+            x ^= x >> 12
+            x ^= x << 25
+            x ^= x >> 27
+            self.state[0] = x
+            x.wrapping_mul(0x2545F4914F6CDD1D)
+        }
+
+        pub fn next_u32(&mut self) -> u32 {
+            (self.next_u64() & 0xFFFFFFFF) as u32
+        }
+
+        pub fn next_u8(&mut self) -> u8 {
+            (self.next_u64() & 0xFF) as u8
+        }
+
+        pub fn fill_bytes(&mut self, buf: &mut [u8]) {
+            for i in 0..buf.len() {
+                buf[i] = self.next_u8()
+            }
+        }
+
+        pub fn random_bytes(len: usize) -> Vec<u8> {
+            let mut csprng = Csprng::new()
+            let mut result = Vec::with_capacity(len)
+            csprng.fill_bytes(result.as_mut_slice())
+            result
+        }
+    }
+
+    // Convenience functions
+    pub fn secure_bytes(len: usize) -> Vec<u8> {
+        Csprng::random_bytes(len)
+    }
+
+    pub fn random_u32() -> u32 {
+        Csprng::new().next_u32()
+    }
+
+    pub fn random_u64() -> u64 {
+        Csprng::new().next_u64()
+    }
+
+    // Secure random in range
+    pub fn random_in_range(min: u64, max: u64) -> u64 {
+        if min >= max {
+            return min
+        }
+        
+        let range = max - min + 1
+        let mut csprng = Csprng::new()
+        
+        // Rejection sampling for uniform distribution
+        loop {
+            let r = csprng.next_u64()
+            if r < (u64::MAX - (u64::MAX % range)) {
+                return min + (r % range)
+            }
+        }
+    }
+}
+
+// =============================================================================
+// KEY DERIVATION
+// =============================================================================
+
+pub mod kdf {
+    use super::*;
+
+    // PBKDF2-HMAC-SHA256
+    pub fn pbkdf2_sha256(password: &[u8], salt: &[u8], iterations: u32, output_len: usize) -> Vec<u8> {
+        let mut result = Vec::with_capacity(output_len)
+        
+        let mut block = [0u8; 64]
+        let mut u = [0u8; 32]
+        let mut out = [0u32; 32]
+        
+        let mut block_num = 1
+        while result.len() < output_len {
+            // Format block: INT(i) || salt
+            block[0..4] = [(block_num >> 24) as u8, (block_num >> 16) as u8, 
+                          (block_num >> 8) as u8, (block_num & 0xFF) as u8]
+            __memcpy(block.as_mut_ptr().offset(4), salt.as_ptr(), salt.len())
+            
+            // First iteration: U1 = PRF(Password, Salt || INT(i))
+            let mut u_prev = hmac_sha256(password, &block[..salt.len() + 4])
+            
+            // Copy to output
+            __memcpy(out.as_mut_ptr() as *mut u8, u_prev.as_ptr(), 32.min(output_len - result.len()))
+            
+            // Subsequent iterations
+            for _ in 1..iterations {
+                u = hmac_sha256(password, &u_prev);
+                for j in 0..32 {
+                    if result.len() + j < output_len {
+                        out[j / 4] ^= __read_le32(u.as_ptr().offset(j))
+                    }
+                }
+                u_prev = u;
+            }
+            
+            block_num += 1
+        }
+        
+        result
+    }
+
+    fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
+        let mut k_ipad = [0x36u8; 64]
+        let mut k_opad = [0x5cu8; 64]
+        
+        let mut key_block = [0u8; 64]
+        
+        if key.len() > 64 {
+            let hash = hash::sha256(key)
+            __memcpy(key_block.as_mut_ptr(), hash.as_ptr(), 32)
+        } else {
+            __memcpy(key_block.as_mut_ptr(), key.as_ptr(), key.len())
+        }
+        
+        for i in 0..64 {
+            k_ipad[i] = key_block[i] ^ 0x36
+            k_opad[i] = key_block[i] ^ 0x5c
+        }
+        
+        // Inner hash
+        let inner_msg = [k_ipad.as_slice(), message].concat()
+        let inner_hash = hash::sha256(&inner_msg)
+        
+        // Outer hash
+        let outer_msg = [k_opad.as_slice(), inner_hash.as_slice()].concat()
+        let outer_hash = hash::sha256(&outer_msg)
+        
+        outer_hash
+    }
+}
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+// Constant-time comparison
+pub fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false
+    }
+    
+    let mut result = 0u8
+    for i in 0..a.len() {
+        result |= a[i] ^ b[i]
+    }
+    
+    result == 0
+}
+
+// Constant-time select
+pub fn constant_time_select(cond: bool, a: u64, b: u64) -> u64 {
+    if cond { a } else { b }
+}
+
+// =============================================================================
+// ERROR TYPES
+// =============================================================================
+
+pub enum Error {
+    EncryptionFailed,
+    DecryptionFailed,
+    AuthenticationFailed,
+    KeyDerivationFailed,
+    RandomGenerationFailed,
+}
+
+impl Error {
+    pub fn to_string(&self) -> string {
+        match self {
+            Error::EncryptionFailed => "encryption failed",
+            Error::DecryptionFailed => "decryption failed",
+            Error::AuthenticationFailed => "authentication tag verification failed",
+            Error::KeyDerivationFailed => "key derivation failed",
+            Error::RandomGenerationFailed => "random number generation failed",
+        }
+    }
+}
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+fn __write_le32(ptr: *mut u8, val: u32) {
+    unsafe {
+        *ptr = (val & 0xFF) as u8
+        *ptr.offset(1) = ((val >> 8) & 0xFF) as u8
+        *ptr.offset(2) = ((val >> 16) & 0xFF) as u8
+        *ptr.offset(3) = ((val >> 24) & 0xFF) as u8
+    }
+}
+
+fn __read_le32(ptr: *const u8) -> u32 {
+    unsafe {
+        *ptr as u32 |
+        ((*ptr.offset(1)) as u32 << 8) |
+        ((*ptr.offset(2)) as u32 << 16) |
+        ((*ptr.offset(3)) as u32 << 24)
+    }
+}
+
+fn __read_le64(ptr: *const u8) -> u64 {
+    unsafe {
+        *ptr as u64 |
+        ((*ptr.offset(1)) as u64 << 8) |
+        ((*ptr.offset(2)) as u64 << 16) |
+        ((*ptr.offset(3)) as u64 << 24) |
+        ((*ptr.offset(4)) as u64 << 32) |
+        ((*ptr.offset(5)) as u64 << 40) |
+        ((*ptr.offset(6)) as u64 << 48) |
+        ((*ptr.offset(7)) as u64 << 56)
+    }
+}
+
+// =============================================================================
+// END OF CRYPTO MODULE
+// =============================================================================

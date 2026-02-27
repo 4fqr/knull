@@ -1,0 +1,318 @@
+// =============================================================================
+// KNULL RUNTIME: BUILT-IN FUNCTIONS
+// =============================================================================
+// These functions are called by compiler-generated code and must be provided
+// by the runtime. They are not meant to be called directly by user code.
+
+module std.builtins
+
+// =============================================================================
+// PANIC HANDLING
+// =============================================================================
+
+// Panic handler type
+type PanicHandler = fn(msg: string, file: string, line: u32, col: u32) -> never
+
+// Current panic handler (set by std)
+let mut panic_handler: PanicHandler = default_panic_handler
+
+// Default panic handler
+fn default_panic_handler(msg: string, file: string, line: u32, col: u32) -> never {
+    std.eprintln("PANIC at {}:{}:{}", file, line, col)
+    std.eprintln("{}", msg)
+    std.sys.exit(1)
+}
+
+// Set custom panic handler
+pub fn set_panic_handler(handler: PanicHandler) {
+    panic_handler = handler
+}
+
+// Trigger a panic
+// This is called by the compiler when unwrap fails, assert fails, etc.
+pub fn panic(msg: string) -> never {
+    // Note: In real implementation, we'd capture file/line info
+    // For now, use empty strings - the compiler would pass real values
+    panic_handler(msg, "", 0, 0)
+}
+
+// Trigger a panic with location info
+pub fn panic_at(msg: string, file: string, line: u32, col: u32) -> never {
+    panic_handler(msg, file, line, col)
+}
+
+// Assert that a condition is true, panic if false
+pub fn assert(condition: bool, msg: string) {
+    if !condition {
+        panic(msg)
+    }
+}
+
+// Assert that a condition is true, panic with location if false
+pub fn assert_at(condition: bool, msg: string, file: string, line: u32, col: u32) {
+    if !condition {
+        panic_at(msg, file, line, col)
+    }
+}
+
+// Unwrap option - panic if None
+pub fn unwrap_none<T>(msg: string) -> T {
+    panic("Unwrapped None: " + msg)
+}
+
+// Unwrap result - panic if Err
+pub fn unwrap_err<E>(err: E, msg: string) -> never {
+    panic("Error: " + msg)
+}
+
+// =============================================================================
+// MEMORY ALLOCATION
+// =============================================================================
+
+// Memory allocator interface
+// The compiler generates calls to these functions when using `own` or `make`
+
+// Allocate memory (raw)
+// Returns a pointer to zeroed memory
+pub unsafe fn __knull_alloc(size: usize, align: usize) -> *mut u8 {
+    __knull_alloc_impl(size, align)
+}
+
+// Free memory
+pub unsafe fn __knull_free(ptr: *mut u8, size: usize, align: usize) {
+    __knull_free_impl(ptr, size, align)
+}
+
+// Reallocate memory
+pub unsafe fn __knull_realloc(ptr: *mut u8, old_size: usize, new_size: usize, align: usize) -> *mut u8 {
+    if new_size <= old_size {
+        return ptr
+    }
+    
+    let new_ptr = __knull_alloc(new_size, align)
+    if ptr as u64 != 0 {
+        std.mem.copy(new_ptr, ptr, old_size)
+        __knull_free(ptr, old_size, align)
+    }
+    
+    new_ptr
+}
+
+// Default allocator implementation using sbrk/brk
+fn __knull_alloc_impl(size: usize, align: usize) -> *mut u8 {
+    // Align the size
+    let aligned_size = (size + align - 1) & ~(align - 1)
+    
+    // Use mmap for larger allocations, sbrk for small ones
+    if aligned_size >= 65536 {
+        // Large allocation: use mmap
+        let ptr = std.sys.mmap(
+            null,
+            aligned_size,
+            std.sys.PROT_READ | std.sys.PROT_WRITE,
+            std.sys.MAP_PRIVATE | std.sys.MAP_ANONYMOUS,
+            -1,
+            0
+        )
+        return ptr
+    }
+    
+    // Small allocation: use simple bump allocator
+    // In a real implementation, this would be more sophisticated
+    __bump_alloc(aligned_size)
+}
+
+fn __knull_free_impl(ptr: *mut u8, size: usize, align: usize) {
+    // For mmap'd memory, munmap
+    if size >= 65536 {
+        std.sys.munmap(ptr, size)
+        return
+    }
+    
+    // For small allocations, we don't actually free in this simple implementation
+    // A real allocator would add to a free list
+}
+
+// Bump allocator state
+let mut heap_start: *mut u8 = null
+let mut heap_end: *mut u8 = null
+let mut heap_brk: *mut u8 = null
+
+fn __bump_alloc(size: usize) -> *mut u8 {
+    if heap_start as u64 == 0 {
+        // First allocation - initialize heap
+        heap_start = std.sys.mmap(
+            null,
+            1024 * 1024,  // 1MB initial heap
+            std.sys.PROT_READ | std.sys.PROT_WRITE,
+            std.sys.MAP_PRIVATE | std.sys.MAP_ANONYMOUS,
+            -1,
+            0
+        )
+        
+        if heap_start as u64 == ~0u64 as u64 {
+            panic("Failed to allocate initial heap")
+        }
+        
+        heap_end = heap_start + 1024 * 1024
+        heap_brk = heap_start
+    }
+    
+    // Check if we have space
+    if heap_brk + size > heap_end {
+        // Need to grow the heap
+        let additional = 1024 * 1024  // Grow by 1MB
+        let new_end = heap_end + additional
+        
+        // Note: In real code, use mremap or similar
+        // For now, panic if we run out
+        panic("Out of memory")
+    }
+    
+    let ptr = heap_brk
+    heap_brk = heap_brk + size
+    
+    // Zero the memory
+    std.mem.zero(ptr, size)
+    
+    ptr
+}
+
+// =============================================================================
+// ALLOCATION HOOKS
+// =============================================================================
+
+// These hooks can be overridden for custom allocators (e.g., jemalloc, mimalloc)
+
+// Allocation hook - called before every allocation
+let mut alloc_hook: option<fn(usize) -> void> = None
+
+// Deallocation hook - called before every deallocation  
+let mut free_hook: option<fn(*mut u8, usize) -> void> = None
+
+pub fn set_alloc_hook(hook: fn(usize) -> void) {
+    alloc_hook = Some(hook)
+}
+
+pub fn set_free_hook(hook: fn(*mut u8, usize)) {
+    free_hook = Some(hook)
+}
+
+// =============================================================================
+// TYPE INFORMATION
+// =============================================================================
+
+// Type IDs for runtime type checking
+pub type TypeId = u64
+
+// Get type ID of a value
+pub fn type_of<T>(value: &T) -> TypeId {
+    // In real implementation, this would use type names or hashes
+    // For now, return a constant
+    0
+}
+
+// Check if two values have the same type
+pub fn same_type<T, U>(a: &T, b: &U) -> bool {
+    false  // Different types by default
+}
+
+// =============================================================================
+// DOWNCAST HELPERS
+// =============================================================================
+
+// Attempt to downcast a reference
+pub fn downcast<T, U>(value: &T) -> option<&U> {
+    // Would check type IDs
+    None
+}
+
+// Downcast with panic on failure
+pub fn downcast_unchecked<T, U>(value: &T) -> &U {
+    panic("downcast failed")
+}
+
+// =============================================================================
+// VTABLE MANAGEMENT
+// =============================================================================
+
+// Virtual function table entry
+struct VTableEntry {
+    pub fn_ptr: *const void,
+    pub type_id: TypeId,
+}
+
+// Get virtual function from vtable
+pub fn vtable_lookup(vtable: &VTableEntry, type_id: TypeId) -> *const void {
+    // Simplified - real implementation would search the vtable
+    vtable.fn_ptr as *const void
+}
+
+// =============================================================================
+// STATIC INITIALIZATION
+// =============================================================================
+
+// Called before main to initialize runtime
+pub fn __knull_init() {
+    // Initialize heap
+    let _ = __bump_alloc(0)
+    
+    // Set up panic handler
+    // (already set to default)
+}
+
+// Called at program exit
+pub fn __knull_fini() {
+    // Clean up allocator
+    // Run destructors
+}
+
+// =============================================================================
+// DEBUG HELPERS
+// =============================================================================
+
+// Print memory dump
+pub fn dump_memory(ptr: *const u8, size: usize) {
+    std.print("Memory at {:x}:", ptr as u64)
+    for i in 0..size {
+        if i % 16 == 0 {
+            std.println("")
+            std.print("{:04x}: ", i)
+        }
+        std.print("{:02x} ", unsafe { *ptr.add(i) })
+    }
+    std.println("")
+}
+
+// Check memory for corruption
+pub fn check_memory(ptr: *const u8, size: usize) -> bool {
+    // Simple check - look for obvious corruption
+    // In real code, would check magic numbers, checksums, etc.
+    true
+}
+
+// =============================================================================
+// RUNTIME TYPE INFORMATION
+// =============================================================================
+
+// Trait object header
+pub struct TraitObject {
+    pub data: *mut u8,
+    pub vtable: *mut VTableEntry,
+}
+
+// Convert trait object to/from concrete type
+pub fn __knull_trait_to_obj<T>(trait_obj: TraitObject) -> *mut T {
+    trait_obj.data as *mut T
+}
+
+pub fn __knull_obj_to_trait<T>(obj: *mut T, vtable: *mut VTableEntry) -> TraitObject {
+    TraitObject {
+        data: obj as *mut u8,
+        vtable: vtable,
+    }
+}
+
+// =============================================================================
+// END OF BUILTINS MODULE
+// =============================================================================

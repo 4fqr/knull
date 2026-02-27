@@ -1,0 +1,924 @@
+// KNULL STANDARD LIBRARY: I/O MODULE
+// Version 1.0
+// 
+// This module provides input/output operations including console I/O,
+// file I/O, buffered streams, and string formatting.
+
+module std.io
+
+// =============================================================================
+// PRELUDE - RE-EXPORTS
+// =============================================================================
+
+pub use std.io.file::File
+pub use std.io.buffered::BufReader, BufWriter
+pub use std.io.stream::Read, Write, Seek
+
+// =============================================================================
+// CONSOLE I/O
+// =============================================================================
+
+// Print to stdout without newline
+pub fn print(args: ...any) {
+    let output = format_args(args)
+    sys::write(sys::STDOUT, output.as_bytes())
+}
+
+// Print to stdout with newline
+pub fn println(args: ...any) {
+    print(args...)
+    sys::write(sys::STDOUT, "\n".as_bytes())
+}
+
+// Print to stderr
+pub fn eprint(args: ...any) {
+    let output = format_args(args)
+    sys::write(sys::STDERR, output.as_bytes())
+}
+
+// Print to stderr with newline
+pub fn eprintln(args: ...any) {
+    eprint(args...)
+    sys::write(sys::STDERR, "\n".as_bytes())
+}
+
+// =============================================================================
+// READ FROM STDIN
+// =============================================================================
+
+// Read single line from stdin
+pub fn read_line() -> string {
+    let mut buf = Vec::new()
+    let mut chunk = [0u8; 64]
+    
+    loop {
+        let n = sys::read(sys::STDIN, &mut chunk)
+        if n <= 0 {
+            break
+        }
+        
+        for i in 0..n {
+            if chunk[i] == '\n' as u8 {
+                return String::from_utf8_lossy(buf.as_slice())
+            }
+            buf.push(chunk[i])
+        }
+    }
+    
+    String::from_utf8_lossy(buf.as_slice())
+}
+
+// Read all from stdin
+pub fn read_all() -> Vec<u8> {
+    let mut result = Vec::new()
+    let mut buf = [0u8; 1024]
+    
+    loop {
+        let n = sys::read(sys::STDIN, &mut buf)
+        if n <= 0 {
+            break
+        }
+        
+        for i in 0..n {
+            result.push(buf[i])
+        }
+    }
+    
+    result
+}
+
+// Read exact number of bytes
+pub fn read_exact(buf: &mut [u8]) -> usize {
+    let mut total = 0
+    
+    while total < buf.len() {
+        let n = sys::read(sys::STDIN, buf.as_mut_slice().offset(total))
+        if n <= 0 {
+            break
+        }
+        total += n
+    }
+    
+    total
+}
+
+// =============================================================================
+// FORMATTING
+// =============================================================================
+
+// Format arguments into string
+pub fn format_args(args: [...any]) -> string {
+    let mut result = string::new()
+    
+    for (i, arg) in args.enumerate() {
+        if i > 0 {
+            result.push(' ')
+        }
+        
+        match arg {
+            s: string => result.push_str(s),
+            i: i32 => result.push_str(i.to_string()),
+            i: i64 => result.push_str(i.to_string()),
+            u: u32 => result.push_str(u.to_string()),
+            u: u64 => result.push_str(u.to_string()),
+            f: f32 => result.push_str(f.to_string()),
+            f: f64 => result.push_str(f.to_string()),
+            b: bool => result.push_str(if b { "true" } else { "false" }),
+            c: char => result.push(c),
+            p: *const u8 => result.push_str(format!("ptr:0x{:x}", p as usize)),
+            other => result.push_str(format!("{:?}", other)),
+        }
+    }
+    
+    result
+}
+
+// Format to string with template
+pub fn format(template: string, args: [...any]) -> string {
+    let mut result = string::new()
+    let mut arg_idx = 0
+    let args_arr = args
+    
+    let mut chars = template.chars()
+    while let Some(c) = chars.next() {
+        if c == '{' {
+            let next = chars.next()
+            if next == Some('}') {
+                // Positional argument
+                if arg_idx < args_arr.len() {
+                    result.push_str(format!("{}", args_arr[arg_idx]).as_str())
+                    arg_idx += 1
+                } else {
+                    result.push_str("{}")
+                }
+            } else if next == Some('{') {
+                // Escaped brace
+                result.push('{')
+            } else {
+                // Format specifier - simplified
+                result.push('{')
+                if let Some(nc) = next {
+                    result.push(nc)
+                }
+            }
+        } else if c == '}' && chars.peek() == Some('}') {
+            // Escaped brace
+            chars.next()
+            result.push('}')
+        } else {
+            result.push(c)
+        }
+    }
+    
+    result
+}
+
+// =============================================================================
+// ERROR TYPES
+// =============================================================================
+
+pub enum Error {
+    NotFound,
+    PermissionDenied,
+    AlreadyExists,
+    IsADirectory,
+    NotADirectory,
+    InvalidInput,
+    InvalidData,
+    TimedOut,
+    WriteZero,
+    UnexpectedEof,
+    Other,
+}
+
+impl Error {
+    pub fn to_string(&self) -> string {
+        match self {
+            Error::NotFound => "entity not found",
+            Error::PermissionDenied => "permission denied",
+            Error::AlreadyExists => "entity already exists",
+            Error::IsADirectory => "is a directory",
+            Error::NotADirectory => "not a directory",
+            Error::InvalidInput => "invalid argument",
+            Error::InvalidData => "invalid data",
+            Error::TimedOut => "operation timed out",
+            Error::WriteZero => "write zero",
+            Error::UnexpectedEof => "unexpected end of file",
+            Error::Other => "unknown error",
+        }
+    }
+}
+
+// =============================================================================
+// FILE MODULE
+// =============================================================================
+
+pub mod file {
+    use super::*;
+
+    // =============================================================================
+    // FILE FLAGS
+    // =============================================================================
+
+    pub const O_RDONLY: i32 = sys::O_RDONLY
+    pub const O_WRONLY: i32 = sys::O_O_WRONLY
+    pub const O_RDWR: i32 = sys::O_RDWR
+    pub const O_CREAT: i32 = sys::O_CREAT
+    pub const O_EXCL: i32 = sys::O_EXCL
+    pub const O_TRUNC: i32 = sys::O_TRUNC
+    pub const O_APPEND: i32 = sys::O_APPEND
+    pub const O_NONBLOCK: i32 = sys::O_NONBLOCK
+
+    // =============================================================================
+    // FILE MODES
+    // =============================================================================
+
+    pub const MODE_READ: i32 = 0
+    pub const MODE_WRITE: i32 = 0o666
+    pub const MODE_EXEC: i32 = 0o777
+
+    // =============================================================================
+    // FILE TYPE
+    // =============================================================================
+
+    pub struct File {
+        fd: i32,
+        path: string,
+    }
+
+    impl File {
+        // Open file
+        pub fn open(path: string) -> result<File, Error> {
+            let fd = sys::open(path.as_ptr(), O_RDONLY, 0)
+            
+            if fd < 0 {
+                return Err(Error::NotFound)
+            }
+            
+            Ok(File { fd, path })
+        }
+
+        // Create and open file for writing
+        pub fn create(path: string) -> result<File, Error> {
+            let fd = sys::open(path.as_ptr(), O_WRONLY | O_CREAT | O_TRUNC, MODE_WRITE)
+            
+            if fd < 0 {
+                return Err(Error::PermissionDenied)
+            }
+            
+            Ok(File { fd, path })
+        }
+
+        // Open with specific flags
+        pub fn with_options(path: string, flags: i32, mode: i32) -> result<File, Error> {
+            let fd = sys::open(path.as_ptr(), flags, mode)
+            
+            if fd < 0 {
+                return Err(Error::NotFound)
+            }
+            
+            Ok(File { fd, path })
+        }
+
+        // Read from file
+        pub fn read(&self, buf: &mut [u8]) -> result<usize, Error> {
+            let n = sys::read(self.fd, buf.as_mut_ptr(), buf.len())
+            
+            if n < 0 {
+                return Err(Error::InvalidData)
+            }
+            
+            Ok(n as usize)
+        }
+
+        // Read exactly n bytes
+        pub fn read_exact(&self, mut buf: &mut [u8]) -> result<(), Error> {
+            while buf.len() > 0 {
+                match self.read(buf) {
+                    Ok(0) => return Err(Error::UnexpectedEof),
+                    Ok(n) => buf = buf.offset(n),
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(())
+        }
+
+        // Write to file
+        pub fn write(&self, buf: &[u8]) -> result<usize, Error> {
+            let n = sys::write(self.fd, buf.as_ptr(), buf.len())
+            
+            if n < 0 {
+                return Err(Error::WriteZero)
+            }
+            
+            Ok(n as usize)
+        }
+
+        // Write all
+        pub fn write_all(&self, mut buf: &[u8]) -> result<(), Error> {
+            while buf.len() > 0 {
+                match self.write(buf) {
+                    Ok(0) => return Err(Error::WriteZero),
+                    Ok(n) => buf = buf.offset(n),
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(())
+        }
+
+        // Seek to position
+        pub fn seek(&self, pos: i64, whence: i32) -> result<i64, Error> {
+            let result = sys::lseek(self.fd, pos, whence)
+            
+            if result < 0 {
+                return Err(Error::InvalidInput)
+            }
+            
+            Ok(result)
+        }
+
+        // Get file position
+        pub fn tell(&self) -> result<i64, Error> {
+            self.seek(0, SEEK_CUR)
+        }
+
+        // Flush to disk
+        pub fn sync(&self) -> result<(), Error> {
+            let result = sys::syscall(sys::SYS_fsync, self.fd as u64) as i32
+            
+            if result < 0 {
+                return Err(Error::Other)
+            }
+            
+            Ok(())
+        }
+
+        // Get file metadata
+        pub fn stat(&self) -> result<FileStat, Error> {
+            let mut statbuf: sys::Stat = unsafe { __uninit() }
+            let result = sys::fstat(self.fd, &mut statbuf)
+            
+            if result < 0 {
+                return Err(Error::Other)
+            }
+            
+            Ok(FileStat {
+                size: statbuf.st_size,
+                mode: statbuf.st_mode,
+                created: statbuf.st_ctim.tv_sec,
+                modified: statbuf.st_mtim.tv_sec,
+                accessed: statbuf.st_atim.tv_sec,
+            })
+        }
+
+        // Set non-blocking mode
+        pub fn set_nonblocking(&self, nonblock: bool) -> result<(), Error> {
+            let flags = sys::fcntl(self.fd, sys::F_GETFL, 0)
+            let new_flags = if nonblock { flags | O_NONBLOCK } else { flags & ~O_NONBLOCK }
+            let result = sys::fcntl(self.fd, sys::F_SETFL, new_flags)
+            
+            if result < 0 {
+                return Err(Error::Other)
+            }
+            
+            Ok(())
+        }
+
+        // Close file
+        pub fn close(&self) {
+            sys::close(self.fd)
+        }
+
+        // Get file descriptor
+        pub fn fd(&self) -> i32 {
+            self.fd
+        }
+
+        // Get path
+        pub fn path(&self) -> string {
+            self.path.clone()
+        }
+    }
+
+    // File seek constants
+    pub const SEEK_SET: i32 = 0
+    pub const SEEK_CUR: i32 = 1
+    pub const SEEK_END: i32 = 2
+
+    // File metadata
+    pub struct FileStat {
+        pub size: i64,
+        pub mode: u32,
+        pub created: i64,
+        pub modified: i64,
+        pub accessed: i64,
+    }
+
+    // File permissions
+    pub struct Permissions {
+        pub readonly: bool,
+        pub hidden: bool,
+    }
+
+    // =============================================================================
+    // FILE TRAITS
+    // =============================================================================
+
+    pub trait Read {
+        fn read(&mut self, buf: &mut [u8]) -> result<usize, Error>
+        fn read_exact(&mut self, buf: &mut [u8]) -> result<(), Error>
+    }
+
+    pub trait Write {
+        fn write(&mut self, buf: &[u8]) -> result<usize, Error>
+        fn write_all(&mut self, buf: &[u8]) -> result<(), Error>
+        fn flush(&mut self) -> result<(), Error>
+    }
+
+    pub trait Seek {
+        fn seek(&mut self, pos: i64, whence: i32) -> result<i64, Error>
+    }
+}
+
+// =============================================================================
+// BUFFERED I/O
+// =============================================================================
+
+pub mod buffered {
+    use super::*;
+
+    // =============================================================================
+    // BUFFERED READER
+    // =============================================================================
+
+    pub struct BufReader<R: Read> {
+        inner: R,
+        buffer: Vec<u8>,
+        pos: usize,
+        cap: usize,
+    }
+
+    impl<R: Read> BufReader<R> {
+        pub fn new(inner: R) -> Self {
+            BufReader {
+                inner,
+                buffer: Vec::with_capacity(8192),
+                pos: 0,
+                cap: 0,
+            }
+        }
+
+        pub fn with_capacity(capacity: usize, inner: R) -> Self {
+            BufReader {
+                inner,
+                buffer: Vec::with_capacity(capacity),
+                pos: 0,
+                cap: 0,
+            }
+        }
+
+        fn fill(&mut self) -> result<(), Error> {
+            self.cap = self.inner.read(self.buffer.as_mut_slice())?
+            self.pos = 0
+            
+            if self.cap == 0 {
+                return Err(Error::UnexpectedEof)
+            }
+            
+            Ok(())
+        }
+
+        pub fn read_byte(&mut self) -> result<u8, Error> {
+            if self.pos >= self.cap {
+                self.fill()?
+            }
+            
+            let b = self.buffer[self.pos]
+            self.pos += 1
+            Ok(b)
+        }
+
+        pub fn read(&mut self, buf: &mut [u8]) -> result<usize, Error> {
+            let mut total = 0
+            
+            while total < buf.len() {
+                if self.pos >= self.cap {
+                    if let Err(e) = self.fill() {
+                        if total > 0 {
+                            return Ok(total)
+                        }
+                        return Err(e)
+                    }
+                }
+                
+                let available = self.cap - self.pos
+                let to_copy = available.min(buf.len() - total)
+                
+                __memcpy(buf.as_mut_ptr().offset(total), self.buffer.as_ptr().offset(self.pos), to_copy)
+                total += to_copy
+                self.pos += to_copy
+            }
+            
+            Ok(total)
+        }
+
+        pub fn read_line(&mut self) -> result<string, Error> {
+            let mut result = String::new()
+            
+            loop {
+                if self.pos >= self.cap {
+                    self.fill()?
+                }
+                
+                let mut found_newline = false
+                while self.pos < self.cap && !found_newline {
+                    let b = self.buffer[self.pos]
+                    self.pos += 1
+                    
+                    if b == '\n' as u8 {
+                        found_newline = true
+                        break
+                    }
+                    
+                    result.push(b as char)
+                }
+                
+                if found_newline || self.cap == 0 {
+                    break
+                }
+            }
+            
+            if result.is_empty() && self.cap == 0 {
+                return Err(Error::UnexpectedEof)
+            }
+            
+            Ok(result)
+        }
+
+        pub fn get_ref(&self) -> &R {
+            &self.inner
+        }
+
+        pub fn get_mut(&mut self) -> &mut R {
+            &mut self.inner
+        }
+
+        pub fn into_inner(self) -> R {
+            self.inner
+        }
+    }
+
+    // =============================================================================
+    // BUFFERED WRITER
+    // =============================================================================
+
+    pub struct BufWriter<W: Write> {
+        inner: W,
+        buffer: Vec<u8>,
+    }
+
+    impl<W: Write> BufWriter<W> {
+        pub fn new(inner: W) -> Self {
+            BufWriter {
+                inner,
+                buffer: Vec::with_capacity(8192),
+            }
+        }
+
+        pub fn with_capacity(capacity: usize, inner: W) -> Self {
+            BufWriter {
+                inner,
+                buffer: Vec::with_capacity(capacity),
+            }
+        }
+
+        fn flush_buffer(&mut self) -> result<(), Error> {
+            if self.buffer.len() > 0 {
+                self.inner.write_all(self.buffer.as_slice())?
+                self.buffer.clear()
+            }
+            Ok(())
+        }
+
+        pub fn write(&mut self, buf: &[u8]) -> result<usize, Error> {
+            if buf.len() >= self.buffer.capacity() {
+                self.flush_buffer()?;
+                return self.inner.write(buf)
+            }
+            
+            if self.buffer.len() + buf.len() > self.buffer.capacity() {
+                self.flush_buffer()?;
+            }
+            
+            self.buffer.push_many(buf)
+            Ok(buf.len())
+        }
+
+        pub fn write_all(&mut self, mut buf: &[u8]) -> result<(), Error> {
+            while buf.len() > 0 {
+                match self.write(buf) {
+                    Ok(0) => return Err(Error::WriteZero),
+                    Ok(n) => buf = buf.offset(n),
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(())
+        }
+
+        pub fn flush(&mut self) -> result<(), Error> {
+            self.flush_buffer()?;
+            self.inner.flush()
+        }
+
+        pub fn get_ref(&self) -> &W {
+            &self.inner
+        }
+
+        pub fn get_mut(&mut self) -> &mut W {
+            &mut self.inner
+        }
+
+        pub fn into_inner(self) -> W {
+            self.flush_buffer()
+            self.inner
+        }
+    }
+
+    // =============================================================================
+    // BUFFERED STREAM
+    // =============================================================================
+
+    pub struct BufStream<S: Read + Write> {
+        reader: BufReader<S>,
+        writer: BufWriter<S>,
+    }
+
+    impl<S: Read + Write> BufStream<S> {
+        pub fn new(stream: S) -> Self {
+            BufStream {
+                reader: BufReader::new(&stream),
+                writer: BufWriter::new(stream),
+            }
+        }
+
+        pub fn read(&mut self, buf: &mut [u8]) -> result<usize, Error> {
+            self.reader.read(buf)
+        }
+
+        pub fn write(&mut self, buf: &[u8]) -> result<usize, Error> {
+            self.writer.write(buf)
+        }
+
+        pub fn flush(&mut self) -> result<(), Error> {
+            self.writer.flush()
+        }
+    }
+}
+
+// =============================================================================
+// STREAM TRAITS
+// =============================================================================
+
+pub mod stream {
+    use super::*;
+
+    pub trait Read {
+        fn read(&mut self, buf: &mut [u8]) -> result<usize, Error>
+        fn read_exact(&mut self, buf: &mut [u8]) -> result<(), Error> {
+            while buf.len() > 0 {
+                match self.read(buf) {
+                    Ok(0) => return Err(Error::UnexpectedEof),
+                    Ok(n) => buf = buf.offset(n),
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(())
+        }
+        
+        fn read_to_end(&mut self) -> result<Vec<u8>, Error> {
+            let mut result = Vec::new()
+            let mut buf = [0u8; 4096]
+            
+            loop {
+                match self.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => result.push_many(&buf[..n]),
+                    Err(e) => return Err(e),
+                }
+            }
+            
+            Ok(result)
+        }
+    }
+
+    pub trait Write {
+        fn write(&mut self, buf: &[u8]) -> result<usize, Error>
+        fn write_all(&mut self, mut buf: &[u8]) -> result<(), Error> {
+            while buf.len() > 0 {
+                match self.write(buf) {
+                    Ok(0) => return Err(Error::WriteZero),
+                    Ok(n) => buf = buf.offset(n),
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(())
+        }
+        
+        fn flush(&mut self) -> result<(), Error>
+    }
+
+    pub trait Seek {
+        fn seek(&mut self, pos: i64, whence: i32) -> result<i64, Error>
+        fn tell(&mut self) -> result<i64, Error> {
+            self.seek(0, file::SEEK_CUR)
+        }
+    }
+
+    pub trait BufRead: Read {
+        fn read_line(&mut self) -> result<string, Error>
+        fn fill(&mut self) -> result<(), Error>
+    }
+}
+
+// =============================================================================
+// PATH UTILITIES
+// =============================================================================
+
+pub mod path {
+    // Get file name from path
+    pub fn file_name(path: string) -> option<string> {
+        if let Some(idx) = path.rfind('/') {
+            if idx + 1 < path.len() {
+                return Some(path.substr(idx + 1))
+            }
+        }
+        None
+    }
+
+    // Get parent directory
+    pub fn parent(path: string) -> option<string> {
+        if let Some(idx) = path.rfind('/') {
+            if idx > 0 {
+                return Some(path.substr(0, idx))
+            } else if idx == 0 {
+                return Some("/".to_string())
+            }
+        }
+        None
+    }
+
+    // Get extension
+    pub fn extension(path: string) -> option<string> {
+        if let Some(name) = file_name(path) {
+            if let Some(idx) = name.rfind('.') {
+                if idx + 1 < name.len() {
+                    return Some(name.substr(idx + 1))
+                }
+            }
+        }
+        None
+    }
+
+    // Check if path is absolute
+    pub fn is_absolute(path: string) -> bool {
+        path.starts_with('/')
+    }
+
+    // Join path components
+    pub fn join(parts: [string]) -> string {
+        if parts.len() == 0 {
+            return "".to_string()
+        }
+        
+        let mut result = parts[0].clone()
+        
+        for i in 1..parts.len() {
+            if !result.ends_with('/') {
+                result.push('/')
+            }
+            result.push_str(parts[i])
+        }
+        
+        result
+    }
+}
+
+// =============================================================================
+// DIRECTORY ITERATOR
+// =============================================================================
+
+pub mod dir {
+    pub struct Directory {
+        path: string,
+    }
+
+    impl Directory {
+        pub fn open(path: string) -> result<Directory, Error> {
+            // Simplified - would use opendir/readdir in production
+            Ok(Directory { path })
+        }
+    }
+
+    pub struct DirEntry {
+        name: string,
+        is_file: bool,
+        is_dir: bool,
+    }
+
+    impl DirEntry {
+        pub fn name(&self) -> string {
+            self.name.clone()
+        }
+
+        pub fn is_file(&self) -> bool {
+            self.is_file
+        }
+
+        pub fn is_directory(&self) -> bool {
+            self.is_dir
+        }
+
+        pub fn path(&self) -> string {
+            path::join([self.name])
+        }
+    }
+}
+
+// =============================================================================
+// STDIN / STDOUT / STDERR
+// =============================================================================
+
+pub struct Stdin {
+    fd: i32,
+}
+
+impl Stdin {
+    pub fn new() -> Self {
+        Stdin { fd: sys::STDIN }
+    }
+
+    pub fn read_line(&self) -> string {
+        std::read_line()
+    }
+
+    pub fn read(&self, buf: &mut [u8]) -> result<usize, Error> {
+        let n = sys::read(self.fd, buf.as_mut_ptr(), buf.len())
+        if n < 0 {
+            return Err(Error::InvalidData)
+        }
+        Ok(n as usize)
+    }
+}
+
+pub struct Stdout {
+    fd: i32,
+}
+
+impl Stdout {
+    pub fn new() -> Self {
+        Stdout { fd: sys::STDOUT }
+    }
+
+    pub fn write(&self, buf: &[u8]) -> result<usize, Error> {
+        let n = sys::write(self.fd, buf.as_ptr(), buf.len())
+        if n < 0 {
+            return Err(Error::WriteZero)
+        }
+        Ok(n as usize)
+    }
+
+    pub fn flush(&self) -> result<(), Error> {
+        Ok(())  // Unbuffered
+    }
+}
+
+pub struct Stderr {
+    fd: i32,
+}
+
+impl Stderr {
+    pub fn new() -> Self {
+        Stderr { fd: sys::STDERR }
+    }
+
+    pub fn write(&self, buf: &[u8]) -> result<usize, Error> {
+        let n = sys::write(self.fd, buf.as_ptr(), buf.len())
+        if n < 0 {
+            return Err(Error::WriteZero)
+        }
+        Ok(n as usize)
+    }
+
+    pub fn flush(&self) -> result<(), Error> {
+        Ok(())
+    }
+}
+
+// Standard streams
+pub let stdin = Stdin::new()
+pub let stdout = Stdout::new()
+pub let stderr = Stderr::new()
+
+// =============================================================================
+// END OF I/O MODULE
+// =============================================================================

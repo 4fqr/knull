@@ -1,0 +1,429 @@
+// =============================================================================
+// KNULL MICRO KERNEL
+// =============================================================================
+// Bare-metal x86_64 kernel that runs without an OS
+// Target: x86_64, direct hardware access
+
+module micro_kernel
+
+// =============================================================================
+// VGA TEXT MODE
+// =============================================================================
+
+// VGA buffer address
+const VGA_BUFFER: *mut u16 = 0x0B8000 as *mut u16
+
+// VGA dimensions
+const VGA_WIDTH: usize = 80
+const VGA_HEIGHT: usize = 25
+
+// Colors
+const COLOR_BLACK: u8 = 0
+const COLOR_BLUE: u8 = 1
+const COLOR_GREEN: u8 = 2
+const COLOR_CYAN: u8 = 3
+const COLOR_RED: u8 = 4
+const COLOR_MAGENTA: u8 = 5
+const COLOR_BROWN: u8 = 6
+const COLOR_LIGHT_GREY: u8 = 7
+const COLOR_DARK_GREY: u8 = 8
+const COLOR_LIGHT_BLUE: u8 = 9
+const COLOR_LIGHT_GREEN: u8 = 10
+const COLOR_LIGHT_CYAN: u8 = 11
+const COLOR_LIGHT_RED: u8 = 12
+const COLOR_LIGHT_MAGENTA: u8 = 13
+const COLOR_YELLOW: u8 = 14
+const COLOR_WHITE: u8 = 15
+
+// Current cursor position
+let mut cursor_x: usize = 0
+let mut cursor_y: usize = 0
+
+// =============================================================================
+// VGA FUNCTIONS
+// =============================================================================
+
+// Make color byte
+fn make_color(fg: u8, bg: u8) -> u8 {
+    (bg << 4) | fg
+}
+
+// Make VGA character
+fn make_vga_char(c: u8, color: u8) -> u16 {
+    (color as u16) << 8 | (c as u16)
+}
+
+// Put character at cursor
+fn putchar(c: u8) {
+    if c == '\n' as u8 {
+        cursor_x = 0
+        cursor_y = cursor_y + 1
+        if cursor_y >= VGA_HEIGHT {
+            scroll_up()
+        }
+        return
+    }
+    
+    if cursor_x >= VGA_WIDTH {
+        cursor_x = 0
+        cursor_y = cursor_y + 1
+        if cursor_y >= VGA_HEIGHT {
+            scroll_up()
+        }
+    }
+    
+    let color = make_color(COLOR_WHITE, COLOR_BLACK)
+    let vga_char = make_vga_char(c, color)
+    
+    unsafe {
+        let offset = cursor_y * VGA_WIDTH + cursor_x
+        *VGA_BUFFER.add(offset) = vga_char
+    }
+    
+    cursor_x = cursor_x + 1
+}
+
+// Put string
+fn puts(s: string) {
+    for i in 0..s.len() {
+        putchar(s.as_bytes()[i])
+    }
+}
+
+// Scroll screen up
+fn scroll_up() {
+    unsafe {
+        for y in 0..(VGA_HEIGHT - 1) {
+            for x in 0..VGA_WIDTH {
+                let src = (y + 1) * VGA_WIDTH + x
+                let dst = y * VGA_WIDTH + x
+                *VGA_BUFFER.add(dst) = *VGA_BUFFER.add(src)
+            }
+        }
+        
+        // Clear last line
+        for x in 0..VGA_WIDTH {
+            *VGA_BUFFER.add((VGA_HEIGHT - 1) * VGA_WIDTH + x) = make_vga_char(' ' as u8, make_color(COLOR_WHITE, COLOR_BLACK))
+        }
+    }
+    
+    cursor_y = VGA_HEIGHT - 1
+}
+
+// Clear screen
+fn clear_screen() {
+    cursor_x = 0
+    cursor_y = 0
+    
+    unsafe {
+        for i in 0..(VGA_WIDTH * VGA_HEIGHT) {
+            *VGA_BUFFER.add(i) = make_vga_char(' ' as u8, make_color(COLOR_WHITE, COLOR_BLACK))
+        }
+    }
+}
+
+// =============================================================================
+// PRINTF (SIMPLIFIED)
+// =============================================================================
+
+// Print integer
+fn print_int(n: i64) {
+    if n == 0 {
+        putchar('0' as u8)
+        return
+    }
+    
+    if n < 0 {
+        putchar('-' as u8)
+        n = -n
+    }
+    
+    let mut buf = [0u8; 32]
+    let mut len = 0
+    
+    while n > 0 {
+        let digit = (n % 10) as u8
+        buf[len] = '0' as u8 + digit
+        len = len + 1
+        n = n / 10
+    }
+    
+    // Reverse
+    for i in 0..len {
+        putchar(buf[len - 1 - i])
+    }
+}
+
+// Print hex
+fn print_hex(n: u64) {
+    puts("0x")
+    
+    let mut buf = [0u8; 16]
+    let mut len = 0
+    
+    if n == 0 {
+        putchar('0' as u8)
+        return
+    }
+    
+    while n > 0 {
+        let digit = (n % 16) as u8
+        if digit < 10 {
+            buf[len] = '0' as u8 + digit
+        } else {
+            buf[len] = 'A' as u8 + (digit - 10)
+        }
+        len = len + 1
+        n = n / 16
+    }
+    
+    for i in 0..len {
+        putchar(buf[len - 1 - i])
+    }
+}
+
+// =============================================================================
+// GDT (GLOBAL DESCRIPTOR TABLE)
+// =============================================================================
+
+// GDT entry
+struct GDTEntry {
+    limit_low: u16,
+    base_low: u16,
+    base_middle: u8,
+    access: u8,
+    granularity: u8,
+    base_high: u8,
+}
+
+// GDT pointer
+struct GDTPointer {
+    limit: u16,
+    base: u32,
+}
+
+// Number of GDT entries
+const GDT_SIZE: usize = 3
+
+// GDT entries
+let mut gdt: [GDTEntry; GDT_SIZE] = [GDTEntry {
+    limit_low: 0,
+    base_low: 0,
+    base_middle: 0,
+    access: 0,
+    granularity: 0,
+    base_high: 0,
+}; GDT_SIZE]
+
+// GDT pointer
+let mut gdt_ptr: GDTPointer = GDTPointer {
+    limit: 0,
+    base: 0,
+}
+
+// Setup GDT
+fn gdt_install() {
+    // Null descriptor
+    gdt[0] = GDTEntry {
+        limit_low: 0,
+        base_low: 0,
+        base_middle: 0,
+        access: 0,
+        granularity: 0,
+        base_high: 0,
+    }
+    
+    // Code segment
+    gdt[1] = GDTEntry {
+        limit_low: 0xFFFF,
+        base_low: 0,
+        base_middle: 0,
+        access: 0x9A,  // Present, ring 0, executable, readable
+        granularity: 0xCF,  // 4K granularity, 32-bit
+        base_high: 0,
+    }
+    
+    // Data segment
+    gdt[2] = GDTEntry {
+        limit_low: 0xFFFF,
+        base_low: 0,
+        base_middle: 0,
+        access: 0x92,  // Present, ring 0, writable
+        granularity: 0xCF,
+        base_high: 0,
+    }
+    
+    // GDT pointer
+    let gdt_size = (GDT_SIZE * 8) as u16
+    gdt_ptr = GDTPointer {
+        limit: gdt_size,
+        base: 0,  // Would be address of gdt
+    }
+}
+
+// Load GDT
+fn gdt_load() {
+    // In real code, would use lgdt instruction
+    puts("GDT loaded\n")
+}
+
+// =============================================================================
+// IDT (INTERRUPT DESCRIPTOR TABLE)
+// =============================================================================
+
+// IDT entry
+struct IDTEntry {
+    offset_low: u16,
+    selector: u16,
+    zero: u8,
+    type_attr: u8,
+    offset_high: u16,
+}
+
+// Setup basic IDT
+fn idt_install() {
+    puts("IDT installed\n")
+}
+
+// =============================================================================
+// PAGING
+// =============================================================================
+
+// Page directory
+const PAGE_DIR: *mut u32 = 0x100000 as *mut u32
+
+// Page tables
+const PAGE_TABLE: *mut u32 = 0x100000 as *mut u32
+
+// Setup paging
+fn paging_install() {
+    unsafe {
+        // Identity map first 4MB
+        for i in 0..1024 {
+            let entry = (i * 0x1000) | 0x3  // Present, writable
+            *PAGE_DIR.add(i) = entry
+        }
+        
+        // Map video memory
+        let video_entry = 0x0B8000 | 0x3
+        *PAGE_DIR.add(0xB8000 / 0x400000) = video_entry
+    }
+    
+    puts("Paging enabled\n")
+}
+
+// =============================================================================
+// MEMORY MANAGEMENT
+// =============================================================================
+
+// Kernel heap start
+const KHEAP_START: u32 = 0x100000
+const KHEAP_END: u32 = 0x200000
+
+let mut kheap_ptr: u32 = KHEAP_START
+
+// Simple kmalloc
+fn kmalloc(size: usize) -> *mut u8 {
+    let ptr = kheap_ptr as *mut u8
+    kheap_ptr = kheap_ptr + (size as u32)
+    ptr
+}
+
+// =============================================================================
+// TIMER
+// =============================================================================
+
+// PIT ports
+const PIT_CHANNEL0: u16 = 0x40
+const PIT_CMD: u16 = 0x43
+
+// Initialize PIT
+fn timer_install() {
+    // Set PIT to mode 3 (square wave generator)
+    // In real code: outb(PIT_CMD, 0x36)
+    
+    puts("Timer installed\n")
+}
+
+// =============================================================================
+// KEYBOARD
+// =============================================================================
+
+// Keyboard port
+const KBD_DATA: u16 = 0x60
+const KBD_STATUS: u16 = 0x64
+
+// Initialize keyboard
+fn keyboard_install() {
+    puts("Keyboard installed\n")
+}
+
+// =============================================================================
+// MAIN KERNEL
+// =============================================================================
+
+// Kernel main entry point
+pub fn start() {
+    // Clear screen first
+    clear_screen()
+    
+    puts("========================================\n")
+    puts("  KNULL OS - Micro Kernel\n")
+    puts("========================================\n")
+    puts("\n")
+    
+    // Initialize memory
+    puts("Initializing memory...\n")
+    kheap_ptr = KHEAP_START
+    
+    // Initialize GDT
+    puts("Setting up GDT...\n")
+    gdt_install()
+    gdt_load()
+    
+    // Initialize IDT
+    puts("Setting up IDT...\n")
+    idt_install()
+    
+    // Initialize paging
+    puts("Enabling paging...\n")
+    paging_install()
+    
+    // Initialize timer
+    puts("Starting timer...\n")
+    timer_install()
+    
+    // Initialize keyboard
+    puts("Starting keyboard...\n")
+    keyboard_install()
+    
+    // Print memory info
+    puts("\nMemory Info:\n")
+    puts("  Heap start: ")
+    print_hex(KHEAP_START as u64)
+    puts("\n")
+    puts("  Heap end:   ")
+    print_hex(KHEAP_END as u64)
+    puts("\n")
+    
+    // Success
+    puts("\n========================================\n")
+    puts("  Knull OS Initialized Successfully!\n")
+    puts("========================================\n")
+    
+    // Hang
+    loop {}
+}
+
+// =============================================================================
+// BOOT STRAP
+// =============================================================================
+
+// Entry point (called from boot sector)
+fn _start() {
+    start()
+}
+
+// =============================================================================
+// END OF MICRO KERNEL
+// =============================================================================

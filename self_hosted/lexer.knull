@@ -1,0 +1,480 @@
+// =============================================================================
+// KNULL SELF-HOSTED COMPILER: LEXER
+// =============================================================================
+// Tokenizer for the Knull programming language
+
+module knullc.lexer
+
+// =============================================================================
+// TOKEN TYPES
+// =============================================================================
+
+// Token kinds
+pub const TOKEN_EOF: u8 = 0
+pub const TOKEN_IDENT: u8 = 1
+pub const TOKEN_INT: u8 = 2
+pub const TOKEN_FLOAT: u8 = 3
+pub const TOKEN_STRING: u8 = 4
+pub const TOKEN_CHAR: u8 = 5
+
+// Keywords
+pub const TOKEN_FN: u8 = 10
+pub const TOKEN_LET: u8 = 11
+pub const TOKEN_MUT: u8 = 12
+pub const TOKEN_IF: u8 = 13
+pub const TOKEN_ELSE: u8 = 14
+pub const TOKEN_MATCH: u8 = 15
+pub const TOKEN_FOR: u8 = 16
+pub const TOKEN_LOOP: u8 = 17
+pub const TOKEN_WHILE: u8 = 18
+pub const TOKEN_RETURN: u8 = 19
+pub const TOKEN_PUB: u8 = 20
+pub const TOKEN_MOD: u8 = 21
+pub const TOKEN_USE: u8 = 22
+pub const TOKEN_STRUCT: u8 = 23
+pub const TOKEN_ENUM: u8 = 24
+pub const TOKEN_TRAIT: u8 = 25
+pub const TOKEN_IMPL: u8 = 26
+pub const TOKEN_SELF: u8 = 27
+pub const TOKEN unsafe: u8 = 28
+pub const TOKEN_CONST: u8 = 29
+pub const TOKEN_TYPE: u8 = 30
+pub const TOKEN_NEVER: u8 = 31
+
+// Operators
+pub const TOKEN_PLUS: u8 = 40
+pub const TOKEN_MINUS: u8 = 41
+pub const TOKEN_STAR: u8 = 42
+pub const TOKEN_SLASH: u8 = 43
+pub const TOKEN_PERCENT: u8 = 44
+pub const TOKEN_AMP: u8 = 45
+pub const TOKEN_BAR: u8 = 46
+pub const TOKEN_CARET: u8 = 47
+pub const TOKEN_BANG: u8 = 48
+pub const TOKEN_QUESTION: u8 = 49
+
+// Compound operators
+pub const TOKEN_PLUS_EQ: u8 = 50
+pub const TOKEN_MINUS_EQ: u8 = 51
+pub const TOKEN_STAR_EQ: u8 = 52
+pub const TOKEN_SLASH_EQ: u8 = 53
+pub const TOKEN_AMP_EQ: u8 = 54
+pub const TOKEN_BAR_EQ: u8 = 55
+
+// Comparison
+pub const TOKEN_EQ: u8 = 60
+pub const TOKEN_NEQ: u8 = 61
+pub const TOKEN_LT: u8 = 62
+pub const TOKEN_GT: u8 = 63
+pub const TOKEN_LTE: u8 = 64
+pub const TOKEN_GTE: u8 = 65
+pub const TOKEN_AND: u8 = 66
+pub const TOKEN_OR: u8 = 67
+
+// Punctuation
+pub const TOKEN_LPAREN: u8 = 70
+pub const TOKEN_RPAREN: u8 = 71
+pub const TOKEN_LBRACE: u8 = 72
+pub const TOKEN_RBRACE: u8 = 73
+pub const TOKEN_LBRACKET: u8 = 74
+pub const TOKEN_RBRACKET: u8 = 75
+pub const TOKEN_COMMA: u8 = 76
+pub const TOKEN_SEMICOLON: u8 = 77
+pub const TOKEN_COLON: u8 = 78
+pub const TOKEN_ARROW: u8 = 79
+pub const TOKEN_DOT: u8 = 80
+pub const TOKEN_AT: u8 = 81
+
+// Special
+pub const TOKEN_UNDERSCORE: u8 = 90
+pub const TOKEN_POUND: u8 = 91
+pub const TOKEN_DOLLAR: u8 = 92
+pub const TOKEN_ELLIPSIS: u8 = 93
+
+// =============================================================================
+// TOKEN STRUCT
+// =============================================================================
+
+pub struct Token {
+    pub kind: u8,
+    pub text: string,
+    pub value_int: i64,
+    pub value_float: f64,
+    pub line: u32,
+    pub col: u32,
+}
+
+// =============================================================================
+// LEXER STRUCT
+// =============================================================================
+
+pub struct Lexer {
+    pub source: string,
+    pub pos: usize,
+    pub line: u32,
+    pub col: u32,
+    pub current_char: u8,
+}
+
+impl Lexer {
+    // Create a new lexer
+    pub fn new(source: string) -> Lexer {
+        let mut lexer = Lexer {
+            source: source,
+            pos: 0,
+            line: 1,
+            col: 0,
+            current_char: 0,
+        }
+        lexer.current_char = lexer.peek(0)
+        lexer
+    }
+
+    // Get current character without advancing
+    fn peek(self: &Lexer, offset: usize) -> u8 {
+        let idx = self.pos + offset
+        if idx >= self.source.len() {
+            return 0  // EOF
+        }
+        self.source.as_bytes()[idx]
+    }
+
+    // Advance to next character
+    fn advance(self: &mut Lexer) {
+        if self.current_char == '\n' as u8 {
+            self.line = self.line + 1
+            self.col = 0
+        } else {
+            self.col = self.col + 1
+        }
+        
+        self.pos = self.pos + 1
+        self.current_char = self.peek(0)
+    }
+
+    // Skip whitespace
+    fn skip_whitespace(self: &mut Lexer) {
+        while self.current_char == ' ' as u8 
+            || self.current_char == '\t' as u8 
+            || self.current_char == '\n' as u8 
+            || self.current_char == '\r' as u8 {
+            self.advance()
+        }
+    }
+
+    // Skip a single-line comment
+    fn skip_comment(self: &mut Lexer) {
+        if self.current_char == '/' as u8 && self.peek(1) == '/' as u8 {
+            while self.current_char != '\n' as u8 && self.current_char != 0 {
+                self.advance()
+            }
+        }
+        // Skip multi-line comment
+        if self.current_char == '/' as u8 && self.peek(1) == '*' as u8 {
+            self.advance()
+            self.advance()
+            while self.current_char != 0 {
+                if self.current_char == '*' as u8 && self.peek(1) == '/' as u8 {
+                    self.advance()
+                    self.advance()
+                    break
+                }
+                self.advance()
+            }
+        }
+    }
+
+    // Read identifier or keyword
+    fn read_ident(self: &mut Lexer) -> string {
+        let start = self.pos
+        
+        while (self.current_char >= 'a' as u8 && self.current_char <= 'z' as u8)
+            || (self.current_char >= 'A' as u8 && self.current_char <= 'Z' as u8)
+            || self.current_char == '_' as u8
+            || (self.current_char >= '0' as u8 && self.current_char <= '9' as u8) {
+            self.advance()
+        }
+        
+        let end = self.pos
+        self.source.slice(start, end)
+    }
+
+    // Read a number
+    fn read_number(self: &mut Lexer) -> Token {
+        let start = self.pos
+        let mut is_float = false
+        
+        while (self.current_char >= '0' as u8 && self.current_char <= '9' as u8)
+            || self.current_char == '.' as u8
+            || self.current_char == 'e' as u8
+            || self.current_char == 'E' as u8 {
+            
+            if self.current_char == '.' as u8 {
+                if self.peek(1) >= '0' as u8 && self.peek(1) <= '9' as u8 {
+                    is_float = true
+                } else {
+                    break
+                }
+            }
+            self.advance()
+        }
+        
+        let end = self.pos
+        let text = self.source.slice(start, end)
+        
+        if is_float {
+            Token {
+                kind: TOKEN_FLOAT,
+                text: text,
+                value_int: 0,
+                value_float: text.parse::<f64>().unwrap_or(0.0),
+                line: self.line,
+                col: self.col,
+            }
+        } else {
+            Token {
+                kind: TOKEN_INT,
+                text: text,
+                value_int: text.parse::<i64>().unwrap_or(0),
+                value_float: 0.0,
+                line: self.line,
+                col: self.col,
+            }
+        }
+    }
+
+    // Read a string
+    fn read_string(self: &mut Lexer) -> Token {
+        let start = self.pos
+        self.advance()  // Skip opening quote
+        
+        while self.current_char != '"' as u8 && self.current_char != 0 {
+            if self.current_char == '\\' as u8 {
+                self.advance()  // Skip escape character
+            }
+            self.advance()
+        }
+        
+        let end = self.pos
+        if self.current_char == '"' as u8 {
+            self.advance()  // Skip closing quote
+        }
+        
+        let text = self.source.slice(start + 1, end)
+        
+        Token {
+            kind: TOKEN_STRING,
+            text: text,
+            value_int: 0,
+            value_float: 0.0,
+            line: self.line,
+            col: self.col,
+        }
+    }
+
+    // Read a character
+    fn read_char(self: &mut Lexer) -> Token {
+        self.advance()  // Skip opening quote
+        
+        let mut value: u8 = self.current_char
+        
+        if self.current_char == '\\' as u8 {
+            self.advance()
+            value = match self.current_char {
+                'n' => '\n' as u8,
+                't' => '\t' as u8,
+                'r' => '\r' as u8,
+                '\\' => '\\' as u8,
+                '"' => '"' as u8,
+                '\'' => '\'' as u8,
+                _ => self.current_char,
+            }
+        }
+        
+        if self.current_char != 0 {
+            self.advance()
+        }
+        
+        if self.current_char == '\'' as u8 {
+            self.advance()
+        }
+        
+        Token {
+            kind: TOKEN_CHAR,
+            text: "" + value as char,
+            value_int: value as i64,
+            value_float: 0.0,
+            line: self.line,
+            col: self.col,
+        }
+    }
+
+    // Get the next token
+    pub fn next_token(self: &mut Lexer) -> Token {
+        // Skip whitespace and comments
+        self.skip_whitespace()
+        self.skip_comment()
+        self.skip_whitespace()
+        
+        // Save position
+        let line = self.line
+        let col = self.col
+        
+        // Check for EOF
+        if self.current_char == 0 {
+            return Token {
+                kind: TOKEN_EOF,
+                text: "",
+                value_int: 0,
+                value_float: 0.0,
+                line: line,
+                col: col,
+            }
+        }
+        
+        // Identifier or keyword
+        if (self.current_char >= 'a' as u8 && self.current_char <= 'z' as u8)
+            || (self.current_char >= 'A' as u8 && self.current_char <= 'Z' as u8)
+            || self.current_char == '_' as u8 {
+            let text = self.read_ident()
+            let kind = self.keyword_to_token(&text)
+            return Token {
+                kind: kind,
+                text: text,
+                value_int: 0,
+                value_float: 0.0,
+                line: line,
+                col: col,
+            }
+        }
+        
+        // Number
+        if self.current_char >= '0' as u8 && self.current_char <= '9' as u8 {
+            return self.read_number()
+        }
+        
+        // String
+        if self.current_char == '"' as u8 {
+            return self.read_string()
+        }
+        
+        // Character
+        if self.current_char == '\'' as u8 {
+            return self.read_char()
+        }
+        
+        // Operators and punctuation
+        let kind = self.single_char_to_token()
+        self.advance()
+        return Token {
+            kind: kind,
+            text: "" + kind as char,
+            value_int: 0,
+            value_float: 0.0,
+            line: line,
+            col: col,
+        }
+    }
+
+    // Convert single character to token
+    fn single_char_to_token(self: &Lexer) -> u8 {
+        match self.current_char as char {
+            '+' => TOKEN_PLUS,
+            '-' => TOKEN_MINUS,
+            '*' => TOKEN_STAR,
+            '/' => TOKEN_SLASH,
+            '%' => TOKEN_PERCENT,
+            '&' => TOKEN_AMP,
+            '|' => TOKEN_BAR,
+            '^' => TOKEN_CARET,
+            '!' => TOKEN_BANG,
+            '?' => TOKEN_QUESTION,
+            '(' => TOKEN_LPAREN,
+            ')' => TOKEN_RPAREN,
+            '{' => TOKEN_LBRACE,
+            '}' => TOKEN_RBRACE,
+            '[' => TOKEN_LBRACKET,
+            ']' => TOKEN_RBRACKET,
+            ',' => TOKEN_COMMA,
+            ';' => TOKEN_SEMICOLON,
+            ':' => TOKEN_COLON,
+            '.' => TOKEN_DOT,
+            '@' => TOKEN_AT,
+            '_' => TOKEN_UNDERSCORE,
+            '#' => TOKEN_POUND,
+            '$' => TOKEN_DOLLAR,
+            '<' => TOKEN_LT,
+            '>' => TOKEN_GT,
+            '=' => TOKEN_EQ,
+            _ => TOKEN_EOF,
+        }
+    }
+
+    // Convert keyword to token
+    fn keyword_to_token(self: &Lexer, text: &string) -> u8 {
+        match *text {
+            "fn" => TOKEN_FN,
+            "let" => TOKEN_LET,
+            "mut" => TOKEN_MUT,
+            "if" => TOKEN_IF,
+            "else" => TOKEN_ELSE,
+            "match" => TOKEN_MATCH,
+            "for" => TOKEN_FOR,
+            "loop" => TOKEN_LOOP,
+            "while" => TOKEN_WHILE,
+            "return" => TOKEN_RETURN,
+            "pub" => TOKEN_PUB,
+            "mod" => TOKEN_MOD,
+            "use" => TOKEN_USE,
+            "struct" => TOKEN_STRUCT,
+            "enum" => TOKEN_ENUM,
+            "trait" => TOKEN_TRAIT,
+            "impl" => TOKEN_IMPL,
+            "self" => TOKEN_SELF,
+            "unsafe" => TOKEN unsafe,
+            "const" => TOKEN_CONST,
+            "type" => TOKEN_TYPE,
+            "never" => TOKEN_NEVER,
+            _ => TOKEN_IDENT,
+        }
+    }
+
+    // Get token kind as string
+    pub fn token_kind_to_string(kind: u8) -> string {
+        match kind {
+            TOKEN_EOF => "EOF",
+            TOKEN_IDENT => "identifier",
+            TOKEN_INT => "integer",
+            TOKEN_FLOAT => "float",
+            TOKEN_STRING => "string",
+            TOKEN_CHAR => "char",
+            TOKEN_FN => "fn",
+            TOKEN_LET => "let",
+            TOKEN_MUT => "mut",
+            TOKEN_IF => "if",
+            TOKEN_ELSE => "else",
+            TOKEN_MATCH => "match",
+            TOKEN_FOR => "for",
+            TOKEN_LOOP => "loop",
+            TOKEN_WHILE => "while",
+            TOKEN_RETURN => "return",
+            TOKEN_PUB => "pub",
+            TOKEN_MOD => "mod",
+            TOKEN_USE => "use",
+            TOKEN_STRUCT => "struct",
+            TOKEN_ENUM => "enum",
+            TOKEN_TRAIT => "trait",
+            TOKEN_IMPL => "impl",
+            TOKEN_SELF => "self",
+            TOKEN unsafe => "unsafe",
+            TOKEN_CONST => "const",
+            TOKEN_TYPE => "type",
+            TOKEN_NEVER => "never",
+            _ => "unknown",
+        }
+    }
+}
+
+// =============================================================================
+// END OF LEXER
+// =============================================================================

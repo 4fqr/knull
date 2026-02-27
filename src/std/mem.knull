@@ -1,0 +1,401 @@
+// KNULL STANDARD LIBRARY: MEMORY MODULE
+// Version 1.0
+// 
+// This module provides low-level memory operations for Knull.
+// It provides safe abstractions over raw memory manipulation.
+
+module std.mem
+
+// =============================================================================
+// PRIMITIVE TYPES
+// =============================================================================
+
+pub type Size = usize
+pub type Align = usize
+pub type NonNull<T> = *mut T
+pub type ConstPtr<T> = *const T
+pub type MutPtr<T> = *mut T
+
+// =============================================================================
+// ALLOCATION TRAITS
+// =============================================================================
+
+pub trait Allocator {
+    fn allocate(&self, size: Size, align: Align) -> *mut u8
+    fn deallocate(&self, ptr: *mut u8, size: Size, align: Align)
+    fn reallocate(&self, ptr: *mut u8, old_size: Size, new_size: Size, align: Align) -> *mut u8
+}
+
+pub trait CloneFrom<T> {
+    fn clone_from(&mut self, source: &T)
+}
+
+pub trait CopyFrom<T> {
+    fn copy_from(dest: *mut T, src: *const T, count: Size)
+}
+
+// =============================================================================
+// HEAP ALLOCATOR (SYSTEM DEFAULT)
+// =============================================================================
+
+pub struct SystemAllocator {}
+
+impl SystemAllocator {
+    pub fn new() -> Self {
+        SystemAllocator {}
+    }
+}
+
+impl Allocator for SystemAllocator {
+    pub fn allocate(&self, size: Size, align: Align) -> *mut u8 {
+        unsafe {
+            syscall(SYS_brk, 0) as *mut u8
+        }
+    }
+
+    pub fn deallocate(&self, ptr: *mut u8, size: Size, align: Align) {
+        unsafe {
+            syscall(SYS_brk, ptr as i64)
+        }
+    }
+
+    pub fn reallocate(&self, ptr: *mut u8, old_size: Size, new_size: Size, align: Align) -> *mut u8 {
+        let new_ptr = self.allocate(new_size, align)
+        if ptr as u64 != 0 && new_size > 0 {
+            unsafe {
+                copy_nonoverlapping(ptr, new_ptr, old_size.min(new_size))
+            }
+        }
+        if ptr as u64 != 0 {
+            self.deallocate(ptr, old_size, align)
+        }
+        new_ptr
+    }
+}
+
+// =============================================================================
+// GLOBAL ALLOCATOR
+// =============================================================================
+
+pub static GLOBAL_ALLOCATOR: SystemAllocator = SystemAllocator {}
+
+// =============================================================================
+// MEMORY ALLOCATION FUNCTIONS
+// =============================================================================
+
+// Allocate heap memory of type T with given count
+pub fn alloc<T>(count: Size) -> *mut T {
+    let size = count * __size_of::<T>()
+    let align = __align_of::<T>()
+    
+    unsafe {
+        let ptr = GLOBAL_ALLOCATOR.allocate(size, align) as *mut T
+        if ptr as u64 == 0 {
+            panic("allocation failed: out of memory")
+        }
+        ptr
+    }
+}
+
+// Allocate and zero-initialize
+pub fn alloc_zeroed<T>(count: Size) -> *mut T {
+    let ptr = alloc::<T>(count)
+    unsafe {
+        zero(ptr, count)
+    }
+    ptr
+}
+
+// Reallocate memory
+pub fn realloc<T>(ptr: *mut T, new_count: Size) -> *mut T {
+    let old_count = 0
+    let size = new_count * __size_of::<T>()
+    let align = __align_of::<T>()
+    
+    unsafe {
+        GLOBAL_ALLOCATOR.reallocate(ptr as *mut u8, old_count, size, align) as *mut T
+    }
+}
+
+// Free memory
+pub fn free<T>(ptr: *mut T) {
+    if ptr as u64 != 0 {
+        let size = __size_of::<T>()
+        let align = __align_of::<T>()
+        
+        unsafe {
+            GLOBAL_ALLOCATOR.deallocate(ptr as *mut u8, size, align)
+        }
+    }
+}
+
+// =============================================================================
+// MEMORY OPERATIONS
+// =============================================================================
+
+// Copy memory (handles overlapping regions safely)
+pub fn copy<T>(dest: *mut T, src: *const T, count: Size) {
+    unsafe {
+        __memcpy(dest, src, count * __size_of::<T>())
+    }
+}
+
+// Copy memory without handling overlap
+pub fn copy_nonoverlapping<T>(dest: *mut T, src: *const T, count: Size) {
+    unsafe {
+        __memmove(dest, src, count * __size_of::<T>())
+    }
+}
+
+// Set memory to a value
+pub fn set<T>(ptr: *mut T, value: T, count: Size) {
+    unsafe {
+        let mut i = 0
+        while i < count {
+            ptr.offset(i).write(value)
+            i += 1
+        }
+    }
+}
+
+// Zero memory
+pub fn zero<T>(ptr: *mut T, count: Size) {
+    unsafe {
+        __memset(ptr as *mut u8, 0, count * __size_of::<T>())
+    }
+}
+
+// Compare memory regions
+pub fn compare<T>(a: *const T, b: *const T, count: Size) -> i32 {
+    unsafe {
+        __memcmp(a, b, count * __size_of::<T>()) as i32
+    }
+}
+
+// =============================================================================
+// VOLATILE OPERATIONS (FOR MMIO)
+// =============================================================================
+
+// Volatile read
+pub fn read_volatile<T>(ptr: *const T) -> T {
+    unsafe {
+        __volatile_read(ptr)
+    }
+}
+
+// Volatile write
+pub fn write_volatile<T>(ptr: *mut T, value: T) {
+    unsafe {
+        __volatile_write(ptr, value)
+    }
+}
+
+// =============================================================================
+// POINTER UTILITIES
+// =============================================================================
+
+// Get offset from pointer
+pub fn offset<T>(ptr: *const T, count: isize) -> *const T {
+    unsafe {
+        ptr.offset(count)
+    }
+}
+
+// Get mutable offset
+pub fn offset_mut<T>(ptr: *mut T, count: isize) -> *mut T {
+    unsafe {
+        ptr.offset(count)
+    }
+}
+
+// Get pointer address
+pub fn addr<T>(ptr: *const T) -> usize {
+    ptr as usize
+}
+
+// Cast pointer type
+pub fn cast<T, U>(ptr: *const T) -> *const U {
+    ptr as *const U
+}
+
+pub fn cast_mut<T, U>(ptr: *mut T) -> *mut U {
+    ptr as *mut U
+}
+
+// =============================================================================
+// MEMORY ALIGNMENT
+// =============================================================================
+
+// Align address down
+pub fn align_down(addr: usize, align: usize) -> usize {
+    addr & !(align - 1)
+}
+
+// Align address up
+pub fn align_up(addr: usize, align: usize) -> usize {
+    (addr + align - 1) & !(align - 1)
+}
+
+// Check if address is aligned
+pub fn is_aligned(addr: usize, align: usize) -> bool {
+    (addr & (align - 1)) == 0
+}
+
+// =============================================================================
+// SIZE AND ALIGNMENT INTRINSICS
+// =============================================================================
+
+fn __size_of<T>() -> usize {
+    intrinsics::size_of::<T>()
+}
+
+fn __align_of<T>() -> usize {
+    intrinsics::align_of::<T>()
+}
+
+// =============================================================================
+// MEMORY INTRINSICS (COMPILER BUILTINS)
+// =============================================================================
+
+mod intrinsics {
+    pub fn size_of<T>() -> usize {
+        compile_time!(__size_of::<T>())
+    }
+    
+    pub fn align_of<T>() -> usize {
+        compile_time!(__align_of::<T>())
+    }
+    
+    pub fn __memcpy<T>(dest: *mut T, src: *const T, size: usize) -> *mut T
+    pub fn __memmove<T>(dest: *mut T, src: *const T, size: usize) -> *mut T
+    pub fn __memset<T>(ptr: *mut T, value: i32, size: usize) -> *mut T
+    pub fn __memcmp<T>(a: *const T, b: *const T, size: usize) -> i32
+    
+    pub fn __volatile_read<T>(ptr: *const T) -> T
+    pub fn __volatile_write<T>(ptr: *mut T, value: T)
+}
+
+fn compile_time<T>(expr: T) -> T {
+    intrinsics::compile_time_eval(expr)
+}
+
+// =============================================================================
+// STACK ALLOCATION (COMPILE-TIME SIZED)
+// =============================================================================
+
+// Stack-allocated array (for small, fixed-size buffers)
+pub struct StackBuffer<T, const N: usize> {
+    data: [T; N],
+}
+
+impl<T, const N: usize> StackBuffer<T, N> {
+    pub fn new() -> Self {
+        unsafe {
+            __rust_noalloc()
+        }
+        StackBuffer {
+            data: [__uninit::<T>(); N],
+        }
+    }
+
+    pub fn zeroed() -> Self {
+        StackBuffer {
+            data: [0 as T; N],
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const T {
+        self.data.as_ptr()
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        self.data.as_mut_ptr()
+    }
+
+    pub fn len(&self) -> usize {
+        N
+    }
+}
+
+// =============================================================================
+// MEMORY VALIDATION
+// =============================================================================
+
+// Check if pointer is null
+pub fn is_null<T>(ptr: *const T) -> bool {
+    ptr as u64 == 0
+}
+
+// Check if pointer is aligned
+pub fn is_aligned_ptr<T>(ptr: *const T, align: usize) -> bool {
+    is_aligned(ptr as usize, align)
+}
+
+// =============================================================================
+// UNSAFE MEMORY OPERATIONS (FOR GOD MODE)
+// =============================================================================
+
+pub mod unsafe_ops {
+    use super::*;
+
+    // Raw pointer dereference
+    pub fn deref<T>(ptr: *mut T) -> T {
+        unsafe { ptr.read() }
+    }
+
+    // Raw pointer write
+    pub fn write<T>(ptr: *mut T, value: T) {
+        unsafe { ptr.write(value) }
+    }
+
+    // Replace value at pointer
+    pub fn replace<T>(ptr: *mut T, value: T) -> T {
+        unsafe { ptr.replace(value) }
+    }
+
+    // Swap values at two pointers
+    pub fn swap<T>(a: *mut T, b: *mut T) {
+        unsafe {
+            let temp = a.read()
+            a.write(b.read())
+            b.write(temp)
+        }
+    }
+
+    // Swap values in memory (no allocation)
+    pub fn swap_nonoverlapping<T>(a: *mut T, b: *mut T, count: usize) {
+        unsafe {
+            let a_ptr = a
+            let b_ptr = b
+            
+            // Swap in chunks
+            let mut i = 0
+            while i < count {
+                let temp = a_ptr.offset(i).read()
+                a_ptr.offset(i).write(b_ptr.offset(i).read())
+                b_ptr.offset(i).write(temp)
+                i += 1
+            }
+        }
+    }
+}
+
+// =============================================================================
+// MEMORY POISONING (DEBUG MODE)
+// =============================================================================
+
+#[cfg(debug)]
+pub fn poison<T>(ptr: *mut T, count: usize) {
+    unsafe {
+        __memset(ptr as *mut u8, 0xCC, count * __size_of::<T>())
+    }
+}
+
+#[cfg(not(debug))]
+pub fn poison<T>(ptr: *mut T, count: usize) {
+    // No-op in release
+}
+
+// =============================================================================
+// END OF MEMORY MODULE
+// =============================================================================

@@ -1,0 +1,361 @@
+// =============================================================================
+// KNULL RUNTIME: NETWORK MODULE
+// =============================================================================
+// High-level networking abstractions built on syscalls
+
+module std.net
+
+// =============================================================================
+// ADDRESS FAMILIES
+// =============================================================================
+
+pub const AF_INET: i32 = 2      // IPv4
+pub const AF_INET6: i32 = 10    // IPv6
+pub const AF_UNIX: i32 = 1      // Unix domain
+pub const AF_UNSPEC: i32 = 0    // Unspecified
+
+// Socket types
+pub const SOCK_STREAM: i32 = 1  // TCP
+pub const SOCK_DGRAM: i32 = 2   // UDP
+pub const SOCK_RAW: i32 = 3     // Raw socket
+
+// Socket protocols
+pub const IPPROTO_TCP: i32 = 6
+pub const IPPROTO_UDP: i32 = 17
+
+// =============================================================================
+// SOCKET ADDRESS STRUCTURES
+// =============================================================================
+
+// IPv4 socket address
+struct sockaddr_in {
+    pub family: u16,    // Address family (AF_INET)
+    pub port: u16,      // Port number (network byte order)
+    pub addr: u32,      // IPv4 address (network byte order)
+    pub zero: u8[8],    // Padding
+}
+
+// IPv6 socket address  
+struct sockaddr_in6 {
+    pub family: u16,    // Address family (AF_INET6)
+    pub port: u16,      // Port number (network byte order)
+    pub flowinfo: u32,  // Flow information
+    pub addr: u8[16],   // IPv6 address (network byte order)
+    pub scope_id: u32,  // Scope ID
+}
+
+// Generic socket address
+struct sockaddr {
+    pub family: u16,
+    pub data: u8[14],
+}
+
+// =============================================================================
+// IP ADDRESS
+// =============================================================================
+
+// IPv4 address wrapper
+struct IpAddr {
+    pub addr: u32,
+}
+
+// Create IPv4 address from octets
+pub fn ipv4(a: u8, b: u8, c: u8, d: u8) -> IpAddr {
+    IpAddr {
+        addr: (a as u32) << 24 | (b as u32) << 16 | (c as u32) << 8 | (d as u32)
+    }
+}
+
+// Create IPv4 address from string (dotted decimal)
+pub fn ipv4_from_str(s: string) -> option<IpAddr> {
+    // Simplified - parse "x.y.z.w" format
+    let parts = s.split('.')
+    if parts.len() != 4 {
+        return None
+    }
+    
+    let mut addr: u32 = 0
+    for i in 0..4 {
+        let octet = parts[i].parse::<u32>()
+        if octet > 255 {
+            return None
+        }
+        addr = addr << 8 | octet as u32
+    }
+    
+    Some(IpAddr { addr })
+}
+
+// Get address as string
+pub fn IpAddr::to_string(self: &IpAddr) -> string {
+    let a = (self.addr >> 24) as u8
+    let b = (self.addr >> 16) as u8
+    let c = (self.addr >> 8) as u8
+    let d = self.addr as u8
+    "{}.{}.{}.{}".format(a, b, c, d)
+}
+
+// Localhost (127.0.0.1)
+pub const LOCALHOST: IpAddr = IpAddr { addr: 0x0100007F }
+
+// Any (0.0.0.0)
+pub const ANY: IpAddr = IpAddr { addr: 0 }
+
+// =============================================================================
+// SOCKET ADDRESS
+// =============================================================================
+
+// Socket address with port
+struct SocketAddr {
+    pub family: i32,
+    pub port: u16,
+    pub ip: IpAddr,
+}
+
+// Create IPv4 socket address
+pub fn socket_addr(ip: IpAddr, port: u16) -> SocketAddr {
+    SocketAddr {
+        family: AF_INET,
+        port: port,
+        ip: ip,
+    }
+}
+
+// Create IPv4 socket address from string
+pub fn socket_addr_from_str(host: string, port: u16) -> option<SocketAddr> {
+    let ip = ipv4_from_str(host)?
+    Some(socket_addr(ip, port))
+}
+
+// =============================================================================
+// TCP SOCKET
+// =============================================================================
+
+// TCP socket
+pub struct TcpSocket {
+    fd: i32,
+}
+
+// Create a new TCP socket
+pub fn tcp_socket() -> option<TcpSocket> {
+    let fd = std.sys.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+    if fd < 0 {
+        return None
+    }
+    Some(TcpSocket { fd })
+}
+
+// Connect to remote address
+pub fn TcpSocket::connect(self: &TcpSocket, addr: SocketAddr) -> bool {
+    let mut sa: sockaddr_in
+    sa.family = AF_INET as u16
+    sa.port = to_network_order(addr.port)
+    sa.addr = addr.ip.addr
+    sa.zero = [0u8; 8]
+    
+    let result = std.sys.connect(self.fd, &sa as *u8, 16)
+    result >= 0
+}
+
+// Bind to address
+pub fn TcpSocket::bind(self: &TcpSocket, addr: SocketAddr) -> bool {
+    let mut sa: sockaddr_in
+    sa.family = AF_INET as u16
+    sa.port = to_network_order(addr.port)
+    sa.addr = addr.ip.addr
+    sa.zero = [0u8; 8]
+    
+    let result = std.sys.bind(self.fd, &sa as *u8, 16)
+    result >= 0
+}
+
+// Listen for connections
+pub fn TcpSocket::listen(self: &TcpSocket, backlog: i32) -> bool {
+    let result = std.sys.listen(self.fd, backlog)
+    result >= 0
+}
+
+// Accept incoming connection
+pub fn TcpSocket::accept(self: &TcpSocket) -> option<TcpSocket> {
+    let client_fd = std.sys.accept(self.fd, null, null)
+    if client_fd < 0 {
+        return None
+    }
+    Some(TcpSocket { fd: client_fd })
+}
+
+// Send data
+pub fn TcpSocket::send(self: &TcpSocket, data: []u8) -> isize {
+    std.sys.send(self.fd, data.as_ptr(), data.len(), 0)
+}
+
+// Receive data
+pub fn TcpSocket::recv(self: &TcpSocket, buf: &mut [u8]) -> isize {
+    std.sys.recv(self.fd, buf.as_mut_ptr(), buf.len(), 0)
+}
+
+// Close the socket
+pub fn TcpSocket::close(self: &TcpSocket) {
+    std.sys.close(self.fd)
+}
+
+// Set socket option
+pub fn TcpSocket::set_reuseaddr(self: &TcpSocket, reuse: bool) -> bool {
+    // Would use setsockopt with SO_REUSEADDR
+    true
+}
+
+// =============================================================================
+// UDP SOCKET
+// =============================================================================
+
+// UDP socket
+pub struct UdpSocket {
+    fd: i32,
+}
+
+// Create a new UDP socket
+pub fn udp_socket() -> option<UdpSocket> {
+    let fd = std.sys.socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+    if fd < 0 {
+        return None
+    }
+    Some(UdpSocket { fd })
+}
+
+// Bind to address
+pub fn UdpSocket::bind(self: &UdpSocket, addr: SocketAddr) -> bool {
+    let mut sa: sockaddr_in
+    sa.family = AF_INET as u16
+    sa.port = to_network_order(addr.port)
+    sa.addr = addr.ip.addr
+    sa.zero = [0u8; 8]
+    
+    let result = std.sys.bind(self.fd, &sa as *u8, 16)
+    result >= 0
+}
+
+// Send to address
+pub fn UdpSocket::send_to(self: &UdpSocket, data: []u8, addr: SocketAddr) -> isize {
+    let mut sa: sockaddr_in
+    sa.family = AF_INET as u16
+    sa.port = to_network_order(addr.port)
+    sa.addr = addr.ip.addr
+    sa.zero = [0u8; 8]
+    
+    std.sys.sendto(self.fd, data.as_ptr(), data.len(), 0, &sa as *u8, 16)
+}
+
+// Receive from address
+pub fn UdpSocket::recv_from(self: &UdpSocket, buf: &mut [u8], addr: &mut SocketAddr) -> isize {
+    let mut sa: sockaddr_in
+    let mut addrlen: u32 = 16
+    
+    let n = std.sys.recvfrom(self.fd, buf.as_mut_ptr(), buf.len(), 0, &sa as *mut u8, &mut addrlen)
+    
+    if n >= 0 {
+        addr.family = AF_INET
+        addr.port = from_network_order(sa.port)
+        addr.ip = IpAddr { addr: sa.addr }
+    }
+    
+    n
+}
+
+// Close the socket
+pub fn UdpSocket::close(self: &UdpSocket) {
+    std.sys.close(self.fd)
+}
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+// Convert host byte order to network byte order (big endian)
+fn to_network_order(val: u16) -> u16 {
+    (val >> 8) | (val << 8)
+}
+
+// Convert network byte order to host byte order
+fn from_network_order(val: u16) -> u16 {
+    to_network_order(val)
+}
+
+// =============================================================================
+// TCP STREAM (HIGHER-LEVEL)
+// =============================================================================
+
+// TCP stream reader/writer
+pub struct TcpStream {
+    socket: TcpSocket,
+}
+
+// Connect to host:port
+pub fn tcp_connect(host: string, port: u16) -> option<TcpStream> {
+    let addr = socket_addr_from_str(host, port)?
+    let sock = tcp_socket()?
+    
+    if !sock.connect(addr) {
+        return None
+    }
+    
+    Some(TcpStream { socket: sock })
+}
+
+// Write to stream
+pub fn TcpStream::write(self: &TcpStream, data: []u8) -> isize {
+    self.socket.send(data)
+}
+
+// Read from stream
+pub fn TcpStream::read(self: &TcpStream, buf: &mut [u8]) -> isize {
+    self.socket.recv(buf)
+}
+
+// Close stream
+pub fn TcpStream::close(self: &TcpStream) {
+    self.socket.close()
+}
+
+// =============================================================================
+// TCP LISTENER
+// =============================================================================
+
+// TCP listener
+pub struct TcpListener {
+    socket: TcpSocket,
+}
+
+// Bind and listen on port
+pub fn tcp_bind(port: u16) -> option<TcpListener> {
+    let sock = tcp_socket()?
+    
+    // Set SO_REUSEADDR
+    sock.set_reuseaddr(true)
+    
+    let addr = socket_addr(ANY, port)
+    if !sock.bind(addr) {
+        return None
+    }
+    
+    if !sock.listen(128) {
+        return None
+    }
+    
+    Some(TcpListener { socket: sock })
+}
+
+// Accept incoming connection
+pub fn TcpListener::accept(self: &TcpListener) -> option<TcpStream> {
+    let client = self.socket.accept()?
+    Some(TcpStream { socket: client })
+}
+
+// Close listener
+pub fn TcpListener::close(self: &TcpListener) {
+    self.socket.close()
+}
+
+// =============================================================================
+// END OF NETWORK MODULE
+// =============================================================================

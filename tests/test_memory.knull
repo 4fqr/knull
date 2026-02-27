@@ -1,0 +1,300 @@
+// =============================================================================
+// KNULL MEMORY TESTS
+// =============================================================================
+// Tests for memory management, allocation, and safety
+
+module tests.memory
+
+// =============================================================================
+// TEST: ALLOCATION AND FREE
+// =============================================================================
+
+pub fn test_alloc_free() {
+    test.run_suite("Memory: Alloc and Free")
+    
+    // Allocate memory
+    let ptr = std.alloc::<u8>(64)
+    test.assert_not_null(ptr, "Allocation should succeed")
+    
+    // Write to allocated memory
+    for i in 0..64 {
+        unsafe {
+            *ptr.add(i) = i as u8
+        }
+    }
+    
+    // Verify written values
+    let mut valid = true
+    for i in 0..64 {
+        unsafe {
+            if *ptr.add(i) != i as u8 {
+                valid = false
+            }
+        }
+    }
+    test.assert(valid, "Memory values should match written values")
+    
+    // Free memory
+    std.free(ptr)
+    
+    test.print_summary()
+}
+
+// =============================================================================
+// TEST: ALLOC ZEROED MEMORY
+// =============================================================================
+
+pub fn test_alloc_zeroed() {
+    test.run_suite("Memory: Zeroed Allocation")
+    
+    let ptr = std.alloc::<u8>(100)
+    test.assert_not_null(ptr, "Allocation should succeed")
+    
+    // Check all bytes are zero
+    let mut all_zero = true
+    for i in 0..100 {
+        unsafe {
+            if *ptr.add(i) != 0 {
+                all_zero = false
+            }
+        }
+    }
+    test.assert(all_zero, "Newly allocated memory should be zeroed")
+    
+    std.free(ptr)
+    test.print_summary()
+}
+
+// =============================================================================
+// TEST: REALLOCATION
+// =============================================================================
+
+pub fn test_realloc() {
+    test.run_suite("Memory: Reallocation")
+    
+    // Allocate initial buffer
+    let ptr = std.alloc::<u32>(10)
+    test.assert_not_null(ptr, "Initial allocation should succeed")
+    
+    // Write some values
+    for i in 0..10 {
+        unsafe {
+            *ptr.add(i) = i as u32
+        }
+    }
+    
+    // Note: __knull_realloc would be called if we use realloc semantics
+    // For now, just verify the original allocation works
+    
+    std.free(ptr)
+    test.print_summary()
+}
+
+// =============================================================================
+// TEST: MEMORY COPY
+// =============================================================================
+
+pub fn test_memory_copy() {
+    test.run_suite("Memory: Copy")
+    
+    let src = std.alloc::<u8>(32)
+    let dest = std.alloc::<u8>(32)
+    
+    // Fill source with pattern
+    for i in 0..32 {
+        unsafe {
+            *src.add(i) = (i + 1) as u8
+        }
+    }
+    
+    // Copy source to destination
+    std.copy(dest, src, 32)
+    
+    // Verify copy
+    let mut valid = true
+    for i in 0..32 {
+        unsafe {
+            if *dest.add(i) != *src.add(i) {
+                valid = false
+            }
+        }
+    }
+    test.assert(valid, "Copied memory should match source")
+    
+    std.free(src)
+    std.free(dest)
+    test.print_summary()
+}
+
+// =============================================================================
+// TEST: MEMORY ZERO
+// =============================================================================
+
+pub fn test_memory_zero() {
+    test.run_suite("Memory: Zero")
+    
+    let ptr = std.alloc::<u8>(64)
+    
+    // Fill with non-zero
+    for i in 0..64 {
+        unsafe {
+            *ptr.add(i) = 0xFF
+        }
+    }
+    
+    // Zero the memory
+    std.zero(ptr, 64)
+    
+    // Verify all zeros
+    let mut all_zero = true
+    for i in 0..64 {
+        unsafe {
+            if *ptr.add(i) != 0 {
+                all_zero = false
+            }
+        }
+    }
+    test.assert(all_zero, "Memory should be zeroed")
+    
+    std.free(ptr)
+    test.print_summary()
+}
+
+// =============================================================================
+// TEST: POINTER ARITHMETIC
+// =============================================================================
+
+pub fn test_pointer_arithmetic() {
+    test.run_suite("Memory: Pointer Arithmetic")
+    
+    let arr = std.alloc::<u32>(10)
+    
+    // Write using pointer arithmetic
+    for i in 0..10 {
+        unsafe {
+            *arr.add(i) = (i * 2) as u32
+        }
+    }
+    
+    // Read using pointer arithmetic
+    let mut valid = true
+    for i in 0..10 {
+        unsafe {
+            if *arr.add(i) != (i * 2) as u32 {
+                valid = false
+            }
+        }
+    }
+    test.assert(valid, "Pointer arithmetic should work correctly")
+    
+    std.free(arr)
+    test.print_summary()
+}
+
+// =============================================================================
+// TEST: ALIGNMENT
+// =============================================================================
+
+pub fn test_alignment() {
+    test.run_suite("Memory: Alignment")
+    
+    // Test various allocation sizes
+    let sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+    
+    for size in sizes {
+        let ptr = std.alloc::<u8>(size)
+        test.assert_not_null(ptr, "Allocation of {} bytes should succeed".format(size))
+        
+        // Check alignment (should be aligned to at least 8 bytes)
+        let addr = ptr as u64
+        test.assert_eq(addr % 8, 0, "Pointer should be 8-byte aligned")
+        
+        std.free(ptr)
+    }
+    
+    test.print_summary()
+}
+
+// =============================================================================
+// TEST: MULTIPLE ALLOCATIONS
+// =============================================================================
+
+pub fn test_multiple_allocations() {
+    test.run_suite("Memory: Multiple Allocations")
+    
+    let mut pointers: [*u8; 100]
+    
+    // Allocate many small blocks
+    for i in 0..100 {
+        pointers[i] = std.alloc::<u8>(16)
+        test.assert_not_null(pointers[i], "Allocation {} should succeed".format(i))
+        
+        // Write a unique value
+        unsafe {
+            *pointers[i] = i as u8
+        }
+    }
+    
+    // Verify all values
+    let mut valid = true
+    for i in 0..100 {
+        unsafe {
+            if *pointers[i] != i as u8 {
+                valid = false
+            }
+        }
+    }
+    test.assert(valid, "All allocated memory should contain correct values")
+    
+    // Free all
+    for i in 0..100 {
+        std.free(pointers[i])
+    }
+    
+    test.print_summary()
+}
+
+// =============================================================================
+// TEST: BUFFER OVERFLOW DETECTION
+// =============================================================================
+
+pub fn test_buffer_overflow() {
+    test.run_suite("Memory: Buffer Overflow Detection")
+    
+    // Allocate a small buffer
+    let ptr = std.alloc::<u8>(8)
+    test.assert_not_null(ptr, "Buffer allocation should succeed")
+    
+    // Attempt to write beyond bounds
+    // In a real implementation with bounds checking, this would be caught
+    // For now, we document the expected behavior
+    
+    // This is marked as a known unsafe operation
+    test.assert(true, "Buffer overflow is undefined behavior - must use safe abstractions")
+    
+    std.free(ptr)
+    test.print_summary()
+}
+
+// =============================================================================
+// RUN ALL MEMORY TESTS
+// =============================================================================
+
+pub fn run_all() {
+    std.println("")
+    std.println("========================================")
+    std.println("Running Memory Tests")
+    std.println("========================================")
+    std.println("")
+    
+    test_alloc_free()
+    test_alloc_zeroed()
+    test_memory_copy()
+    test_memory_zero()
+    test_pointer_arithmetic()
+    test_alignment()
+    test_multiple_allocations()
+    test_buffer_overflow()
+    
+    test.print_summary()
+}

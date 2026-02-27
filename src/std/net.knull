@@ -1,0 +1,888 @@
+// KNULL STANDARD LIBRARY: NETWORKING MODULE
+// Version 1.0
+// 
+// This module provides networking primitives including TCP, UDP,
+// raw sockets for packet crafting, and network utilities.
+
+module std.net
+
+// =============================================================================
+// SOCKET DOMAINS
+// =============================================================================
+
+pub const AF_UNSPEC: i32 = 0
+pub const AF_INET: i32 = 2
+pub const AF_INET6: i32 = 10
+pub const AF_UNIX: i32 = 1
+pub const AF_PACKET: i32 = 17
+
+// =============================================================================
+// SOCKET TYPES
+// =============================================================================
+
+pub const SOCK_STREAM: i32 = 1
+pub const SOCK_DGRAM: i32 = 2
+pub const SOCK_RAW: i32 = 3
+pub const SOCK_RDM: i32 = 4
+pub const SOCK_SEQPACKET: i32 = 5
+
+// =============================================================================
+// SOCKET PROTOCOLS
+// =============================================================================
+
+pub const IPPROTO_IP: i32 = 0
+pub const IPPROTO_TCP: i32 = 6
+pub const IPPROTO_UDP: i32 = 17
+pub const IPPROTO_RAW: i32 = 255
+
+// =============================================================================
+// SOCKET FLAGS
+// =============================================================================
+
+pub const MSG_PEEK: i32 = 0x01
+pub const MSG_OOB: i32 = 0x02
+pub const MSG_DONTROUTE: i32 = 0x04
+pub const MSG_DONTWAIT: i32 = 0x40
+pub const MSG_WAITALL: i32 = 0x100
+
+// =============================================================================
+// NETWORK ADDRESSES
+// =============================================================================
+
+// IPv4 Address
+pub struct IpAddr {
+    pub octets: [u8; 4],
+}
+
+impl IpAddr {
+    // Create IPv4 address from octets
+    pub fn new(a: u8, b: u8, c: u8, d: u8) -> Self {
+        IpAddr { octets: [a, b, c, d] }
+    }
+
+    // Create IPv4 address from string
+    pub fn from_str(s: string) -> option<IpAddr> {
+        let parts = s.split('.')
+        if parts.len() != 4 {
+            return None
+        }
+        
+        let mut octets = [0u8; 4]
+        for i in 0..4 {
+            match parts[i].parse::<u8>() {
+                Some(v) => octets[i] = v,
+                None => return None,
+            }
+        }
+        
+        Some(IpAddr { octets })
+    }
+
+    // Create IPv4 address from u32
+    pub fn from_u32(addr: u32) -> Self {
+        IpAddr {
+            octets: [
+                (addr & 0xFF) as u8,
+                ((addr >> 8) & 0xFF) as u8,
+                ((addr >> 16) & 0xFF) as u8,
+                ((addr >> 24) & 0xFF) as u8,
+            ]
+        }
+    }
+
+    // Convert to u32
+    pub fn to_u32(&self) -> u32 {
+        (self.octets[0] as u32) |
+        ((self.octets[1] as u32) << 8) |
+        ((self.octets[2] as u32) << 16) |
+        ((self.octets[3] as u32) << 24)
+    }
+
+    // Convert to string
+    pub fn to_string(&self) -> string {
+        format!("{}.{}.{}.{}", 
+            self.octets[0], 
+            self.octets[1], 
+            self.octets[2], 
+            self.octets[3]
+        )
+    }
+
+    // Special addresses
+    pub fn localhost() -> Self {
+        IpAddr::new(127, 0, 0, 1)
+    }
+
+    pub fn broadcast() -> Self {
+        IpAddr::new(255, 255, 255, 255)
+    }
+
+    pub fn any() -> Self {
+        IpAddr::new(0, 0, 0, 0)
+    }
+}
+
+// IPv6 Address
+pub struct IpV6Addr {
+    pub octets: [u8; 16],
+}
+
+impl IpV6Addr {
+    pub fn new(a: u16, b: u16, c: u16, d: u16, e: u16, f: u16, g: u16, h: u16) -> Self {
+        let mut octets = [0u8; 16]
+        octets[0] = (a & 0xFF) as u8
+        octets[1] = ((a >> 8) & 0xFF) as u8
+        octets[2] = (b & 0xFF) as u8
+        octets[3] = ((b >> 8) & 0xFF) as u8
+        octets[4] = (c & 0xFF) as u8
+        octets[5] = ((c >> 8) & 0xFF) as u8
+        octets[6] = (d & 0xFF) as u8
+        octets[7] = ((d >> 8) & 0xFF) as u8
+        octets[8] = (e & 0xFF) as u8
+        octets[9] = ((e >> 8) & 0xFF) as u8
+        octets[10] = (f & 0xFF) as u8
+        octets[11] = ((f >> 8) & 0xFF) as u8
+        octets[12] = (g & 0xFF) as u8
+        octets[13] = ((g >> 8) & 0xFF) as u8
+        octets[14] = (h & 0xFF) as u8
+        octets[15] = ((h >> 8) & 0xFF) as u8
+        IpV6Addr { octets }
+    }
+
+    pub fn any() -> Self {
+        IpV6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)
+    }
+
+    pub fn localhost() -> Self {
+        IpV6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)
+    }
+}
+
+// Socket Address (generic)
+pub enum SocketAddr {
+    V4(IpAddr, u16),
+    V6(IpV6Addr, u16),
+}
+
+impl SocketAddr {
+    pub fn new_v4(ip: IpAddr, port: u16) -> Self {
+        SocketAddr::V4(ip, port)
+    }
+
+    pub fn new_v6(ip: IpV6Addr, port: u16) -> Self {
+        SocketAddr::V6(ip, port)
+    }
+
+    pub fn port(&self) -> u16 {
+        match self {
+            SocketAddr::V4(_, port) => *port,
+            SocketAddr::V6(_, port) => *port,
+        }
+    }
+
+    pub fn ip_v4(&self) -> option<IpAddr> {
+        match self {
+            SocketAddr::V4(ip, _) => Some(*ip),
+            _ => None,
+        }
+    }
+
+    pub fn ip_v6(&self) -> option<IpV6Addr> {
+        match self {
+            SocketAddr::V6(ip, _) => Some(*ip),
+            _ => None,
+        }
+    }
+
+    pub fn to_string(&self) -> string {
+        match self {
+            SocketAddr::V4(ip, port) => format!("{}:{}", ip.to_string(), port),
+            SocketAddr::V6(ip, port) => format!("[{:?}]:{}", ip, port),
+        }
+    }
+}
+
+// =============================================================================
+// SOCKET OPTIONS
+// =============================================================================
+
+pub const SOL_SOCKET: i32 = 1
+pub const SO_REUSEADDR: i32 = 2
+pub const SO_REUSEPORT: i32 = 15
+pub const SO_KEEPALIVE: i32 = 9
+pub const SO_LINGER: i32 = 13
+pub const SO_SNDBUF: i32 = 7
+pub const SO_RCVBUF: i32 = 6
+pub const SO_ERROR: i32 = 4
+pub const SO_TYPE: i32 = 3
+
+pub const TCP_NODELAY: i32 = 1
+pub const TCP_QUICKACK: i32 = 12
+
+// =============================================================================
+// SOCKET STRUCTURE
+// =============================================================================
+
+pub struct Socket {
+    fd: i32,
+    domain: i32,
+    type_: i32,
+    protocol: i32,
+}
+
+impl Socket {
+    // Create a new socket
+    pub fn new(domain: i32, type_: i32, protocol: i32) -> result<Socket, Error> {
+        let fd = sys::syscall(sys::SYS_socket, domain as u64, type_ as u64, protocol as u64) as i32
+        
+        if fd < 0 {
+            return Err(Error::CreationFailed)
+        }
+        
+        Ok(Socket { fd, domain, type_, protocol })
+    }
+
+    // Create TCP socket
+    pub fn tcp() -> result<Socket, Error> {
+        Socket::new(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+    }
+
+    // Create UDP socket
+    pub fn udp() -> result<Socket, Error> {
+        Socket::new(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+    }
+
+    // Create raw socket
+    pub fn raw(protocol: i32) -> result<Socket, Error> {
+        Socket::new(AF_INET, SOCK_RAW, protocol)
+    }
+
+    // Create packet socket
+    pub fn packet() -> result<Socket, Error> {
+        Socket::new(AF_PACKET, SOCK_RAW, IPPROTO_RAW)
+    }
+
+    // Bind to address
+    pub fn bind(&self, addr: SocketAddr) -> result<(), Error> {
+        let sock_addr = self.sockaddr_to_native(addr)
+        let result = sys::syscall(
+            sys::SYS_bind, 
+            self.fd as u64, 
+            &sock_addr as *const SockAddr as u64, 
+            __size_of::<SockAddr>() as u64
+        ) as i32
+        
+        if result < 0 {
+            return Err(Error::BindFailed)
+        }
+        Ok(())
+    }
+
+    // Listen for connections
+    pub fn listen(&self, backlog: i32) -> result<(), Error> {
+        let result = sys::syscall(
+            sys::SYS_listen, 
+            self.fd as u64, 
+            backlog as u64
+        ) as i32
+        
+        if result < 0 {
+            return Err(Error::ListenFailed)
+        }
+        Ok(())
+    }
+
+    // Accept connection
+    pub fn accept(&self) -> result<(Socket, SocketAddr), Error> {
+        let mut client_addr: SockAddr = __uninit()
+        let mut addr_len: u32 = __size_of::<SockAddr>() as u32
+        
+        let client_fd = sys::syscall(
+            sys::SYS_accept,
+            self.fd as u64,
+            &client_addr as *const SockAddr as u64,
+            &mut addr_len as *mut u32 as u64
+        ) as i32
+        
+        if client_fd < 0 {
+            return Err(Error::AcceptFailed)
+        }
+        
+        let client_socket = Socket {
+            fd: client_fd,
+            domain: self.domain,
+            type_: self.type_,
+            protocol: self.protocol,
+        }
+        
+        let addr = self.native_to_sockaddr(&client_addr)
+        Ok((client_socket, addr))
+    }
+
+    // Connect to address
+    pub fn connect(&self, addr: SocketAddr) -> result<(), Error> {
+        let sock_addr = self.sockaddr_to_native(addr)
+        let result = sys::syscall(
+            sys::SYS_connect,
+            self.fd as u64,
+            &sock_addr as *const SockAddr as u64,
+            __size_of::<SockAddr>() as u64
+        ) as i32
+        
+        if result < 0 {
+            return Err(Error::ConnectFailed)
+        }
+        Ok(())
+    }
+
+    // Send data
+    pub fn send(&self, data: &[u8], flags: i32) -> result<usize, Error> {
+        let result = sys::syscall(
+            sys::SYS_sendto,
+            self.fd as u64,
+            data.as_ptr() as u64,
+            data.len() as u64,
+            flags as u64,
+            null as u64,
+            0 as u64
+        ) as isize
+        
+        if result < 0 {
+            return Err(Error::SendFailed)
+        }
+        Ok(result as usize)
+    }
+
+    // Receive data
+    pub fn recv(&self, buf: &mut [u8], flags: i32) -> result<usize, Error> {
+        let result = sys::syscall(
+            sys::SYS_recvfrom,
+            self.fd as u64,
+            buf.as_mut_ptr() as u64,
+            buf.len() as u64,
+            flags as u64,
+            null as u64,
+            null as u64
+        ) as isize
+        
+        if result < 0 {
+            return Err(Error::RecvFailed)
+        }
+        Ok(result as usize)
+    }
+
+    // Send to address
+    pub fn send_to(&self, data: &[u8], addr: SocketAddr, flags: i32) -> result<usize, Error> {
+        let sock_addr = self.sockaddr_to_native(addr)
+        
+        let result = sys::syscall(
+            sys::SYS_sendto,
+            self.fd as u64,
+            data.as_ptr() as u64,
+            data.len() as u64,
+            flags as u64,
+            &sock_addr as *const SockAddr as u64,
+            __size_of::<SockAddr>() as u64
+        ) as isize
+        
+        if result < 0 {
+            return Err(Error::SendFailed)
+        }
+        Ok(result as usize)
+    }
+
+    // Receive from address
+    pub fn recv_from(&self, buf: &mut [u8], flags: i32) -> result<(usize, SocketAddr), Error> {
+        let mut addr: SockAddr = __uninit()
+        let mut addr_len: u32 = __size_of::<SockAddr>() as u32
+        
+        let result = sys::syscall(
+            sys::SYS_recvfrom,
+            self.fd as u64,
+            buf.as_mut_ptr() as u64,
+            buf.len() as u64,
+            flags as u64,
+            &addr as *mut SockAddr as u64,
+            &mut addr_len as *mut u32 as u64
+        ) as isize
+        
+        if result < 0 {
+            return Err(Error::RecvFailed)
+        }
+        
+        let socket_addr = self.native_to_sockaddr(&addr)
+        Ok((result as usize, socket_addr))
+    }
+
+    // Close socket
+    pub fn close(&self) {
+        sys::close(self.fd)
+    }
+
+    // Set socket option
+    pub fn setsockopt(&self, level: i32, optname: i32, value: *const u8, optlen: u32) -> result<(), Error> {
+        let result = sys::syscall(
+            sys::SYS_setsockopt,
+            self.fd as u64,
+            level as u64,
+            optname as u64,
+            value as u64,
+            optlen as u64
+        ) as i32
+        
+        if result < 0 {
+            return Err(Error::OptionFailed)
+        }
+        Ok(())
+    }
+
+    // Get socket option
+    pub fn getsockopt(&self, level: i32, optname: i32, value: *mut u8, optlen: *mut u32) -> result<(), Error> {
+        let mut optlen_copy = *optlen
+        let result = sys::syscall(
+            sys::SYS_getsockopt,
+            self.fd as u64,
+            level as u64,
+            optname as u64,
+            value as u64,
+            &mut optlen_copy as *mut u32 as u64
+        ) as i32
+        
+        if result < 0 {
+            return Err(Error::OptionFailed)
+        }
+        *optlen = optlen_copy
+        Ok(())
+    }
+
+    // Set reuse address
+    pub fn set_reuse_addr(&self, reuse: bool) -> result<(), Error> {
+        let val: i32 = if reuse { 1 } else { 0 }
+        self.setsockopt(SOL_SOCKET, SO_REUSEADDR, &val as *const i32 as *const u8, __size_of::<i32>() as u32)
+    }
+
+    // Set TCP no delay
+    pub fn set_tcp_nodelay(&self, nodelay: bool) -> result<(), Error> {
+        let val: i32 = if nodelay { 1 } else { 0 }
+        self.setsockopt(IPPROTO_TCP, TCP_NODELAY, &val as *const i32 as *const u8, __size_of::<i32>() as u32)
+    }
+
+    // Set non-blocking
+    pub fn set_nonblocking(&self, nonblock: bool) -> result<(), Error> {
+        let flags = sys::fcntl(self.fd, sys::F_GETFL, 0)
+        let new_flags = if nonblock { flags | sys::O_NONBLOCK } else { flags & ~sys::O_NONBLOCK }
+        let result = sys::fcntl(self.fd, sys::F_SETFL, new_flags)
+        
+        if result < 0 {
+            return Err(Error::OptionFailed)
+        }
+        Ok(())
+    }
+
+    // Get local address
+    pub fn local_addr(&self) -> result<SocketAddr, Error> {
+        let mut addr: SockAddr = __uninit()
+        let mut addr_len: u32 = __size_of::<SockAddr>() as u32
+        
+        let result = sys::syscall(
+            sys::SYS_getsockname,
+            self.fd as u64,
+            &addr as *mut SockAddr as u64,
+            &mut addr_len as *mut u32 as u64
+        ) as i32
+        
+        if result < 0 {
+            return Err(Error::GetAddrFailed)
+        }
+        
+        Ok(self.native_to_sockaddr(&addr))
+    }
+
+    // Get peer address
+    pub fn peer_addr(&self) -> result<SocketAddr, Error> {
+        let mut addr: SockAddr = __uninit()
+        let mut addr_len: u32 = __size_of::<SockAddr>() as u32
+        
+        let result = sys::syscall(
+            sys::SYS_getpeername,
+            self.fd as u64,
+            &addr as *mut SockAddr as u64,
+            &mut addr_len as *mut u32 as u64
+        ) as i32
+        
+        if result < 0 {
+            return Err(Error::GetAddrFailed)
+        }
+        
+        Ok(self.native_to_sockaddr(&addr))
+    }
+
+    // Internal: Convert SocketAddr to native sockaddr_in/sockaddr_in6
+    fn sockaddr_to_native(&self, addr: SocketAddr) -> SockAddr {
+        match addr {
+            SocketAddr::V4(ip, port) => {
+                let mut sa: SockAddrIn = __uninit()
+                sa.sin_family = AF_INET as u16
+                sa.sin_port = port.big_endian()
+                sa.sin_addr = ip.to_u32().big_endian()
+                // Zero the padding
+                __memset(sa.sin_zero.as_mut_ptr(), 0, 8)
+                SockAddr { in: sa }
+            }
+            SocketAddr::V6(ip, port) => {
+                let mut sa: SockAddrIn6 = __uninit()
+                sa.sin6_family = AF_INET6 as u16
+                sa.sin6_port = port.big_endian()
+                // Copy IPv6 address
+                __memcpy(sa.sin6_addr.as_mut_ptr(), ip.octets.as_ptr(), 16)
+                SockAddrIn6 { ...sa }
+            }
+        }
+    }
+
+    // Internal: Convert native sockaddr to SocketAddr
+    fn native_to_sockaddr(&self, addr: *const SockAddr) -> SocketAddr {
+        unsafe {
+            let family = (*addr).in4.sin_family as i32
+            if family == AF_INET {
+                let port = (*addr).in4.sin_port.from_be()
+                let ip = u32::from_be((*addr).in4.sin_addr).from_u32()
+                SocketAddr::V4(ip, port)
+            } else if family == AF_INET6 {
+                let port = (*addr).in6.sin6_port.from_be()
+                let mut octets = [0u8; 16]
+                __memcpy(octets.as_mut_ptr(), (*addr).in6.sin6_addr.as_ptr(), 16)
+                SocketAddr::V6(IpV6Addr { octets }, port)
+            } else {
+                SocketAddr::V4(IpAddr::any(), 0)
+            }
+        }
+    }
+}
+
+// =============================================================================
+// NATIVE SOCKET ADDRESS STRUCTURES
+// =============================================================================
+
+pub struct SockAddrIn {
+    pub sin_family: u16,
+    pub sin_port: u16,
+    pub sin_addr: u32,
+    pub sin_zero: [u8; 8],
+}
+
+pub struct SockAddrIn6 {
+    pub sin6_family: u16,
+    pub sin6_port: u16,
+    pub sin6_flowinfo: u32,
+    pub sin6_addr: [u8; 16],
+    pub sin6_scope_id: u32,
+}
+
+pub union SockAddr {
+    pub in4: SockAddrIn,
+    pub in6: SockAddrIn6,
+}
+
+// =============================================================================
+// ERRORS
+// =============================================================================
+
+pub enum Error {
+    CreationFailed,
+    BindFailed,
+    ListenFailed,
+    AcceptFailed,
+    ConnectFailed,
+    SendFailed,
+    RecvFailed,
+    OptionFailed,
+    GetAddrFailed,
+    Timeout,
+    ConnectionReset,
+    ConnectionRefused,
+}
+
+impl Error {
+    pub fn to_string(&self) -> string {
+        match self {
+            Error::CreationFailed => "socket creation failed",
+            Error::BindFailed => "bind failed",
+            Error::ListenFailed => "listen failed",
+            Error::AcceptFailed => "accept failed",
+            Error::ConnectFailed => "connect failed",
+            Error::SendFailed => "send failed",
+            Error::RecvFailed => "receive failed",
+            Error::OptionFailed => "setsockopt/getsockopt failed",
+            Error::GetAddrFailed => "get socket address failed",
+            Error::Timeout => "operation timed out",
+            Error::ConnectionReset => "connection reset by peer",
+            Error::ConnectionRefused => "connection refused",
+        }
+    }
+}
+
+// =============================================================================
+// RAW PACKET OPERATIONS
+// =============================================================================
+
+// Ethernet frame header
+pub struct EthernetFrame {
+    pub dst: [u8; 6],
+    pub src: [u8; 6],
+    pub ether_type: u16,
+}
+
+// IPv4 header
+pub struct IpHeader {
+    pub version_ihl: u8,
+    pub tos: u8,
+    pub total_length: u16,
+    pub identification: u16,
+    pub flags_fragment: u16,
+    pub ttl: u8,
+    pub protocol: u8,
+    pub checksum: u16,
+    pub src_ip: u32,
+    pub dst_ip: u32,
+}
+
+// TCP header
+pub struct TcpHeader {
+    pub src_port: u16,
+    pub dst_port: u16,
+    pub seq_num: u32,
+    pub ack_num: u32,
+    pub data_offset_flags: u16,
+    pub window: u16,
+    pub checksum: u16,
+    pub urgent_ptr: u16,
+}
+
+// UDP header
+pub struct UdpHeader {
+    pub src_port: u16,
+    pub dst_port: u16,
+    pub length: u16,
+    pub checksum: u16,
+}
+
+// Packet builder
+pub struct PacketBuilder {
+    data: Vec<u8>,
+}
+
+impl PacketBuilder {
+    pub fn new() -> Self {
+        PacketBuilder { data: Vec::new() }
+    }
+
+    // Add Ethernet header
+    pub fn ethernet(mut self, dst: [u8; 6], src: [u8; 6], ether_type: u16) -> Self {
+        self.data.push_many(dst)
+        self.data.push_many(src)
+        self.data.push((ether_type >> 8) as u8)
+        self.data.push((ether_type & 0xFF) as u8)
+        self
+    }
+
+    // Add IPv4 header
+    pub fn ipv4(mut self, src: IpAddr, dst: IpAddr, protocol: u8, ttl: u8 = 64) -> Self {
+        let offset = self.data.len()
+        
+        // Placeholder for header (we'll fill it in later)
+        let header_start = self.data.len()
+        self.data.resize(header_start + 20, 0)
+        
+        // Version (4), IHL (5), TOS
+        self.data[header_start] = 0x45
+        
+        // Total length (placeholder, will update)
+        // Identification
+        self.data[offset + 4] = 0
+        self.data[offset + 5] = 0
+        
+        // Flags (Don't Fragment), Fragment Offset
+        self.data[offset + 6] = 0x40
+        self.data[offset + 7] = 0
+        
+        // TTL
+        self.data[header_start + 8] = ttl
+        
+        // Protocol
+        self.data[header_start + 9] = protocol
+        
+        // Checksum (placeholder)
+        self.data[header_start + 10] = 0
+        self.data[header_start + 11] = 0
+        
+        // Source IP
+        let src_u32 = src.to_u32()
+        self.data[header_start + 12] = (src_u32 & 0xFF) as u8
+        self.data[header_start + 13] = ((src_u32 >> 8) & 0xFF) as u8
+        self.data[header_start + 14] = ((src_u32 >> 16) & 0xFF) as u8
+        self.data[header_start + 15] = ((src_u32 >> 24) & 0xFF) as u8
+        
+        // Destination IP
+        let dst_u32 = dst.to_u32()
+        self.data[header_start + 16] = (dst_u32 & 0xFF) as u8
+        self.data[header_start + 17] = ((dst_u32 >> 8) & 0xFF) as u8
+        self.data[header_start + 18] = ((dst_u32 >> 16) & 0xFF) as u8
+        self.data[header_start + 19] = ((dst_u32 >> 24) & 0xFF) as u8
+        
+        // Calculate IP checksum
+        let checksum = self.checksum(header_start, 20)
+        self.data[header_start + 10] = (checksum & 0xFF) as u8
+        self.data[header_start + 11] = ((checksum >> 8) & 0xFF) as u8
+        
+        // Update total length
+        let total_len = self.data.len() - header_start
+        self.data[offset + 2] = (total_len >> 8) as u8
+        self.data[offset + 3] = (total_len & 0xFF) as u8
+        
+        self
+    }
+
+    // Add TCP header
+    pub fn tcp(mut self, src_port: u16, dst_port: u16, seq: u32, ack: u32, flags: u16) -> Self {
+        let offset = self.data.len()
+        
+        // Placeholder for header (we'll fill it in later)
+        let header_start = self.data.len()
+        self.data.resize(header_start + 20, 0)
+        
+        // Source port
+        self.data[header_start] = (src_port >> 8) as u8
+        self.data[header_start + 1] = (src_port & 0xFF) as u8
+        
+        // Destination port
+        self.data[header_start + 2] = (dst_port >> 8) as u8
+        self.data[header_start + 3] = (dst_port & 0xFF) as u8
+        
+        // Sequence number
+        self.data[header_start + 4] = ((seq >> 24) & 0xFF) as u8
+        self.data[header_start + 5] = ((seq >> 16) & 0xFF) as u8
+        self.data[header_start + 6] = ((seq >> 8) & 0xFF) as u8
+        self.data[header_start + 7] = (seq & 0xFF) as u8
+        
+        // Acknowledgment number
+        self.data[header_start + 8] = ((ack >> 24) & 0xFF) as u8
+        self.data[header_start + 9] = ((ack >> 16) & 0xFF) as u8
+        self.data[header_start + 10] = ((ack >> 8) & 0xFF) as u8
+        self.data[header_start + 11] = (ack & 0xFF) as u8
+        
+        // Data offset (5 words = 20 bytes) and flags
+        self.data[header_start + 12] = (5 << 4) as u8
+        self.data[header_start + 13] = (flags & 0xFF) as u8
+        
+        // Window size
+        self.data[header_start + 14] = 0xFF
+        self.data[header_start + 15] = 0xFF
+        
+        // Checksum (placeholder) and urgent pointer
+        self.data[header_start + 16] = 0
+        self.data[header_start + 17] = 0
+        self.data[header_start + 18] = 0
+        self.data[header_start + 19] = 0
+        
+        self
+    }
+
+    // Add UDP header
+    pub fn udp(mut self, src_port: u16, dst_port: u16) -> Self {
+        let offset = self.data.len()
+        
+        // Placeholder for header
+        let header_start = self.data.len()
+        self.data.resize(header_start + 8, 0)
+        
+        // Source port
+        self.data[header_start] = (src_port >> 8) as u8
+        self.data[header_start + 1] = (src_port & 0xFF) as u8
+        
+        // Destination port
+        self.data[header_start + 2] = (dst_port >> 8) as u8
+        self.data[header_start + 3] = (dst_port & 0xFF) as u8
+        
+        // Length (placeholder, will update)
+        
+        // Checksum (placeholder)
+        
+        // Update UDP length
+        let udp_len = self.data.len() - header_start
+        self.data[offset + 4] = (udp_len >> 8) as u8
+        self.data[offset + 5] = (udp_len & 0xFF) as u8
+        
+        self
+    }
+
+    // Add payload data
+    pub fn payload(mut self, data: &[u8]) -> Self {
+        self.data.push_many(data)
+        self
+    }
+
+    // Build the packet
+    pub fn build(self) -> Vec<u8> {
+        self.data
+    }
+
+    // Calculate IP checksum
+    fn checksum(&self, offset: usize, len: usize) -> u16 {
+        let mut sum: u32 = 0
+        let mut i = 0
+        
+        while i + 1 < len {
+            let word = (self.data[offset + i] as u32) << 8 | (self.data[offset + i + 1] as u32)
+            sum += word
+            i += 2
+        }
+        
+        if i < len {
+            sum += (self.data[offset + i] as u32) << 8
+        }
+        
+        while sum > 0xFFFF {
+            sum = (sum & 0xFFFF) + (sum >> 16)
+        }
+        
+        !(sum as u16)
+    }
+}
+
+// =============================================================================
+// DNS RESOLUTION
+// =============================================================================
+
+// Simple DNS resolver
+pub fn resolve_host(hostname: string) -> option<IpAddr> {
+    // This is a simplified implementation
+    // In production, you'd use getaddrinfo or a DNS library
+    
+    // First, try to parse as IP address directly
+    if let Some(ip) = IpAddr::from_str(hostname) {
+        return Some(ip)
+    }
+    
+    // For now, return localhost if parsing fails
+    // A full implementation would query DNS
+    None
+}
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+// Convert port to network byte order (big endian)
+pub fn htons(port: u16) -> u16 {
+    port.big_endian()
+}
+
+// Convert port to host byte order
+pub fn ntohs(port: u16) -> u16 {
+    port.from_be()
+}
+
+// =============================================================================
+// END OF NETWORKING MODULE
+// =============================================================================

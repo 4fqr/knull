@@ -1,0 +1,45 @@
+{
+  "name": "knull",
+  "displayName": "Knull",
+  "description": "Knull Programming Language - The God Language",
+  "version": "1.0.0",
+  "publisher": "knull-lang",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "knull",
+        "aliases": ["Knull", "knull"],
+        "extensions": [".knull"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "knull",
+        "scopeName": "source.knull",
+        "path": "./syntaxes/knull.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Knull Language Configuration",
+      "properties": {
+        "knull.trace.server": {
+          "type": "string",
+          "default": "off",
+          "enum": ["off", "messages", "verbose"],
+          "description": "Traces the communication between VS Code and the language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "echo 'Ready to publish'"
+  }
+}

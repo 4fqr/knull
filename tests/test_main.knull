@@ -1,0 +1,194 @@
+// =============================================================================
+// KNULL TEST FRAMEWORK
+// =============================================================================
+// A simple test runner framework for Knull
+
+module test
+
+// =============================================================================
+// TEST CONFIGURATION
+// =============================================================================
+
+// Test statistics
+let mut tests_run: u32 = 0
+let mut tests_passed: u32 = 0
+let mut tests_failed: u32 = 0
+
+// =============================================================================
+// ASSERTION FUNCTIONS
+// =============================================================================
+
+// Assert that a condition is true
+pub fn assert(condition: bool, message: string) {
+    tests_run = tests_run + 1
+    
+    if condition {
+        tests_passed = tests_passed + 1
+        std.println("[PASS] {}".format(message))
+    } else {
+        tests_failed = tests_failed + 1
+        std.eprintln("[FAIL] {}".format(message))
+    }
+}
+
+// Assert two values are equal
+pub fn assert_eq<T>(actual: T, expected: T, message: string) {
+    tests_run = tests_run + 1
+    
+    if actual == expected {
+        tests_passed = tests_passed + 1
+        std.println("[PASS] {}".format(message))
+    } else {
+        tests_failed = tests_failed + 1
+        std.eprintln("[FAIL] {} - expected: {}, got: {}".format(message, expected, actual))
+    }
+}
+
+// Assert two values are not equal
+pub fn assert_ne<T>(actual: T, expected: T, message: string) {
+    tests_run = tests_run + 1
+    
+    if actual != expected {
+        tests_passed = tests_passed + 1
+        std.println("[PASS] {}".format(message))
+    } else {
+        tests_failed = tests_failed + 1
+        std.eprintln("[FAIL] {} - values should not be equal".format(message))
+    }
+}
+
+// Assert a value is null
+pub fn assert_null<T>(ptr: *const T, message: string) {
+    tests_run = tests_run + 1
+    
+    if ptr as u64 == 0 {
+        tests_passed = tests_passed + 1
+        std.println("[PASS] {}".format(message))
+    } else {
+        tests_failed = tests_failed + 1
+        std.eprintln("[FAIL] {} - expected null".format(message))
+    }
+}
+
+// Assert a value is not null
+pub fn assert_not_null<T>(ptr: *const T, message: string) {
+    tests_run = tests_run + 1
+    
+    if ptr as u64 != 0 {
+        tests_passed = tests_passed + 1
+        std.println("[PASS] {}".format(message))
+    } else {
+        tests_failed = tests_failed + 1
+        std.eprintln("[FAIL] {} - expected non-null".format(message))
+    }
+}
+
+// Assert a value is greater than
+pub fn assert_gt<T>(actual: T, expected: T, message: string) {
+    tests_run = tests_run + 1
+    
+    if actual > expected {
+        tests_passed = tests_passed + 1
+        std.println("[PASS] {}".format(message))
+    } else {
+        tests_failed = tests_failed + 1
+        std.eprintln("[FAIL] {} - expected > {}".format(message, expected))
+    }
+}
+
+// Assert a value is less than
+pub fn assert_lt<T>(actual: T, expected: T, message: string) {
+    tests_run = tests_run + 1
+    
+    if actual < expected {
+        tests_passed = tests_passed + 1
+        std.println("[PASS] {}".format(message))
+    } else {
+        tests_failed = tests_failed + 1
+        std.eprintln("[FAIL] {} - expected < {}".format(message, expected))
+    }
+}
+
+// =============================================================================
+// TEST RUNNER
+// =============================================================================
+
+// Type for a test function
+type TestFn = fn() -> void
+
+// Run a single test
+pub fn run_test(name: string, fn_: TestFn) {
+    std.println("Running test: {}".format(name))
+    fn_()
+}
+
+// Run all tests and print summary
+pub fn run_suite(name: string) {
+    std.println("")
+    std.println("========================================")
+    std.println("Test Suite: {}".format(name))
+    std.println("========================================")
+    std.println("")
+}
+
+// Print final test results
+pub fn print_summary() {
+    std.println("")
+    std.println("========================================")
+    std.println("Test Results")
+    std.println("========================================")
+    std.println("Total:  {}", tests_run)
+    std.println("Passed: {}", tests_passed)
+    std.println("Failed: {}", tests_failed)
+    std.println("========================================")
+    
+    if tests_failed > 0 {
+        std.exit(1)
+    }
+}
+
+// Reset test counters
+pub fn reset() {
+    tests_run = 0
+    tests_passed = 0
+    tests_failed = 0
+}
+
+// =============================================================================
+// TEST CATEGORIES
+// =============================================================================
+
+// Skip a test (for disabled tests)
+pub fn skip(message: string) {
+    std.println("[SKIP] {}".format(message))
+}
+
+// Mark a test as todo
+pub fn todo(message: string) {
+    std.println("[TODO] {}".format(message))
+}
+
+// =============================================================================
+// BENCHMARK HELPERS
+// =============================================================================
+
+// Simple benchmark runner
+pub fn benchmark(name: string, fn_: TestFn, iterations: u32) {
+    std.println("Benchmarking: {} ({} iterations)".format(name, iterations))
+    
+    let start = std.time.now()
+    
+    for i in 0..iterations {
+        fn_()
+    }
+    
+    let elapsed = start.elapsed()
+    let ns_per_op = (elapsed.as_nanos() as f64) / (iterations as f64)
+    
+    std.println("  {} ns/op".format(ns_per_op))
+    std.println("  {} ops/sec".format(1000000000.0 / ns_per_op))
+}
+
+// =============================================================================
+// END OF TEST FRAMEWORK
+// =============================================================================

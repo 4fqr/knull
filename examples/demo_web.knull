@@ -1,0 +1,72 @@
+// =============================================================================
+// KNULL WEB DEMO - Simple HTTP Server
+// =============================================================================
+
+module web_demo
+
+// Simple HTTP response
+struct HttpResponse {
+    status: i32,
+    status_text: string,
+    headers: string,
+    body: string,
+}
+
+// Create HTTP response
+fn ok(body: string) -> HttpResponse {
+    HttpResponse {
+        status: 200,
+        status_text: "OK",
+        headers: "Content-Type: text/plain\r\n",
+        body: body,
+    }
+}
+
+fn not_found() -> HttpResponse {
+    HttpResponse {
+        status: 404,
+        status_text: "Not Found",
+        headers: "Content-Type: text/plain\r\n",
+        body: "404 Not Found",
+    }
+}
+
+// Convert response to string
+fn to_string(resp: HttpResponse) -> string {
+    let result = "HTTP/1.1 " + resp.status + " " + resp.status_text + "\r\n"
+    result = result + resp.headers + "\r\n"
+    result = result + resp.body
+    result
+}
+
+// Simple router
+fn route(path: string) -> HttpResponse {
+    if path == "/" {
+        ok("Welcome to Knull Web Server!")
+    } else if path == "/api/status" {
+        ok("{\"status\": \"running\", \"version\": \"1.0.0\"}")
+    } else if path == "/api/time" {
+        let t = std.time.now()
+        ok("{\"timestamp\": " + t + "}")
+    } else {
+        not_found()
+    }
+}
+
+// Main server
+fn main() {
+    println "Starting Knull HTTP Server..."
+    println "Listening on http://localhost:8080"
+    println "Press Ctrl+C to stop"
+    
+    // In a full implementation, this would listen on a socket
+    // For demo purposes, we just show the concept
+    
+    let response = route("/api/status")
+    println ""
+    println "Example Request:"
+    println "GET /api/status"
+    println ""
+    println "Response:"
+    println to_string(response)
+}

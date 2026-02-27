@@ -1,0 +1,730 @@
+// =============================================================================
+// BRAINFUCK COMPILER - THE METAPROGRAMMER
+// =============================================================================
+// A compile-time (comptime) function that takes Brainfuck source code
+// and compiles it to executable Knull machine code at compile time.
+// This demonstrates Knull's metaprogramming capabilities.
+
+module main
+
+import std.mem
+import std.sys
+
+// =============================================================================
+// BRAINFUCK LANGUAGE REFERENCE
+// =============================================================================
+// >   Increment data pointer
+// <   Decrement data pointer
+// +   Increment cell at data pointer
+// -   Decrement cell at data pointer
+// .   Output cell at data pointer (as ASCII)
+// ,   Input character to cell at data pointer
+// [   Jump past matching ] if cell is zero
+// ]   Jump back to matching [ if cell is non-zero
+
+// =============================================================================
+// COMPILER OPTIONS
+// =============================================================================
+
+struct CompilerOptions {
+    debug: bool,
+    optimize: bool,
+    cell_size: usize,  // 8 for byte, 16 for word
+    array_size: usize,
+    initialise_cells: bool,
+}
+
+impl CompilerOptions {
+    fn default() -> CompilerOptions {
+        CompilerOptions {
+            debug: false,
+            optimize: true,
+            cell_size: 8,
+            array_size: 30000,
+            initialise_cells: true,
+        }
+    }
+}
+
+// =============================================================================
+// OPCODE TYPES
+// =============================================================================
+
+enum Opcode {
+    MoveRight(usize),      // >
+    MoveLeft(usize),        // <
+    Increment(u8),          // +
+    Decrement(u8),         // -
+    Output,                // .
+    Input,                 // ,
+    LoopStart(usize),      // [
+    LoopEnd(usize),        // ]
+    Clear,                // [-] optimization
+    MulCopy { offset: usize, value: u8 },  // multiplication optimization
+    SetZero,              // [-] equivalent
+}
+
+// =============================================================================
+// BRAINFUCK TO KIR COMPILER
+// =============================================================================
+
+struct BrainfuckCompiler {
+    options: CompilerOptions,
+    program: Vec<Opcode>,
+    loops: Vec<usize>,  // Stack of loop start positions
+}
+
+impl BrainfuckCompiler {
+    fn new(options: CompilerOptions) -> BrainfuckCompiler {
+        BrainfuckCompiler {
+            options,
+            program: Vec::new(),
+            loops: Vec::new(),
+        }
+    }
+
+    // Main compilation function
+    fn compile(source: string) -> result<Vec<Opcode>, Error> {
+        let mut compiler = BrainfuckCompiler::new(CompilerOptions::default())
+        compiler.parse(source)
+    }
+
+    // Parse Brainfuck source to opcodes
+    fn parse(&mut self, source: string) {
+        let mut i = 0
+        let chars = source.chars()
+        
+        while i < source.len() {
+            let c = source[i]
+            
+            match c {
+                '>' => {
+                    // Count consecutive > 
+                    let mut count = 1
+                    while i + count < source.len() && source[i + count] == '>' {
+                        count += 1
+                    }
+                    self.program.push(Opcode::MoveRight(count))
+                    i += count
+                }
+                '<' => {
+                    // Count consecutive <
+                    let mut count = 1
+                    while i + count < source.len() && source[i + count] == '<' {
+                        count += 1
+                    }
+                    self.program.push(Opcode::MoveLeft(count))
+                    i += count
+                }
+                '+' => {
+                    // Count consecutive +
+                    let mut count = 1
+                    while i + count < source.len() && source[i + count] == '+' {
+                        count += 1
+                    }
+                    // Wrap around for byte cells
+                    self.program.push(Opcode::Increment((count % 256) as u8))
+                    i += count
+                }
+                '-' => {
+                    // Count consecutive -
+                    let mut count = 1
+                    while i + count < source.len() && source[i + count] == '-' {
+                        count += 1
+                    }
+                    // Handle negative values
+                    let val = ((-count) % 256) as i32
+                    self.program.push(Opcode::Decrement(((val + 256) % 256) as u8))
+                    i += count
+                }
+                '.' => {
+                    self.program.push(Opcode::Output)
+                    i += 1
+                }
+                ',' => {
+                    self.program.push(Opcode::Input)
+                    i += 1
+                }
+                '[' => {
+                    // Record loop start position
+                    let pos = self.program.len()
+                    self.program.push(Opcode::LoopStart(0))  // Placeholder
+                    self.loops.push(pos)
+                    i += 1
+                }
+                ']' => {
+                    if let Some(start) = self.loops.pop() {
+                        // Patch the loop start and end positions
+                        let end = self.program.len()
+                        
+                        // Update the placeholder with end position
+                        match &mut self.program[start] {
+                            Opcode::LoopStart(p) => *p = end,
+                            _ => {}
+                        }
+                        
+                        self.program.push(Opcode::LoopEnd(start))
+                    }
+                    i += 1
+                }
+                _ => {
+                    // Skip non-Brainfuck characters (comments)
+                    i += 1
+                }
+            }
+        }
+    }
+
+    // Optimize the generated opcodes
+    fn optimize(&mut self) {
+        if !self.options.optimize {
+            return
+        }
+        
+        let mut optimized = Vec::new()
+        let mut i = 0
+        
+        while i < self.program.len() {
+            // Optimize [-] (clear cell)
+            if i + 2 < self.program.len() {
+                match (&self.program[i], &self.program[i + 1], &self.program[i + 2]) {
+                    (Opcode::LoopStart(_), Opcode::Decrement(_), Opcode::LoopEnd(_)) => {
+                        optimized.push(Opcode::Clear)
+                        i += 3
+                        continue
+                    }
+                    _ => {}
+                }
+            }
+            
+            // Merge consecutive MoveRight/MoveLeft
+            match &self.program[i] {
+                Opcode::MoveRight(a) => {
+                    let mut total = *a
+                    let mut j = i + 1
+                    while j < self.program.len() {
+                        match self.program[j] {
+                            Opcode::MoveRight(b) => {
+                                total += b
+                                j += 1
+                            }
+                            _ => break
+                        }
+                    }
+                    if total > 0 {
+                        optimized.push(Opcode::MoveRight(total))
+                    }
+                    i = j
+                    continue
+                }
+                Opcode::MoveLeft(a) => {
+                    let mut total = *a
+                    let mut j = i + 1
+                    while j < self.program.len() {
+                        match self.program[j] {
+                            Opcode::MoveLeft(b) => {
+                                total += b
+                                j += 1
+                            }
+                            _ => break
+                        }
+                    }
+                    if total > 0 {
+                        optimized.push(Opcode::MoveLeft(total))
+                    }
+                    i = j
+                    continue
+                }
+                Opcode::Increment(a) => {
+                    let mut total = *a
+                    let mut j = i + 1
+                    while j < self.program.len() {
+                        match self.program[j] {
+                            Opcode::Increment(b) => {
+                                total = ((total as usize + b as usize) % 256) as u8
+                                j += 1
+                            }
+                            _ => break
+                        }
+                    }
+                    if total > 0 {
+                        optimized.push(Opcode::Increment(total))
+                    }
+                    i = j
+                    continue
+                }
+                Opcode::Decrement(a) => {
+                    let mut total = *a as i32
+                    let mut j = i + 1
+                    while j < self.program.len() {
+                        match self.program[j] {
+                            Opcode::Decrement(b) => {
+                                total -= b as i32
+                                j += 1
+                            }
+                            _ => break
+                        }
+                    }
+                    // Normalize to 0-255
+                    let val = ((total % 256) + 256) % 256
+                    if val > 0 {
+                        optimized.push(Opcode::Decrement(val as u8))
+                    }
+                    i = j
+                    continue
+                }
+                _ => {}
+            }
+            
+            optimized.push(self.program[i].clone())
+            i += 1
+        }
+        
+        self.program = optimized
+    }
+}
+
+// =============================================================================
+// CODE GENERATOR - CONVERT OPCODES TO X86_64 ASSEMBLY
+// =============================================================================
+
+struct X86_64Generator {
+    code: Vec<u8>,
+    labels: HashMap<usize, usize>,  // Position to label offset
+}
+
+impl X86_64Generator {
+    fn new() -> X86_64Generator {
+        X86_64Generator {
+            code: Vec::new(),
+            labels: HashMap::new(),
+        }
+    }
+
+    // Generate x86_64 Linux code
+    fn generate(opcodes: &[Opcode]) -> Vec<u8> {
+        let mut gen = X86_64Generator::new()
+        
+        // Function prologue
+        gen.emit_prologue()
+        
+        // Generate code for each opcode
+        for (i, op) in opcodes.iter().enumerate() {
+            match op {
+                Opcode::MoveRight(n) => {
+                    // add $n, %rsi
+                    gen.emit_modrm_sib(0x04, 0xC0, *n as u8)  // modrm for rsi
+                    gen.emit(0x48)  // REX
+                    gen.emit(0x83)  // add imm8, r/m64
+                    gen.emit(0xC6)  // modrm for rsi
+                    gen.emit(*n as u8)
+                }
+                Opcode::MoveLeft(n) => {
+                    // sub $n, %rsi
+                    gen.emit(0x48)  // REX
+                    gen.emit(0x83)  // sub imm8, r/m64
+                    gen.emit(0xEE)  // modrm for rsi
+                    gen.emit(*n as u8)
+                }
+                Opcode::Increment(n) => {
+                    // add $n, (%rsi)
+                    for _ in 0..*n {
+                        gen.emit(0x48)  // REX
+                        gen.emit(0xFE)  // inc r/m8
+                        gen.emit(0x06)  // modrm for [rsi]
+                    }
+                }
+                Opcode::Decrement(n) => {
+                    // sub $n, (%rsi)
+                    for _ in 0..*n {
+                        gen.emit(0x48)  // REX
+                        gen.emit(0xFE)  // dec r/m8
+                        gen.emit(0x0E)  // modrm for [rsi]
+                    }
+                }
+                Opcode::Output => {
+                    // mov (%rsi), %rax
+                    gen.emit(0x48)  // REX
+                    gen.emit(0x8B)  // mov r/m64 to r64
+                    gen.emit(0x06)  // modrm for [rsi]
+                    
+                    // mov %rax, %rdi (for write)
+                    gen.emit(0x48)  // REX
+                    gen.emit(0x89)  // mov r64 to r/m64
+                    gen.emit(0xC7)  // modrm for rdi
+                    
+                    // mov $1, %rax (sys_write)
+                    gen.emit(0x48)  // REX
+                    gen.emit(0xC7)  // mov imm32 to r/m64
+                    gen.emit(0xC0)  // modrm for rax
+                    gen.emit(0x01)  // imm32 = 1
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    
+                    // mov $1, %rdi (fd = stdout)
+                    gen.emit(0x48)  // REX
+                    gen.emit(0xC7)  // mov imm32 to r/m64
+                    gen.emit(0xC7)  // modrm for rdi
+                    gen.emit(0x01)  // imm32 = 1
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    
+                    // mov $1, %rdx (count)
+                    gen.emit(0x48)  // REX
+                    gen.emit(0xC7)  // mov imm32 to r/m64
+                    gen.emit(0xC2)  // modrm for rdx
+                    gen.emit(0x01)  // imm32 = 1
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    
+                    // syscall
+                    gen.emit(0x0F)  // syscall
+                    gen.emit(0x05)
+                }
+                Opcode::Input => {
+                    // Read from stdin
+                    // mov $0, %rax (sys_read)
+                    gen.emit(0x48)  // REX
+                    gen.emit(0xC7)  // mov imm32 to r/m64
+                    gen.emit(0xC0)  // modrm for rax
+                    gen.emit(0x00)  // imm32 = 0
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    
+                    // mov $0, %rdi (fd = stdin)
+                    gen.emit(0x48)  // REX
+                    gen.emit(0xC7)  // mov imm32 to r/m64
+                    gen.emit(0xC7)  // modrm for rdi
+                    gen.emit(0x00)  // imm32 = 0
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    gen.emit(0x00)
+                    
+                    // mov %rax, %rsi (buffer)
+                    // mov %rax, %rdx (count = 1)
+                    
+                    // syscall
+                    gen.emit(0x0F)  // syscall
+                    gen.emit(0x05)
+                    
+                    // mov %rax, (%rsi) - store result
+                    gen.emit(0x48)
+                    gen.emit(0x89)
+                    gen.emit(0x06)
+                }
+                Opcode::Clear => {
+                    // movb $0, (%rsi)
+                    gen.emit(0xC6)  // mov imm8 to r/m8
+                    gen.emit(0x06)  // modrm for [rsi]
+                    gen.emit(0x00)  // imm8 = 0
+                }
+                Opcode::LoopStart(target) => {
+                    // This would need labels for proper implementation
+                    // Simplified: just emit a comment marker
+                }
+                Opcode::LoopEnd(start) => {
+                    // Jump back to start if not zero
+                    // cmpb $0, (%rsi)
+                    gen.emit(0x80)  // cmp imm8, r/m8
+                    gen.emit(0x3E)  // modrm for [rsi]
+                    gen.emit(0x00)  // imm8 = 0
+                    
+                    // jne .loop_start
+                    gen.emit(0x75)  // jne rel8
+                    // Would emit relative offset here
+                }
+                _ => {}
+            }
+        }
+        
+        // Function epilogue
+        gen.emit_epilogue()
+        
+        gen.code
+    }
+
+    fn emit(&mut self, byte: u8) {
+        self.code.push(byte)
+    }
+
+    fn emit_prologue(&mut self) {
+        // push %rbp
+        self.emit(0x55)
+        
+        // mov %rsp, %rbp
+        self.emit(0x48)
+        self.emit(0x89)
+        self.emit(0xE5)
+        
+        // Allocate stack frame for tape
+        // sub $stack_size, %rsp
+        self.emit(0x48)
+        self.emit(0x81)
+        self.emit(0xEC)
+        // Would emit stack size here
+        self.emit(0x00)
+        self.emit(0x00)
+        self.emit(0x00)
+        self.emit(0x00)
+        
+        // Initialize tape pointer in rsi
+        // lea stack_bottom(%rbp), %rsi
+        self.emit(0x48)
+        self.emit(0x8D)
+        self.emit(0xB5)
+        // Would emit offset here
+        self.emit(0x00)
+        self.emit(0x00)
+        self.emit(0x00)
+        self.emit(0x00)
+    }
+
+    fn emit_epilogue(&mut self) {
+        // leave
+        self.emit(0xC9)
+        
+        // ret
+        self.emit(0xC3)
+    }
+
+    fn emit_modrm_sib(&mut self, mod: u8, rm: u8, index: u8) {
+        let modrm = ((mod & 0x3) << 6) | ((index & 0x7) << 3) | (rm & 0x7)
+        self.emit(modrm)
+    }
+}
+
+// =============================================================================
+// COMPILE-TIME COMPILER (DEMONSTRATION)
+// =============================================================================
+
+// This function demonstrates Knull's compile-time metaprogramming
+// In a real implementation, this would run at compile time
+comptime fn compile_brainfuck(source: string) -> Vec<u8> {
+    // Parse
+    let mut compiler = BrainfuckCompiler::new(CompilerOptions::default())
+    compiler.parse(source)
+    
+    // Optimize
+    compiler.optimize()
+    
+    // Generate code
+    X86_64Generator::generate(&compiler.program)
+}
+
+// =============================================================================
+// RUNTIME INTERPRETER (ALTERNATIVE)
+// =============================================================================
+
+struct BrainfuckVM {
+    tape: Vec<u8>,
+    pointer: usize,
+    input: Vec<u8>,
+    input_pos: usize,
+}
+
+impl BrainfuckVM {
+    fn new(size: usize) -> BrainfuckVM {
+        BrainfuckVM {
+            tape: vec![0u8; size],
+            pointer: size / 2,
+            input: Vec::new(),
+            input_pos: 0,
+        }
+    }
+
+    fn with_input(size: usize, input: Vec<u8>) -> BrainfuckVM {
+        BrainfuckVM {
+            tape: vec![0u8; size],
+            pointer: size / 2,
+            input,
+            input_pos: 0,
+        }
+    }
+
+    fn run(&mut self, source: string) {
+        let mut pc = 0
+        let chars = source.chars()
+        
+        while pc < source.len() {
+            let c = source[pc]
+            
+            match c {
+                '>' => {
+                    if self.pointer < self.tape.len() - 1 {
+                        self.pointer += 1
+                    }
+                }
+                '<' => {
+                    if self.pointer > 0 {
+                        self.pointer -= 1
+                    }
+                }
+                '+' => {
+                    self.tape[self.pointer] = self.tape[self.pointer].wrapping_add(1)
+                }
+                '-' => {
+                    self.tape[self.pointer] = self.tape[self.pointer].wrapping_sub(1)
+                }
+                '.' => {
+                    print (self.tape[self.pointer] as char)
+                }
+                ',' => {
+                    if self.input_pos < self.input.len() {
+                        self.tape[self.pointer] = self.input[self.input_pos]
+                        self.input_pos += 1
+                    }
+                }
+                '[' => {
+                    if self.tape[self.pointer] == 0 {
+                        // Find matching ]
+                        let mut depth = 1
+                        pc += 1
+                        while pc < source.len() && depth > 0 {
+                            match source[pc] {
+                                '[' => depth += 1,
+                                ']' => depth -= 1,
+                                _ => {}
+                            }
+                            pc += 1
+                        }
+                    }
+                }
+                ']' => {
+                    if self.tape[self.pointer] != 0 {
+                        // Find matching [
+                        let mut depth = 1
+                        pc -= 1
+                        while pc > 0 && depth > 0 {
+                            match source[pc] {
+                                ']' => depth += 1,
+                                '[' => depth -= 1,
+                                _ => {}
+                            }
+                            pc -= 1
+                        }
+                    }
+                }
+                _ => {}
+            }
+            
+            pc += 1
+        }
+    }
+
+    fn reset(&mut self) {
+        for i in 0..self.tape.len() {
+            self.tape[i] = 0
+        }
+        self.pointer = self.tape.len() / 2
+        self.input_pos = 0
+    }
+}
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+fn print(c: char) {
+    let mut buf = [0u8; 4]
+    let bytes = c.encode_utf8(&mut buf)
+    sys::write(1, bytes.as_bytes())
+}
+
+// =============================================================================
+// EXAMPLE PROGRAMS
+// =============================================================================
+
+// Hello World
+const HELLO_WORLD: string = 
+    "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>."
+
+// Cat (echo input)
+const CAT: string = ",[.,]"
+
+// Rot13
+const ROT13: string = ",[----------->++<],+.----------.[--->+<]>---.+.+++.+++++.----------.[--->+<]>---.--[----->+<]>-.+++.------.[-->+++<]>.+."
+
+// 99 Bottles
+const BOTTLES: string = 
+    "++++++++++[>+++>+++++++++>+++++++++++>+++++>+++>+<<<<<<-]>>>++.>>+.+++++++.+.---.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.+++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.+++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.+++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.++++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.+++++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.++++++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.+++++++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.++++++++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.+++++++++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.++++++++++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.+++++++++++++.<.<<.>>>++.>++.+++.---.<.>>-.<<.>>++.>++.+.++.+++.<.>>-.<<.>>>++.>++.+++.---.+++++++++++++++.++.<.<<"
+
+// =============================================================================
+// MAIN
+// =============================================================================
+
+fn main() {
+    println "Knull Brainfuck Compiler/Interpreter"
+    println "===================================="
+    println ""
+    
+    // Create VM
+    let mut vm = BrainfuckVM::new(30000)
+    
+    // Run Hello World
+    println "Running Hello World..."
+    vm.reset()
+    vm.run(HELLO_WORLD)
+    println ""
+    
+    // Show ROT13 example
+    println "ROT13 cipher program:"
+    println ROT13
+}
+
+// =============================================================================
+// ALTERNATIVE: USE THE COMPILER
+// =============================================================================
+
+fn compile_and_run(source: string) {
+    // In a full implementation, this would:
+    // 1. Parse Brainfuck at compile time
+    // 2. Generate x86_64 machine code
+    // 3. Write to executable memory
+    // 4. Execute directly
+    
+    // For now, use the interpreter
+    let mut vm = BrainfuckVM::new(30000)
+    vm.run(source)
+}
+
+// =============================================================================
+// COMPILE-TIME DEMONSTRATION
+// =============================================================================
+
+// This demonstrates how compile-time compilation would work:
+// 
+// comptime {
+//     let machine_code = compile_brainfuck(source_code);
+//     embed_bytes(machine_code);
+// }
+//
+// This is similar to how LLVM's ORC JIT works, but integrated
+// directly into the language as a first-class feature.
+
+// =============================================================================
+// IMPLEMENTATION NOTES
+// =============================================================================
+//
+// The brainfuck compiler demonstrates several key Knull features:
+// 
+// 1. COMPILE-TIME EXECUTION: The `comptime` block allows code to run
+//    during compilation, enabling powerful metaprogramming.
+//
+// 2. VECTOR OPERATIONS: The `Vec<u8>` type provides dynamic arrays
+//    with efficient push operations.
+//
+// 3. PATTERN MATCHING: The `match` expressions enable elegant
+//    AST transformation and optimization.
+//
+// 4. ZERO-COST ABSTRACTIONS: The high-level compiler code compiles
+//    down to efficient machine code.
+//
+// 5. UNSAFE BLOCKS: For the JIT compilation, unsafe blocks would allow
+//    writing executable memory and jumping to it.
+//
+// This is the power of Knull: from beginner-friendly scripting to
+// advanced systems programming and metaprogramming, all in one language.

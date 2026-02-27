@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "name": "Knull",
+  "patterns": [
+    {
+      "name": "comment.line.double-slash",
+      "match": "//.*$"
+    },
+    {
+      "name": "comment.block",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    {
+      "name": "string.quoted.double",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "name": "string.quoted.single",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "name": "string.quoted.triple",
+      "begin": "\"\"\"",
+      "end": "\"\"\""
+    },
+    {
+      "name": "keyword.control.knull",
+      "match": "\\b(fn|let|var|own|mut|ref|const|static|struct|enum|union|trait|impl|type|actor|macro|unsafe|comptime|ghost|if|else|match|loop|while|for|in|return|break|continue|defer|goto|embed|asm|syscall|import|export|pub|priv|module|as|is|null|true|false|self|super)\\b"
+    },
+    {
+      "name": "storage.type.primitive",
+      "match": "\\b(i8|i16|i32|i64|i128|i256|u8|u16|u32|u64|u128|u256|f16|f32|f64|f128|bool|char|byte|void|never|usize|isize)\\b"
+    },
+    {
+      "name": "storage.type.collection",
+      "match": "\\b(Vec|HashMap|Option|Result|String|Slice|Array|Tuple)\\b"
+    },
+    {
+      "name": "constant.numeric.integer",
+      "match": "\\b(0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|[0-9][0-9_]*)\\b"
+    },
+    {
+      "name": "constant.numeric.float",
+      "match": "\\b[0-9][0-9_]*\\.[0-9_]+([eE][+-]?[0-9_]+)?\\b"
+    },
+    {
+      "name": "constant.language",
+      "match": "\\b(true|false|null)\\b"
+    },
+    {
+      "name": "variable.other.assignment",
+      "match": "=>|->|::|\\?\\.|\\?|:"
+    },
+    {
+      "name": "keyword.operator",
+      "match": "==|!=|<=|>=|&&|\\|\\||<<|>>|\\+=|-=|\\*=|/=|%=|&=|\\|=|^=|<<=|>>="
+    },
+    {
+      "name": "punctuation.terminator",
+      "match": ";"
+    },
+    {
+      "name": "punctuation.separator",
+      "match": ","
+    },
+    {
+      "name": "punctuation.bracket",
+      "match": "[\\(\\)\\[\\]\\{\\}]"
+    },
+    {
+      "name": "variable.language",
+      "match": "\\b(self|super)\\b"
+    },
+    {
+      "name": "entity.name.function",
+      "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*(?=\\()"
+    },
+    {
+      "name": "entity.name.type",
+      "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+    },
+    {
+      "name": "variable.other",
+      "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
+    },
+    {
+      "name": "invalid.illegal",
+      "match": "[^\\s]"
+    }
+  ],
+  "scopeName": "source.knull",
+  "fileTypes": ["knull"],
+  "uuid": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
+}

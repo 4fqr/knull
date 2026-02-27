@@ -1,0 +1,1 @@
+/home/foufqr/Documents/knull-lang/src/target/release/knull: /home/foufqr/Documents/knull-lang/src/cli.rs /home/foufqr/Documents/knull-lang/src/compiler.rs /home/foufqr/Documents/knull-lang/src/lexer.rs /home/foufqr/Documents/knull-lang/src/main.rs /home/foufqr/Documents/knull-lang/src/parser.rs
