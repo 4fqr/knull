@@ -6,25 +6,20 @@ The comprehensive guide to programming in Knull.
 
 ## Introduction
 
-Knull is a versatile programming language designed to scale with you. Whether you're a beginner learning to code, a systems programmer building operating systems, or a hacker pushing the boundaries of what's possible, Knull has a mode for you.
+Knull is a versatile programming language designed to scale with you.
+
+---
 
 ## The Three Modes
 
-Knull operates in three distinct modes, each designed for different skill levels and use cases:
-
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        KNULL                                │
-│  ┌───────────┐   ┌───────────┐   ┌───────────┐            │
-│  │  NOVICE   │ → │  EXPERT   │ → │   GOD     │            │
-│  │ (Script)  │   │ (Systems) │   │ (Hacking) │            │
-│  └───────────┘   └───────────┘   └───────────┘            │
-│       ↓               ↓               ↓                     │
-│  +---------+     +---------+     +---------+               │
-│  │  Safe   │     │ Manual  │     │ Raw     │               │
-│  │  GC     │     │ Memory  │     │ Metal   │               │
-│  └─────────┘     └─────────┘     └─────────┘               │
-└─────────────────────────────────────────────────────────────┘
++=========================================================+
+|                        KNULL                             |
+|  +-----------+   +-----------+   +-----------+         |
+|  |  NOVICE   |-> |  EXPERT   |-> |   GOD     |         |
+|  | (Script)  |   | (Systems) |   | (Hacking) |         |
+|  +-----------+   +-----------+   +-----------+         |
++=========================================================+
 ```
 
 ---
@@ -36,46 +31,13 @@ Perfect for beginners and automation tasks.
 ### Syntax
 
 ```knull
-// Variables (dynamic)
+// Variables
 name = "Alice"
 age = 25
-pi = 3.14
 
 // Print
-println "Hello, " + name + "!"
+println "Hello, " + name
 println "Age: " + age
-
-// Arrays
-numbers = [1, 2, 3, 4, 5]
-println numbers[0]
-
-// Loops
-for n in numbers {
-    println n
-}
-```
-
-### Features
-
-- **Dynamic Typing**: No type annotations needed
-- **Garbage Collection**: Automatic memory management
-- **Simple Syntax**: No semicolons, minimal punctuation
-
-### Example: File Automation
-
-```knull
-// Read a file
-content = read_file("data.txt")
-println content
-
-// Write to a file  
-write_file("output.txt", "Hello from Knull!")
-
-// List directory
-files = list_dir(".")
-for f in files {
-    println f
-}
 ```
 
 ---
@@ -87,16 +49,29 @@ For building high-performance applications and systems software.
 ### Syntax
 
 ```knull
-// Explicit types
-let x: i32 = 42
-let mut y: i32 = 100
-
 // Functions
-fn add(a: i32, b: i32) -> i32 {
+fn add(a, b) {
     a + b
 }
 
-// Structs
+fn main() {
+    let x = 5 + 3
+    let y = x * 2
+    println y
+}
+```
+
+### Variables
+
+```knull
+// Mutable variable
+let mut counter = 0
+counter = counter + 1
+```
+
+### Structs
+
+```knull
 struct Point {
     x: i32,
     y: i32,
@@ -105,44 +80,6 @@ struct Point {
 fn main() {
     let p = Point { x: 10, y: 20 }
     println p.x
-}
-```
-
-### Ownership & Borrowing
-
-```knull
-// Ownership
-let s1 = String::new("hello")
-let s2 = s1  // s1 is moved to s2
-
-// Borrowing
-fn len(s: &String) -> usize {
-    s.len()
-}
-
-let s = String::new("world")
-let l = len(&s)  // Borrow s
-```
-
-### Example: Web Server
-
-```knull
-struct HttpRequest {
-    method: string,
-    path: string,
-    headers: HashMap<string, string>,
-}
-
-struct HttpResponse {
-    status: i32,
-    body: string,
-}
-
-fn handle_request(req: HttpRequest) -> HttpResponse {
-    HttpResponse {
-        status: 200,
-        body: "Hello, World!",
-    }
 }
 ```
 
@@ -155,48 +92,20 @@ For operating system development and low-level programming.
 ### Unsafe Blocks
 
 ```knull
-// Direct pointer manipulation
 fn main() {
     let ptr = alloc(8)
-    
     unsafe {
-        // Write directly to memory
-        ptr.write(42)
-        
-        // Read back
-        value = ptr.read()
+        // Direct memory access
     }
-    
     free(ptr)
 }
 ```
 
-### Direct Syscalls
+### VGA Memory
 
 ```knull
-// Linux syscalls
-fn write(fd: i32, buf: *u8, count: usize) -> isize {
-    unsafe {
-        syscall(1, fd, buf, count)
-    }
-}
-
-// Exit program
-fn exit(code: i32) {
-    unsafe {
-        syscall(60, code)
-    }
-}
-```
-
-### VGA Memory (Bare Metal)
-
-```knull
-// Write to VGA text buffer
 fn main() {
     let vga = 0xB8000 as *mut u16
-    
-    // Write 'K' with green color
     unsafe {
         *vga = 'K' as u16 | 0x0F00
     }
@@ -205,95 +114,49 @@ fn main() {
 
 ---
 
-## Chapter 4: Metaprogramming
+## Basic Examples
 
-### Macros
-
-```knull
-// Compile-time code generation
-macro assert(condition, message) {
-    if !condition {
-        panic(message)
-    }
-}
-
-// Usage
-assert(x > 0, "x must be positive")
-```
-
-### Compile-Time Evaluation
-
-```knull
-// Const expressions
-const SIZE = 1024 * 1024
-
-// Compile-time function
-comptime fn double(x: i32) -> i32 {
-    x * 2
-}
-```
-
----
-
-## Chapter 5: Networking
-
-### TCP Server
+### Hello World
 
 ```knull
 fn main() {
-    let listener = tcp_bind(8080)
-    println "Listening on port 8080"
-    
-    while true {
-        let client = listener.accept()
-        handle_client(client)
-    }
-}
-
-fn handle_client(stream: TcpStream) {
-    let request = stream.read()
-    let response = "HTTP/1.1 200 OK\r\n\r\nHello!"
-    stream.write(response)
+    println "Hello, World!"
 }
 ```
 
-### HTTP Client
+### Variables and Math
 
 ```knull
 fn main() {
-    let response = fetch("https://api.github.com")
-    println response.body
+    let x = 10
+    let y = 20
+    let sum = x + y
+    println sum
 }
 ```
 
----
-
-## Chapter 6: File I/O
-
-### Reading Files
+### Loops
 
 ```knull
 fn main() {
-    // Read entire file
-    content = read_file("data.txt")
-    
-    // Read lines
-    lines = read_lines("data.txt")
-    for line in lines {
-        println line
+    let i = 0
+    while i < 10 {
+        println i
+        i = i + 1
     }
 }
 ```
 
-### Writing Files
+### Functions
 
 ```knull
+fn double(n) {
+    n * 2
+}
+
 fn main() {
-    // Write string
-    write_file("output.txt", "Hello, World!")
-    
-    // Append
-    append_file("log.txt", "New entry\n")
+    let result = double(21)
+    println result
 }
 ```
 
@@ -304,28 +167,15 @@ fn main() {
 ### Option Type
 
 ```knull
-fn find_user(id: i32) -> option<User> {
-    // Returns Some(user) or None
+fn find_user(id) {
+    // Returns option
 }
 
-// Usage
-user = find_user(123)
-if user.is_some() {
-    println user.unwrap().name
-}
-```
-
-### Result Type
-
-```knull
-fn parse_number(s: string) -> result<i32, string> {
-    // Returns Ok(value) or Err(error)
-}
-
-result = parse_number("42")
-match result {
-    Ok(n) => println "Parsed: " + n,
-    Err(e) => println "Error: " + e,
+fn main() {
+    user = find_user(1)
+    if user.is_some() {
+        println user
+    }
 }
 ```
 
@@ -333,35 +183,15 @@ match result {
 
 ## Collections
 
-### Vec (Dynamic Array)
+### Vec
 
 ```knull
 fn main() {
-    let mut v = Vec::new()
+    let v = Vec::new()
     v.push(1)
     v.push(2)
     v.push(3)
-    
     println v.len()
-    println v[0]
-    
-    // Iterate
-    for x in v {
-        println x
-    }
-}
-```
-
-### HashMap
-
-```knull
-fn main() {
-    let mut scores = HashMap::new()
-    scores.insert("Alice", 100)
-    scores.insert("Bob", 95)
-    
-    alice_score = scores.get("Alice")
-    println alice_score
 }
 ```
 
@@ -371,13 +201,13 @@ fn main() {
 
 Knull adapts to your needs:
 
-| Mode | Use Case | Memory | Syntax |
-|------|----------|--------|--------|
-| Novice | Scripting, Automation | GC | Simple |
-| Expert | Systems, Web, Games | Manual | Strict |
-| God | OS Dev, Hacking | None | Raw |
+| Mode | Use Case | Memory |
+|------|----------|--------|
+| Novice | Scripting | GC |
+| Expert | Systems | Manual |
+| God | OS Dev | None |
 
-Start with Novice mode and graduate to higher modes as you grow.
+Start with simple scripts and graduate to higher modes as you grow.
 
 ---
 

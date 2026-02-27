@@ -1,12 +1,12 @@
 # Knull
 
 ```
-██╗  ██╗ █████╗ ███╗   ██╗██████╗ 
-██║ ██╔╝██╔══██╗████╗  ██║██╔══██╗
-█████╔╝ ███████║██╔██╗ ██║██║  ██║
-██╔═██╗ ██╔══██║██║╚██╗██║██║  ██║
-██║  ██╗██║  ██║██║ ╚████║██████╔╝
-╚═╝  ╚═╝╚═╝  ╚═╝╚═╝ ╚═══╝╚═════╝ 
+██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  ██████╗  █████╗ ██████╗ ██████╗ 
+██╔══██╗██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗
+██████╔╝█████╗     ██║   ██████╔╝██║   ██║██████╔╝██║   ██║██████╔╝██████╔╝██║  ██║
+██╔══██╗██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██║   ██║██╔══██╗██╔══██╗██║  ██║
+██║  ██║███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝╚██████╔╝██║  ██║██║  ██║
+╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ 
 ```
 
 **The Ultimate Programming Language**
@@ -31,13 +31,13 @@ Knull adapts to your skill level:
 
 ```bash
 # Quick install (Linux/macOS)
-curl -sSL https://raw.githubusercontent.com/4fqr/knull/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
 
-# Build from source
+# Or build from source
 git clone https://github.com/4fqr/knull.git
 cd knull
-cargo build --release
-./target/release/knull --version
+cd --release
+ src && cargo build./target/release/knull --version
 ```
 
 ---
