@@ -37,13 +37,26 @@ detect_arch() {
 
 # Check for Rust
 check_rust() {
-    if ! command -v cargo &> /dev/null; then
-        echo -e "${RED}Error: Rust not installed${NC}"
-        echo "Please install Rust from https://rustup.rs"
-        echo "Then run this installer again."
-        exit 1
+    # Check common cargo locations
+    local cargo_paths=("cargo" "$HOME/.cargo/bin/cargo" "/usr/bin/cargo" "$HOME/.cargo/bin/cargo")
+    
+    for path in "${cargo_paths}"; do
+        if command -v "$path" &> /dev/null; then
+            echo "Rust found: $($path --version 2>/dev/null || echo 'cargo found')"
+            return 0
+        fi
+    done
+    
+    # Also check RUSTUP_HOME
+    if [ -n "$RUSTUP_HOME" ] && [ -x "$RUSTUP_HOME/bin/cargo" ]; then
+        echo "Rust found at $RUSTUP_HOME/bin/cargo"
+        return 0
     fi
-    echo "Rust found: $(cargo --version)"
+    
+    echo -e "${RED}Error: Rust not found${NC}"
+    echo "Please install Rust from https://rustup.rs"
+    echo "Then run this installer again."
+    exit 1
 }
 
 # Build from source
