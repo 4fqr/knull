@@ -1,12 +1,22 @@
 # Knull
 
 ```
-██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  ██████╗  █████╗ ██████╗ ██████╗ 
-██╔══██╗██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗
-██████╔╝█████╗     ██║   ██████╔╝██║   ██║██████╔╝██║   ██║██████╔╝██████╔╝██║  ██║
-██╔══██╗██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██║   ██║██╔══██╗██╔══██╗██║  ██║
-██║  ██║███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝╚██████╔╝██║  ██║██║  ██║
-╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ 
+                                                       
+       ,--.                                            
+   ,--/  /|                            ,--,    ,--,    
+,---,': / '                          ,--.'|  ,--.'|    
+:   : '/ /       ,---,          ,--, |  | :  |  | :    
+|   '   ,    ,-+-. /  |       ,'_ /| :  : '  :  : '    
+'   |  /    ,--.'|'   |  .--. |  | : |  ' |  |  ' |    
+|   ;  ;   |   |  ,"' |,'_ /| :  . | '  | |  '  | |    
+:   '   \  |   | /  | ||  ' | |  . . |  | :  |  | :    
+|   |    ' |   | |  | ||  | ' |  | | '  : |__'  : |__  
+'   : |.  \|   | |  |/ :  | : ;  ; | |  | '.'|  | '.'| 
+|   | '_\.'|   | |--'  '  :  `--'   \;  :    ;  :    ; 
+'   : |    |   |/      :  ,      .-./|  ,   /|  ,   /  
+;   |,'    '---'        `--`----'     ---`-'  ---`-'   
+'---'                                                  
+                                                       
 ```
 
 **The Ultimate Programming Language**
@@ -29,15 +39,34 @@ Knull adapts to your skill level:
 
 ## Installation
 
-```bash
-# Quick install (Linux/macOS)
-curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
+### Linux / macOS
 
-# Or build from source
+```bash
+curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
+```
+
+Then add to PATH:
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Windows
+
+```powershell
+# Install Rust first from https://rustup.rs
 git clone https://github.com/4fqr/knull.git
-cd knull
-cd --release
- src && cargo build./target/release/knull --version
+cd knull\src
+cargo build --release --no-default-features
+copy target\release\knull.exe C:\Windows\System32\
+```
+
+### Build from Source
+
+```bash
+git clone https://github.com/4fqr/knull.git
+cd knull/src
+cargo build --release --no-default-features
+./target/release/knull --version
 ```
 
 ---
@@ -88,7 +117,7 @@ fn main() {
 ### Hacking
 ```knull
 // Port scanner
-fn scan(host: string, port: u16) -> bool {
+fn scan(host, port) {
     let conn = std.net.tcp_connect(host, port)
     conn.is_some()
 }
