@@ -1,12 +1,12 @@
 #!/bin/bash
-# Knull Installer - Universal Installer Script
+# Knull Installer - Build from Source
 # Usage: curl -sSL https://raw.githubusercontent.com/4fqr/knull/main/install.sh | sh
 
 set -e
 
 VERSION="1.0.0"
 INSTALL_DIR="/usr/local/bin"
-TEMP_DIR="/tmp/knull-install"
+REPO_URL="https://github.com/4fqr/knull.git"
 
 # Colors
 RED='\033[0;31m'
@@ -35,85 +35,50 @@ detect_arch() {
     esac
 }
 
-# Download and install
-install() {
-    local os=$1
-    local arch=$2
-    local url="https://github.com/4fqr/knull/releases/download/v${VERSION}/knull-${os}-${arch}"
-    
-    echo "Detected: ${os} (${arch})"
-    echo "Downloading from: ${url}"
-    
-    # Create temp directory
-    mkdir -p ${TEMP_DIR}
-    
-    # Download binary
-    echo "Downloading..."
-    if command -v curl &> /dev/null; then
-        curl -sSL -o "${TEMP_DIR}/knull" "${url}" || {
-            echo -e "${YELLOW}Binary not found. Building from source...${NC}"
-            return 1
-        }
-    elif command -v wget &> /dev/null; then
-        wget -q -O "${TEMP_DIR}/knull" "${url}" || {
-            echo -e "${YELLOW}Binary not found. Building from source...${NC}"
-            return 1
-        }
-    else
-        echo -e "${RED}Error: curl or wget required${NC}"
-        return 1
-    fi
-    
-    # Make executable
-    chmod +x "${TEMP_DIR}/knull"
-    
-    # Install
-    if [ -w "${INSTALL_DIR}" ]; then
-        mv "${TEMP_DIR}/knull" "${INSTALL_DIR}/knull"
-        echo -e "${GREEN}Installed to ${INSTALL_DIR}/knull${NC}"
-    else
-        echo -e "${YELLOW}Warning: ${INSTALL_DIR} not writable, using ~/.local/bin${NC}"
-        mkdir -p "${HOME}/.local/bin"
-        mv "${TEMP_DIR}/knull" "${HOME}/.local/bin/knull"
-        echo -e "Add ~/.local/bin to your PATH"
-    fi
-    
-    # Cleanup
-    rm -rf ${TEMP_DIR}
-    
-    echo -e "${GREEN}Installation complete!${NC}"
-    echo ""
-    echo "Run 'knull --version' to verify"
-}
-
-# Build from source (fallback)
-build_from_source() {
-    echo "Building from source..."
-    
+# Check for Rust
+check_rust() {
     if ! command -v cargo &> /dev/null; then
-        echo -e "${RED}Error: Rust not installed. Install from https://rustup.rs${NC}"
+        echo -e "${RED}Error: Rust not installed${NC}"
+        echo "Please install Rust from https://rustup.rs"
+        echo "Then run this installer again."
         exit 1
     fi
+    echo "Rust found: $(cargo --version)"
+}
+
+# Build from source
+build_from_source() {
+    local temp_dir="/tmp/knull-build"
     
-    # Clone or use existing
-    if [ ! -d "/tmp/knull" ]; then
-        git clone --depth 1 https://github.com/4fqr/knull.git /tmp/knull 2>/dev/null || {
-            echo "Using existing source..."
-        }
+    echo -e "${YELLOW}Building from source...${NC}"
+    
+    # Clone repository
+    if [ -d "${temp_dir}" ]; then
+        rm -rf "${temp_dir}"
     fi
     
-    cd /tmp/knull/src
+    echo "Cloning Knull..."
+    git clone --depth 1 "${REPO_URL}" "${temp_dir}"
+    
+    # Build
+    echo "Building compiler..."
+    cd "${temp_dir}/src"
     cargo build --release --no-default-features
     
     # Install
+    echo "Installing..."
     if [ -w "${INSTALL_DIR}" ]; then
         cp target/release/knull "${INSTALL_DIR}/knull"
     else
         mkdir -p "${HOME}/.local/bin"
         cp target/release/knull "${HOME}/.local/bin/knull"
+        echo "Added to \${HOME}/.local/bin - add to PATH if needed"
     fi
     
-    echo -e "${GREEN}Built and installed successfully!${NC}"
+    # Cleanup
+    rm -rf "${temp_dir}"
+    
+    echo -e "${GREEN}Installation complete!${NC}"
 }
 
 # Main
@@ -131,12 +96,21 @@ main() {
         exit 1
     fi
     
-    # Try download first, fall back to build
-    install $os $arch || build_from_source
+    echo "Detected: ${os} (${arch})"
+    
+    # Check for Rust
+    check_rust
+    
+    # Build and install
+    build_from_source
     
     # Verify
     if command -v knull &> /dev/null; then
-        knull --version || echo "Run 'knull --version' to verify"
+        echo ""
+        knull --version
+    else
+        echo ""
+        echo "Run 'knull --version' to verify installation"
     fi
 }
 
