@@ -1,0 +1,48 @@
+// =============================================================================
+// FILE I/O DEMO - Real File Operations
+// =============================================================================
+
+fn main() {
+    println("=== FILE I/O DEMO ===")
+    println("")
+    
+    // Write a file
+    let filename = "/tmp/knull_demo.txt"
+    let content = "Hello from Knull File I/O!"
+    file_write(filename, content)
+    println("Written to file: " + filename)
+    
+    // Check if exists
+    if file_exists(filename) {
+        println("File exists!")
+    }
+    
+    // Read it back
+    let read_content = file_read(filename)
+    println("Read from file: " + read_content)
+    
+    // Append more content
+    file_append(filename, "\nThis is line 2")
+    file_append(filename, "\nThis is line 3")
+    println("Appended lines")
+    
+    // Read full file
+    let full_content = file_read(filename)
+    println("Full file contents:")
+    println(full_content)
+    
+    // Create directory
+    let dirname = "/tmp/knull_test_dir"
+    mkdir(dirname)
+    println("Created directory: " + dirname)
+    
+    // List directory
+    let entries = dir_list("/tmp")
+    println("Files in /tmp: " + len(entries))
+    
+    // Cleanup
+    file_remove(filename)
+    println("Cleanup complete!")
+    println("")
+    println("=== FILE I/O WORKING ===")
+}

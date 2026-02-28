@@ -1,5 +1,5 @@
 //! Knull Inline Assembly
-//! 
+//!
 //! Provides inline assembly support for God mode.
 //! Allows embedding raw assembly code directly in Knull source.
 
@@ -58,7 +58,7 @@ impl InlineAsm {
             is_volatile: true,
         }
     }
-    
+
     /// Add an input operand
     pub fn input(mut self, constraint: &str, value: u64) -> Self {
         self.inputs.push(AsmOperand {
@@ -69,7 +69,7 @@ impl InlineAsm {
         });
         self
     }
-    
+
     /// Add an output operand
     pub fn output(mut self, constraint: &str) -> Self {
         self.outputs.push(AsmOperand {
@@ -80,32 +80,32 @@ impl InlineAsm {
         });
         self
     }
-    
+
     /// Add a clobber
     pub fn clobber(mut self, reg: &str) -> Self {
         self.clobbers.push(reg.to_string());
         self
     }
-    
+
     /// Execute the inline assembly
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// This is unsafe because inline assembly can do anything including
     /// corrupting memory, causing undefined behavior, or crashing the program.
     pub unsafe fn execute(&self) -> u64 {
         // For now, this is a simplified implementation
         // Real implementation would use LLVM's inline assembler
-        
+
         let mut result: u64 = 0;
-        
+
         // Parse and execute assembly instructions
         for line in self.assembly.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
                 continue;
             }
-            
+
             // Very basic instruction parsing for demonstration
             if line.starts_with("mov") {
                 // Handle mov instruction
@@ -116,7 +116,7 @@ impl InlineAsm {
                 asm!("syscall");
             }
         }
-        
+
         result
     }
 }
@@ -131,30 +131,31 @@ fn parse_constraint(s: &str) -> AsmConstraint {
 }
 
 /// Macro for inline assembly
-/// 
+///
 /// Usage:
 /// ```knull
 /// let result = inline_asm!(
-     "mov rax, {0}
-      add rax, {1}",
-     in(reg) a,
-     in(reg) b,
-     out(reg) result
- );
+///     "mov rax, {0}
+///      add rax, {1}",
+///     in(reg) a,
+///     in(reg) b,
+///     out(reg) result
+/// );
 /// ```
 #[macro_export]
 macro_rules! inline_asm {
     ($asm:expr, $($constraints:tt)*) => {{
-        let asm_block = $crate::runtime::asm::InlineAsm::new($asm, $crate::runtime::asm::AsmDialect::Att);
+        let asm_block =
+            $crate::runtime::asm::InlineAsm::new($asm, $crate::runtime::asm::AsmDialect::Att);
         // Process constraints...
         unsafe { asm_block.execute() }
     }};
 }
 
 /// Execute raw assembly string
-/// 
+///
 /// # Safety
-/// 
+///
 /// Extremely unsafe. Only use if you know exactly what you're doing.
 pub unsafe fn exec_raw(assembly: &str) {
     // This would integrate with LLVM's MC layer
@@ -168,7 +169,7 @@ pub fn cpuid(leaf: u32, subleaf: u32) -> (u32, u32, u32, u32) {
     let ebx: u32;
     let ecx: u32;
     let edx: u32;
-    
+
     unsafe {
         asm!(
             "cpuid",
@@ -178,7 +179,7 @@ pub fn cpuid(leaf: u32, subleaf: u32) -> (u32, u32, u32, u32) {
             lateout("edx") edx,
         );
     }
-    
+
     (eax, ebx, ecx, edx)
 }
 
@@ -186,7 +187,7 @@ pub fn cpuid(leaf: u32, subleaf: u32) -> (u32, u32, u32, u32) {
 pub fn rdtsc() -> u64 {
     let low: u32;
     let high: u32;
-    
+
     unsafe {
         asm!(
             "rdtsc",
@@ -194,38 +195,38 @@ pub fn rdtsc() -> u64 {
             lateout("edx") high,
         );
     }
-    
+
     ((high as u64) << 32) | (low as u64)
 }
 
 /// Read model-specific register
-/// 
+///
 /// # Safety
-/// 
+///
 /// Requires ring 0 (kernel mode) for most MSRs
 pub unsafe fn rdmsr(msr: u32) -> u64 {
     let low: u32;
     let high: u32;
-    
+
     asm!(
         "rdmsr",
         in("ecx") msr,
         lateout("eax") low,
         lateout("edx") high,
     );
-    
+
     ((high as u64) << 32) | (low as u64)
 }
 
 /// Write model-specific register
-/// 
+///
 /// # Safety
-/// 
+///
 /// Requires ring 0 (kernel mode). Can crash system if misused.
 pub unsafe fn wrmsr(msr: u32, value: u64) {
     let low = value as u32;
     let high = (value >> 32) as u32;
-    
+
     asm!(
         "wrmsr",
         in("ecx") msr,
@@ -236,28 +237,36 @@ pub unsafe fn wrmsr(msr: u32, value: u64) {
 
 /// Memory fence
 pub fn mfence() {
-    unsafe { asm!("mfence"); }
+    unsafe {
+        asm!("mfence");
+    }
 }
 
 /// Load fence
 pub fn lfence() {
-    unsafe { asm!("lfence"); }
+    unsafe {
+        asm!("lfence");
+    }
 }
 
 /// Store fence
 pub fn sfence() {
-    unsafe { asm!("sfence"); }
+    unsafe {
+        asm!("sfence");
+    }
 }
 
 /// Pause instruction (for spinloops)
 pub fn pause() {
-    unsafe { asm!("pause"); }
+    unsafe {
+        asm!("pause");
+    }
 }
 
 /// Halt instruction
-/// 
+///
 /// # Safety
-/// 
+///
 /// Halts CPU until next interrupt. Only use in kernel/OS code.
 pub unsafe fn hlt() {
     asm!("hlt");
@@ -265,22 +274,24 @@ pub unsafe fn hlt() {
 
 /// Breakpoint instruction
 pub fn int3() {
-    unsafe { asm!("int3"); }
+    unsafe {
+        asm!("int3");
+    }
 }
 
 /// Disable interrupts
-/// 
+///
 /// # Safety
-/// 
+///
 /// Only use in kernel/OS code.
 pub unsafe fn cli() {
     asm!("cli");
 }
 
 /// Enable interrupts
-/// 
+///
 /// # Safety
-/// 
+///
 /// Only use in kernel/OS code.
 pub unsafe fn sti() {
     asm!("sti");
@@ -289,30 +300,36 @@ pub unsafe fn sti() {
 /// Get current stack pointer
 pub fn rsp() -> u64 {
     let rsp: u64;
-    unsafe { asm!("mov {}, rsp", out(reg) rsp); }
+    unsafe {
+        asm!("mov {}, rsp", out(reg) rsp);
+    }
     rsp
 }
 
 /// Get current base pointer
 pub fn rbp() -> u64 {
     let rbp: u64;
-    unsafe { asm!("mov {}, rbp", out(reg) rbp); }
+    unsafe {
+        asm!("mov {}, rbp", out(reg) rbp);
+    }
     rbp
 }
 
 /// Get current instruction pointer
 pub fn rip() -> u64 {
     let rip: u64;
-    unsafe { 
+    unsafe {
         asm!(
             "lea {}, [rip + 0]",
             out(reg) rip,
-        ); 
+        );
     }
     rip
 }
 
 /// Flush TLB entry for address
 pub fn invlpg(addr: *const u8) {
-    unsafe { asm!("invlpg [{}]", in(reg) addr); }
+    unsafe {
+        asm!("invlpg [{}]", in(reg) addr);
+    }
 }

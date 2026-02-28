@@ -3,6 +3,10 @@
 //! Tree-walking interpreter for executing Knull code directly.
 
 use std::collections::HashMap;
+use std::fs;
+use std::io::{Read, Write};
+use std::thread;
+use std::time::Duration;
 
 use crate::parser::{ASTNode, Literal};
 
@@ -585,6 +589,121 @@ impl Interpreter {
                 let code = args.first().map(|v| v.as_int()).unwrap_or(0) as i32;
                 std::process::exit(code);
             }
+            // File I/O operations
+            "file_read" => {
+                if let Some(arg) = args.first() {
+                    let path = arg.as_string();
+                    match fs::read_to_string(&path) {
+                        Ok(contents) => Some(Ok(Value::String(contents))),
+                        Err(e) => Some(Err(format!("Failed to read file: {}", e))),
+                    }
+                } else {
+                    Some(Err("file_read() requires a path argument".to_string()))
+                }
+            }
+            "file_write" => {
+                if args.len() >= 2 {
+                    let path = args[0].as_string();
+                    let contents = args[1].as_string();
+                    match fs::write(&path, &contents) {
+                        Ok(_) => Some(Ok(Value::Null)),
+                        Err(e) => Some(Err(format!("Failed to write file: {}", e))),
+                    }
+                } else {
+                    Some(Err(
+                        "file_write() requires path and content arguments".to_string()
+                    ))
+                }
+            }
+            "file_append" => {
+                if args.len() >= 2 {
+                    let path = args[0].as_string();
+                    let contents = args[1].as_string();
+                    match fs::OpenOptions::new().create(true).append(true).open(&path) {
+                        Ok(mut file) => match file.write_all(contents.as_bytes()) {
+                            Ok(_) => Some(Ok(Value::Null)),
+                            Err(e) => Some(Err(format!("Failed to append: {}", e))),
+                        },
+                        Err(e) => Some(Err(format!("Failed to open file: {}", e))),
+                    }
+                } else {
+                    Some(Err(
+                        "file_append() requires path and content arguments".to_string()
+                    ))
+                }
+            }
+            "file_exists" => {
+                if let Some(arg) = args.first() {
+                    let path = arg.as_string();
+                    Some(Ok(Value::Bool(std::path::Path::new(&path).exists())))
+                } else {
+                    Some(Err("file_exists() requires a path argument".to_string()))
+                }
+            }
+            "file_remove" => {
+                if let Some(arg) = args.first() {
+                    let path = arg.as_string();
+                    match fs::remove_file(&path) {
+                        Ok(_) => Some(Ok(Value::Null)),
+                        Err(e) => Some(Err(format!("Failed to remove: {}", e))),
+                    }
+                } else {
+                    Some(Err("file_remove() requires a path argument".to_string()))
+                }
+            }
+            "mkdir" => {
+                if let Some(arg) = args.first() {
+                    let path = arg.as_string();
+                    match fs::create_dir_all(&path) {
+                        Ok(_) => Some(Ok(Value::Null)),
+                        Err(e) => Some(Err(format!("Failed to create directory: {}", e))),
+                    }
+                } else {
+                    Some(Err("mkdir() requires a path argument".to_string()))
+                }
+            }
+            "dir_list" => {
+                let path = args
+                    .first()
+                    .map(|a| a.as_string())
+                    .unwrap_or_else(|| ".".to_string());
+                match fs::read_dir(&path) {
+                    Ok(entries) => {
+                        let mut result = Vec::new();
+                        for entry in entries {
+                            if let Ok(entry) = entry {
+                                if let Some(name) = entry.file_name().to_str() {
+                                    result.push(Value::String(name.to_string()));
+                                }
+                            }
+                        }
+                        Some(Ok(Value::Array(result)))
+                    }
+                    Err(e) => Some(Err(format!("Failed to list directory: {}", e))),
+                }
+            }
+            // Threading operations
+            "spawn" => {
+                if let Some(arg) = args.first() {
+                    if let Value::String(code) = arg {
+                        let code = code.clone();
+                        thread::spawn(move || {
+                            let _ = execute_source(&code);
+                        });
+                        Some(Ok(Value::Null))
+                    } else {
+                        Some(Err("spawn() requires a string argument".to_string()))
+                    }
+                } else {
+                    Some(Err("spawn() requires an argument".to_string()))
+                }
+            }
+            "sleep" => {
+                let millis = args.first().map(|v| v.as_int()).unwrap_or(1000) as u64;
+                thread::sleep(Duration::from_millis(millis));
+                Some(Ok(Value::Null))
+            }
+            "thread_id" => Some(Ok(Value::Int(0))),
             _ => None,
         }
     }

@@ -1,11 +1,14 @@
 //! Knull Runtime Library
 //! 
 //! Core runtime support for the Knull programming language.
-//! Provides memory management, syscalls, and inline assembly support.
+//! Provides memory management, syscalls, file I/O, networking, threading, and inline assembly support.
 
 pub mod mem;
 pub mod syscall;
 pub mod asm;
+pub mod io;
+pub mod net;
+pub mod thread;
 
 /// Initialize the runtime
 pub fn init() {
