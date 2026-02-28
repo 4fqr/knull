@@ -19,7 +19,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/knull-lang/knull.git
+git clone https://github.com/4fqr/knull.git
 cd knull
 
 # Build the compiler

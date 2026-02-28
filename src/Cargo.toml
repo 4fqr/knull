@@ -6,7 +6,7 @@ authors = ["Knull Team"]
 description = "The Knull Programming Language - The God Language"
 license = "MIT OR Apache-2.0"
 homepage = "https://knull.dev"
-repository = "https://github.com/knull-lang/knull"
+repository = "https://github.com/4fqr/knull"
 
 [[bin]]
 name = "knull"

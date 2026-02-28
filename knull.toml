@@ -7,7 +7,7 @@ authors = ["Knull Team <team@knull-lang.dev>"]
 license = "MIT"
 desc = "A blazing fast web framework for Knull"
 homepage = "https://knull-lang.dev"
-repository = "https://github.com/knull-lang/photon"
+repository = "https://github.com/4fqr/photon"
 
 [dependencies]
 http = "^0.2"

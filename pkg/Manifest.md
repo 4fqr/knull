@@ -71,10 +71,10 @@ Dependencies are specified as key-value pairs where:
 serde = "^1.0"
 
 # Git repository
-http = { git = "https://github.com/knull-lang/http" }
+http = { git = "https://github.com/4fqr/http" }
 
 # Git with branch/ref
-http = { git = "https://github.com/knull-lang/http", branch = "main" }
+http = { git = "https://github.com/4fqr/http", branch = "main" }
 
 # Local path
 mylib = { path = "../mylib" }

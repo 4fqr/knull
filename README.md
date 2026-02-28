@@ -87,7 +87,7 @@ fn main() {
 ### Quick Install (Linux / macOS)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/knull-lang/knull/master/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
@@ -95,7 +95,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ```bash
 # Clone the repository
-git clone https://github.com/knull-lang/knull.git
+git clone https://github.com/4fqr/knull.git
 cd knull
 
 # Build without LLVM (faster, no external deps)
@@ -112,7 +112,7 @@ cargo build --release
 ### Windows
 
 ```powershell
-git clone https://github.com/knull-lang/knull.git
+git clone https://github.com/4fqr/knull.git
 cd knull\src
 cargo build --release --no-default-features
 ```
@@ -615,7 +615,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
 # Clone and build
-git clone https://github.com/knull-lang/knull.git
+git clone https://github.com/4fqr/knull.git
 cd knull/src
 cargo build
 
