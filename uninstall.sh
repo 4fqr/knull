@@ -14,11 +14,14 @@ nc=$(printf '\033[0m')
 # Print functions
 print_header() {
     printf "%s\n" "${blue}"
-    printf "  _  __    _    _   _ _   _ \n"
-    printf " | |/ /   | |  | | | | \\ | |\n"
-    printf " | ' / ___| |  | | | |  \\| |\n"
-    printf " | . \\___ | |  | |_| | |\\  |\n"
-    printf " |_|\\_\\___|_|   \\___/|_| \\_|\n"
+    printf ".____/\ .______ .____     .___   .___\n"
+    printf ":   /  \:      \|    |___ |   |  |   |\n"
+    printf "|.  ___/|       ||    |   ||   |  |   |\n"
+    printf "|     \ |   |   ||    :   ||   |/\|   |/\n"
+    printf "|      \|___|   ||        ||   /  \|   /  \\n"
+    printf "|___\  /    |___||. _____/ |______/|______/\n"
+    printf "     \/           :/\n"
+    printf "                  :\n"
     printf "%s\n" "${nc}"
     printf "%sUninstaller%s\n" "${yellow}" "${nc}"
     printf "\n"
@@ -107,6 +110,15 @@ remove_cache() {
 
 # Confirm uninstall
 confirm_uninstall() {
+    # Check if running non-interactively (piped from curl)
+    if [ ! -t 0 ]; then
+        # Auto-confirm when piped
+        printf "\n"
+        printf "Running non-interactively. Auto-confirming uninstall...\n"
+        printf "\n"
+        return 0
+    fi
+    
     printf "\n"
     printf "This will completely remove Knull from your system.\n"
     printf "\n"
