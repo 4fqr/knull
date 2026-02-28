@@ -999,17 +999,6 @@ impl Interpreter {
                 }
             }
             // Array utilities
-            "len" => {
-                if let Some(arg) = args.first() {
-                    match arg {
-                        Value::Array(arr) => Some(Ok(Value::Int(arr.len() as i64))),
-                        Value::String(s) => Some(Ok(Value::Int(s.len() as i64))),
-                        _ => Some(Err("len() requires an array or string argument".to_string())),
-                    }
-                } else {
-                    Some(Err("len() requires an argument".to_string()))
-                }
-            }
             "push" => {
                 if args.len() >= 2 {
                     match &args[0] {

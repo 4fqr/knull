@@ -57,6 +57,8 @@ echo "--------------------"
 test_file "examples/game_of_life.knull" "Game of Life"
 test_file "examples/brainfuck_compiler.knull" "Brainfuck Compiler"
 test_file "examples/adventure_game.knull" "Adventure Game"
+test_file "examples/os_kernel.knull" "OS Kernel"
+test_file "examples/gui_framework.knull" "GUI Framework"
 
 echo ""
 echo "6. Feature Demonstrations"
