@@ -1,0 +1,6 @@
+fn main() {
+    println "test"
+    let x = 5
+    println x
+    println "done"
+}

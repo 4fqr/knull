@@ -1,0 +1,258 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - PRELUDE
+// =============================================================================
+// Core types and functions available everywhere
+
+module std
+
+// =============================================================================
+// TYPE ALIASES
+// =============================================================================
+
+pub type int = i64
+pub type uint = u64
+pub type float = f64
+pub type byte = u8
+pub type char = char
+pub type bool = bool
+pub type string = String
+
+// =============================================================================
+// CORE FUNCTIONS
+// =============================================================================
+
+// Print without newline
+pub fn print(msg: string) {
+    _print(msg)
+}
+
+// Print with newline
+pub fn println(msg: string) {
+    _print(msg)
+    _print("\n")
+}
+
+// Print integer
+pub fn print_int(n: int) {
+    _print(_int_to_string(n))
+}
+
+// Print float
+pub fn print_float(n: float) {
+    _print(_float_to_string(n))
+}
+
+// =============================================================================
+// OPTION TYPE
+// =============================================================================
+
+pub type option<T> = Option<T>
+
+pub enum Option<T> {
+    Some(T),
+    None,
+}
+
+pub fn Option<T>::is_some(self) -> bool {
+    match self {
+        Some(_) => true,
+        None => false,
+    }
+}
+
+pub fn Option<T>::is_none(self) -> bool {
+    match self {
+        Some(_) => false,
+        None => true,
+    }
+}
+
+pub fn Option<T>::unwrap(self) -> T {
+    match self {
+        Some(v) => v,
+        None => _panic("unwrap on None"),
+    }
+}
+
+pub fn Option<T>::unwrap_or(self, default: T) -> T {
+    match self {
+        Some(v) => v,
+        None => default,
+    }
+}
+
+// =============================================================================
+// RESULT TYPE
+// =============================================================================
+
+pub enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+
+pub fn Result<T, E>::is_ok(self) -> bool {
+    match self {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+pub fn Result<T, E>::is_err(self) -> bool {
+    match self {
+        Ok(_) => false,
+        Err(_) => true,
+    }
+}
+
+pub fn Result<T, E>::unwrap(self) -> T {
+    match self {
+        Ok(v) => v,
+        Err(_) => _panic("unwrap on Err"),
+    }
+}
+
+// =============================================================================
+// COLLECTIONS
+// =============================================================================
+
+// Vec - dynamic array
+pub struct Vec<T> {
+    data: *mut T,
+    len: usize,
+    cap: usize,
+}
+
+pub fn Vec<T>::new() -> Vec<T> {
+    Vec {
+        data: null,
+        len: 0,
+        cap: 0,
+    }
+}
+
+pub fn Vec<T>::push(self, value: T) {
+    // Grow if needed
+    if self.len >= self.cap {
+        let new_cap = if self.cap == 0 { 8 } else { self.cap * 2 };
+        let new_data = _alloc(new_cap * _sizeof::<T>())
+        self.data = new_data
+        self.cap = new_cap
+    }
+    // Write value
+    self.data.add(self.len) = value
+    self.len = self.len + 1
+}
+
+pub fn Vec<T>::len(self) -> usize {
+    self.len
+}
+
+pub fn Vec<T>::get(self, i: usize) -> option<T> {
+    if i < self.len {
+        Some(self.data.add(i))
+    } else {
+        None
+    }
+}
+
+// HashMap - key-value store
+pub struct HashMap<K, V> {
+    // Simplified - would have buckets
+}
+
+pub fn HashMap<K, V>::new() -> HashMap<K, V> {
+    HashMap {}
+}
+
+// =============================================================================
+// STRING
+// =============================================================================
+
+pub struct String {
+    data: *mut u8,
+    len: usize,
+}
+
+pub fn String::new() -> String {
+    String {
+        data: null,
+        len: 0,
+    }
+}
+
+pub fn String::from(s: string) -> String {
+    // Copy string
+    let len = _strlen(s)
+    let data = _alloc(len)
+    _memcpy(data, s, len)
+    String { data, len }
+}
+
+pub fn String::len(self) -> usize {
+    self.len
+}
+
+// =============================================================================
+// MATH
+// =============================================================================
+
+pub fn abs(n: int) -> int {
+    if n < 0 { -n } else { n }
+}
+
+pub fn min(a: int, b: int) -> int {
+    if a < b { a } else { b }
+}
+
+pub fn max(a: int, b: int) -> int {
+    if a > b { a } else { b }
+}
+
+// =============================================================================
+// HASHING
+// =============================================================================
+
+pub fn hash(s: string) -> uint {
+    let mut h: uint = 5381
+    let i = 0
+    while i < _strlen(s) {
+        h = h * 33 + s.add(i) as uint
+        i = i + 1
+    }
+    h
+}
+
+// =============================================================================
+// DEBUG
+// =============================================================================
+
+pub fn panic(msg: string) {
+    _print("PANIC: ")
+    _print(msg)
+    _print("\n")
+    _exit(1)
+}
+
+pub fn assert(condition: bool, msg: string) {
+    if !condition {
+        panic(msg)
+    }
+}
+
+// =============================================================================
+// INTERNAL (implemented in runtime)
+// =============================================================================
+
+fn _print(msg: string)
+fn _exit(code: int)
+fn _alloc(size: usize) -> *mut u8
+fn _free(ptr: *mut u8)
+fn _memcpy(dest: *mut u8, src: *const u8, size: usize)
+fn _strlen(s: *const u8) -> usize
+fn _sizeof<T>() -> usize
+fn _int_to_string(n: int) -> string
+fn _float_to_string(n: float) -> string
+
+// =============================================================================
+// END OF PRELUDE
+// =============================================================================

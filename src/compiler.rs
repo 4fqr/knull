@@ -48,7 +48,6 @@ fn run_program(runtime: &mut Runtime, ast: &ASTNode) {
             for item in items {
                 run_node(runtime, item);
             }
-            return;
         }
         _ => {
             run_node(runtime, ast);
@@ -58,10 +57,8 @@ fn run_program(runtime: &mut Runtime, ast: &ASTNode) {
 
 fn run_node(runtime: &mut Runtime, node: &ASTNode) -> Option<Value> {
     match node {
-        ASTNode::Function { name, body } => {
-            if name == "main" {
-                run_block(runtime, body);
-            }
+        ASTNode::Function { name: _, body } => {
+            run_block(runtime, body);
             None
         }
 
@@ -81,9 +78,20 @@ fn run_node(runtime: &mut Runtime, node: &ASTNode) -> Option<Value> {
         }
 
         ASTNode::Call { func, args } => match func.as_str() {
-            "println" | "print" => {
+            "println" => {
                 if !args.is_empty() {
-                    if let Some(val) = eval_expr(runtime, &args[0]) {
+                    let arg = &args[0];
+                    if let ASTNode::Identifier(name) = arg {
+                        if let Some(val) = runtime.variables.get(name) {
+                            println!("{}", val.to_string());
+                        } else if name == "true" {
+                            println!("true");
+                        } else if name == "false" {
+                            println!("false");
+                        } else {
+                            eprintln!("Error: undefined variable '{}'", name);
+                        }
+                    } else if let Some(val) = eval_expr(runtime, arg) {
                         println!("{}", val.to_string());
                     } else {
                         println!("");
@@ -93,14 +101,62 @@ fn run_node(runtime: &mut Runtime, node: &ASTNode) -> Option<Value> {
                 }
                 None
             }
+            "print" => {
+                if !args.is_empty() {
+                    let arg = &args[0];
+                    if let ASTNode::Identifier(name) = arg {
+                        if let Some(val) = runtime.variables.get(name) {
+                            print!("{}", val.to_string());
+                        } else if name == "true" {
+                            print!("true");
+                        } else if name == "false" {
+                            print!("false");
+                        } else {
+                            eprintln!("Error: undefined variable '{}'", name);
+                        }
+                    } else if let Some(val) = eval_expr(runtime, arg) {
+                        print!("{}", val.to_string());
+                    }
+                }
+                None
+            }
             _ => None,
         },
 
-        ASTNode::Literal(lit) => match lit {
-            Literal::Int(n) => Some(Value::Int(*n)),
-            Literal::Float(f) => Some(Value::Float(*f)),
-            Literal::String(s) => Some(Value::String(s.clone())),
-        },
+        ASTNode::If {
+            cond,
+            then_body,
+            else_body,
+        } => {
+            let cond_val = eval_expr(runtime, cond);
+            if let Some(Value::Bool(true)) = cond_val {
+                run_block(runtime, then_body);
+            } else if let Some(Value::Bool(false)) = cond_val {
+                if let Some(else_block) = else_body {
+                    run_block(runtime, else_block);
+                }
+            }
+            None
+        }
+
+        ASTNode::While { cond, body } => {
+            loop {
+                let cond_val = eval_expr(runtime, cond);
+                match cond_val {
+                    Some(Value::Bool(true)) => run_block(runtime, body),
+                    Some(Value::Bool(false)) => break,
+                    _ => break,
+                }
+            }
+            None
+        }
+
+        ASTNode::Return(expr) => eval_expr(runtime, expr),
+
+        ASTNode::Literal(_) | ASTNode::Identifier(_) | ASTNode::Binary { .. } => {
+            eval_expr(runtime, node);
+            None
+        }
 
         _ => None,
     }
@@ -109,32 +165,8 @@ fn run_node(runtime: &mut Runtime, node: &ASTNode) -> Option<Value> {
 fn run_block(runtime: &mut Runtime, node: &ASTNode) {
     match node {
         ASTNode::Block(stmts) => {
-            let mut i = 0;
-            while i < stmts.len() {
-                let stmt = &stmts[i];
-
-                // Handle identifier followed by expression as function call
-                if let ASTNode::Identifier(name) = stmt {
-                    if i + 1 < stmts.len() {
-                        let next = &stmts[i + 1];
-                        if let ASTNode::Literal(_) = next {
-                            // Treat as function call
-                            let mut args = vec![next.clone()];
-                            run_node(
-                                runtime,
-                                &ASTNode::Call {
-                                    func: name.clone(),
-                                    args,
-                                },
-                            );
-                            i += 2;
-                            continue;
-                        }
-                    }
-                }
-
+            for stmt in stmts {
                 run_node(runtime, stmt);
-                i += 1;
             }
         }
         _ => {
@@ -153,15 +185,14 @@ fn eval_expr(runtime: &mut Runtime, expr: &ASTNode) -> Option<Value> {
 
         ASTNode::Identifier(name) => {
             if let Some(val) = runtime.variables.get(name) {
-                return Some(val.clone());
+                Some(val.clone())
+            } else if name == "true" {
+                Some(Value::Bool(true))
+            } else if name == "false" {
+                Some(Value::Bool(false))
+            } else {
+                None
             }
-            if name == "true" {
-                return Some(Value::Bool(true));
-            }
-            if name == "false" {
-                return Some(Value::Bool(false));
-            }
-            None
         }
 
         ASTNode::Binary { op, left, right } => {
@@ -195,9 +226,38 @@ fn eval_expr(runtime: &mut Runtime, expr: &ASTNode) -> Option<Value> {
                     };
                     Some(result)
                 }
+                (Some(Value::Int(a)), Some(Value::String(b))) => {
+                    let result = match op.as_str() {
+                        "+" => Value::String(a.to_string() + &b),
+                        _ => Value::String(a.to_string()),
+                    };
+                    Some(result)
+                }
+                (Some(Value::String(a)), Some(Value::Int(b))) => {
+                    let result = match op.as_str() {
+                        "+" => Value::String(a + &b.to_string()),
+                        _ => Value::String(a),
+                    };
+                    Some(result)
+                }
                 _ => None,
             }
         }
+
+        ASTNode::Call { func, args } => match func.as_str() {
+            "len" => {
+                if !args.is_empty() {
+                    if let Some(val) = eval_expr(runtime, &args[0]) {
+                        return Some(match val {
+                            Value::String(s) => Value::Int(s.len() as i64),
+                            _ => Value::Int(0),
+                        });
+                    }
+                }
+                Some(Value::Int(0))
+            }
+            _ => None,
+        },
 
         _ => None,
     }
