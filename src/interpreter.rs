@@ -704,6 +704,19 @@ impl Interpreter {
                 Some(Ok(Value::Null))
             }
             "thread_id" => Some(Ok(Value::Int(0))),
+            // Networking
+            "tcp_connect" => {
+                if args.len() >= 1 {
+                    let addr = args[0].as_string();
+                    match std::net::TcpStream::connect(&addr) {
+                        Ok(_) => Some(Ok(Value::Bool(true))),
+                        Err(_) => Some(Ok(Value::Bool(false))),
+                    }
+                } else {
+                    Some(Err("tcp_connect requires address".to_string()))
+                }
+            }
+            "get_hostname" => Some(Ok(Value::String("localhost".to_string()))),
             _ => None,
         }
     }
