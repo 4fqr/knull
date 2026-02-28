@@ -5,13 +5,16 @@ use crate::lexer::{Lexer, Token, TokenKind};
 #[derive(Debug, Clone)]
 pub enum ASTNode {
     Program(Vec<ASTNode>),
+    Mode(String), // novice, expert, god
     Function {
         name: String,
-        params: Vec<String>,
+        params: Vec<Param>,
+        ret_type: Option<Type>,
         body: Box<ASTNode>,
     },
     Let {
         name: String,
+        ty: Option<Type>,
         value: Box<ASTNode>,
     },
     Return(Box<ASTNode>),
@@ -19,6 +22,10 @@ pub enum ASTNode {
         cond: Box<ASTNode>,
         then_body: Box<ASTNode>,
         else_body: Option<Box<ASTNode>>,
+    },
+    Match {
+        expr: Box<ASTNode>,
+        arms: Vec<MatchArm>,
     },
     While {
         cond: Box<ASTNode>,
@@ -29,6 +36,7 @@ pub enum ASTNode {
         iter: Box<ASTNode>,
         body: Box<ASTNode>,
     },
+    Loop(Box<ASTNode>),
     Binary {
         op: String,
         left: Box<ASTNode>,
@@ -39,17 +47,151 @@ pub enum ASTNode {
         operand: Box<ASTNode>,
     },
     Call {
-        func: String,
+        func: Box<ASTNode>,
+        args: Vec<ASTNode>,
+    },
+    MethodCall {
+        obj: Box<ASTNode>,
+        method: String,
         args: Vec<ASTNode>,
     },
     Index {
         obj: Box<ASTNode>,
         index: Box<ASTNode>,
     },
+    FieldAccess {
+        obj: Box<ASTNode>,
+        field: String,
+    },
     Block(Vec<ASTNode>),
     Literal(Literal),
     Identifier(String),
     Array(Vec<ASTNode>),
+    Range {
+        start: Box<ASTNode>,
+        end: Box<ASTNode>,
+        inclusive: bool,
+    },
+    // Structs
+    StructDef {
+        name: String,
+        fields: Vec<(String, Type)>,
+    },
+    StructLiteral {
+        name: String,
+        fields: Vec<(String, ASTNode)>,
+    },
+    Impl {
+        ty: String,
+        methods: Vec<ASTNode>,
+    },
+    // Enums
+    EnumDef {
+        name: String,
+        variants: Vec<EnumVariant>,
+    },
+    // Types
+    TypeAnnotation(Type),
+    // Modules
+    Mod(String),
+    Use(String),
+    // Unsafe
+    Unsafe(Box<ASTNode>),
+    // Inline assembly
+    Asm(String),
+    // Syscall
+    Syscall(Vec<ASTNode>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Param {
+    pub name: String,
+    pub ty: Option<Type>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MatchArm {
+    pub pattern: Pattern,
+    pub body: ASTNode,
+}
+
+#[derive(Debug, Clone)]
+pub enum Pattern {
+    Wildcard,
+    Literal(Literal),
+    Identifier(String),
+    Struct {
+        name: String,
+        fields: Vec<(String, Pattern)>,
+    },
+    Enum {
+        name: String,
+        variant: String,
+        data: Option<Box<Pattern>>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumVariant {
+    pub name: String,
+    pub data: Option<Type>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type {
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    F32,
+    F64,
+    Bool,
+    Char,
+    String,
+    Void,
+    Never,
+    Ref(Box<Type>),
+    MutRef(Box<Type>),
+    RawPtr(Box<Type>),
+    MutRawPtr(Box<Type>),
+    Array(Box<Type>, usize),
+    Slice(Box<Type>),
+    Vec(Box<Type>),
+    Option(Box<Type>),
+    Result(Box<Type>, Box<Type>),
+    Fn(Vec<Type>, Box<Type>),
+    Custom(String),
+}
+
+impl Type {
+    pub fn from_str(s: &str) -> Option<Type> {
+        match s {
+            "i8" => Some(Type::I8),
+            "i16" => Some(Type::I16),
+            "i32" => Some(Type::I32),
+            "i64" => Some(Type::I64),
+            "i128" => Some(Type::I128),
+            "u8" => Some(Type::U8),
+            "u16" => Some(Type::U16),
+            "u32" => Some(Type::U32),
+            "u64" => Some(Type::U64),
+            "u128" => Some(Type::U128),
+            "f32" => Some(Type::F32),
+            "f64" => Some(Type::F64),
+            "bool" => Some(Type::Bool),
+            "char" => Some(Type::Char),
+            "String" => Some(Type::String),
+            "void" => Some(Type::Void),
+            "never" => Some(Type::Never),
+            _ => Some(Type::Custom(s.to_string())),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -91,34 +233,43 @@ impl Parser {
                 break;
             }
             match self.current().kind {
+                TokenKind::Mode => items.push(self.parse_mode()?),
                 TokenKind::Fn => items.push(self.parse_function()?),
                 TokenKind::Let => items.push(self.parse_let()?),
                 TokenKind::If => items.push(self.parse_if()?),
+                TokenKind::Match => items.push(self.parse_match()?),
                 TokenKind::While => items.push(self.parse_while()?),
                 TokenKind::For => items.push(self.parse_for()?),
-                TokenKind::Mod => {
-                    self.parse_module_decl()?;
+                TokenKind::Loop => items.push(self.parse_loop()?),
+                TokenKind::Mod => items.push(self.parse_module_decl()?),
+                TokenKind::Struct => items.push(self.parse_struct_def()?),
+                TokenKind::Enum => items.push(self.parse_enum_def()?),
+                TokenKind::Impl => items.push(self.parse_impl()?),
+                TokenKind::Trait => items.push(self.parse_trait()?),
+                TokenKind::Use => items.push(self.parse_use_decl()?),
+                TokenKind::Pub => {
+                    self.advance();
+                    continue;
                 }
-                TokenKind::Struct => {
-                    self.parse_struct_decl()?;
+                TokenKind::Const => {
+                    self.advance();
+                    items.push(self.parse_let()?);
                 }
-                TokenKind::Use => {
-                    self.parse_use_decl()?;
+                TokenKind::Type => {
+                    self.advance();
+                    self.parse_type_alias()?;
                 }
                 TokenKind::Unsafe => {
                     self.advance();
                     if self.current().kind == TokenKind::LBrace {
-                        self.advance();
-                        while self.current().kind != TokenKind::RBrace
-                            && self.current().kind != TokenKind::Eof
-                        {
-                            self.advance();
-                        }
-                        self.expect(TokenKind::RBrace)?;
+                        let block = self.parse_block()?;
+                        items.push(ASTNode::Unsafe(Box::new(block)));
                     } else if self.current().kind == TokenKind::Fn {
                         items.push(self.parse_function()?);
                     }
                 }
+                TokenKind::Asm => items.push(self.parse_asm()?),
+                TokenKind::Syscall => items.push(self.parse_syscall()?),
                 _ => {
                     let expr = self.parse_expression()?;
                     items.push(expr);
@@ -146,16 +297,18 @@ impl Parser {
             {
                 // Parse parameter name
                 let param_name = self.parse_identifier()?;
-                params.push(param_name);
 
                 // Check for type annotation
-                if self.current().kind == TokenKind::Colon {
+                let ty = if self.current().kind == TokenKind::Colon {
                     self.advance(); // skip :
-                                    // Skip type name
-                    if self.current().kind == TokenKind::Identifier {
-                        self.advance();
-                    }
-                }
+                    Some(self.parse_type()?)
+                } else {
+                    None
+                };
+                params.push(Param {
+                    name: param_name,
+                    ty,
+                });
 
                 // Check for comma
                 if self.current().kind == TokenKind::Comma {
@@ -167,30 +320,45 @@ impl Parser {
             }
         }
 
-        // Skip return type
-        if self.current().kind == TokenKind::Minus {
-            self.advance();
-            if self.current().kind == TokenKind::Gt {
-                self.advance();
-            }
-            // Skip return type name
-            if self.current().kind == TokenKind::Identifier {
-                self.advance();
-            }
-        }
+        // Parse return type
+        let ret_type = if self.current().kind == TokenKind::Arrow {
+            self.advance(); // skip ->
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
 
         // Parse body
         let body = self.parse_block()?;
         Ok(ASTNode::Function {
             name,
             params,
+            ret_type,
             body: Box::new(body),
         })
     }
 
     fn parse_let(&mut self) -> Result<ASTNode, String> {
         self.expect(TokenKind::Let)?;
+
+        // Check for mut
+        let _is_mut = if self.current().kind == TokenKind::Mut {
+            self.advance();
+            true
+        } else {
+            false
+        };
+
         let name = self.parse_identifier()?;
+
+        // Check for type annotation
+        let ty = if self.current().kind == TokenKind::Colon {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
         self.expect(TokenKind::Eq)?;
         let value = self.parse_expression()?;
         if self.current().kind == TokenKind::Semicolon {
@@ -198,6 +366,7 @@ impl Parser {
         }
         Ok(ASTNode::Let {
             name,
+            ty,
             value: Box::new(value),
         })
     }
@@ -292,7 +461,7 @@ impl Parser {
                                 self.advance();
                             }
                             return Ok(ASTNode::Call {
-                                func: name,
+                                func: Box::new(ASTNode::Identifier(name)),
                                 args: vec![arg],
                             });
                         }
@@ -360,6 +529,7 @@ impl Parser {
             if let ASTNode::Identifier(name) = left {
                 return Ok(ASTNode::Let {
                     name,
+                    ty: None,
                     value: Box::new(right),
                 });
             }
@@ -488,9 +658,26 @@ impl Parser {
                 if self.current().kind == TokenKind::RParen {
                     self.advance();
                 }
-                // Check if this is a function call on an object
+                // Function call
                 if let ASTNode::Identifier(name) = node {
-                    node = ASTNode::Call { func: name, args };
+                    node = ASTNode::Call {
+                        func: Box::new(ASTNode::Identifier(name)),
+                        args,
+                    };
+                } else {
+                    // Method call: obj.method(args)
+                    if let ASTNode::FieldAccess { obj, field } = node {
+                        node = ASTNode::MethodCall {
+                            obj,
+                            method: field,
+                            args,
+                        };
+                    } else {
+                        node = ASTNode::Call {
+                            func: Box::new(node),
+                            args,
+                        };
+                    }
                 }
             } else if self.current().kind == TokenKind::LBracket {
                 self.advance();
@@ -499,6 +686,13 @@ impl Parser {
                 node = ASTNode::Index {
                     obj: Box::new(node),
                     index: Box::new(index),
+                };
+            } else if self.current().kind == TokenKind::Dot {
+                self.advance();
+                let field = self.parse_identifier()?;
+                node = ASTNode::FieldAccess {
+                    obj: Box::new(node),
+                    field,
                 };
             } else {
                 break;
@@ -594,56 +788,250 @@ impl Parser {
         }
     }
 
-    // Skip module declarations (module <name>)
-    fn parse_module_decl(&mut self) -> Result<(), String> {
-        self.advance(); // skip 'mod'
-        self.parse_identifier()?; // module name
-        if self.current().kind == TokenKind::LBrace {
-            // Module body - skip it
-            self.advance();
-            let mut depth = 1;
-            while depth > 0 && self.current().kind != TokenKind::Eof {
-                if self.current().kind == TokenKind::LBrace {
-                    depth += 1;
-                } else if self.current().kind == TokenKind::RBrace {
-                    depth -= 1;
-                }
-                self.advance();
-            }
-        }
-        Ok(())
-    }
-
-    // Skip struct declarations
-    fn parse_struct_decl(&mut self) -> Result<(), String> {
-        self.advance(); // skip 'struct'
-        self.parse_identifier()?; // struct name
-        if self.current().kind == TokenKind::LBrace {
-            self.advance();
-            let mut depth = 1;
-            while depth > 0 && self.current().kind != TokenKind::Eof {
-                if self.current().kind == TokenKind::LBrace {
-                    depth += 1;
-                } else if self.current().kind == TokenKind::RBrace {
-                    depth -= 1;
-                }
-                self.advance();
-            }
-        }
-        Ok(())
-    }
-
-    // Skip use declarations
-    fn parse_use_decl(&mut self) -> Result<(), String> {
+    // Parse use declarations
+    fn parse_use_decl(&mut self) -> Result<ASTNode, String> {
         self.advance(); // skip 'use'
-                        // Skip until semicolon or newline
-        while self.current().kind != TokenKind::Semicolon && self.current().kind != TokenKind::Eof {
+        let mut path = String::new();
+        while self.current().kind != TokenKind::Semicolon
+            && self.current().kind != TokenKind::Eof
+            && self.current().kind != TokenKind::LBrace
+        {
+            path.push_str(&self.current().value);
             self.advance();
+            if self.current().kind == TokenKind::DoubleColon {
+                path.push_str("::");
+                self.advance();
+            }
         }
         if self.current().kind == TokenKind::Semicolon {
             self.advance();
         }
+        Ok(ASTNode::Use(path))
+    }
+
+    // Parse mode declaration
+    fn parse_mode(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Mode)?;
+        let mode_name = self.parse_identifier()?;
+        Ok(ASTNode::Mode(mode_name))
+    }
+
+    // Parse match expression
+    fn parse_match(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Match)?;
+        let expr = self.parse_expression()?;
+        self.expect(TokenKind::LBrace)?;
+
+        let mut arms = Vec::new();
+        while self.current().kind != TokenKind::RBrace && self.current().kind != TokenKind::Eof {
+            let pattern = self.parse_pattern()?;
+            self.expect(TokenKind::FatArrow)?;
+            let body = self.parse_expression()?;
+            arms.push(MatchArm { pattern, body });
+
+            if self.current().kind == TokenKind::Comma {
+                self.advance();
+            }
+        }
+        self.expect(TokenKind::RBrace)?;
+        Ok(ASTNode::Match {
+            expr: Box::new(expr),
+            arms,
+        })
+    }
+
+    // Parse pattern for match arms
+    fn parse_pattern(&mut self) -> Result<Pattern, String> {
+        match self.current().kind {
+            TokenKind::Underscore => {
+                self.advance();
+                Ok(Pattern::Wildcard)
+            }
+            TokenKind::Int => {
+                let val = self.current().value.parse::<i64>().unwrap_or(0);
+                self.advance();
+                Ok(Pattern::Literal(Literal::Int(val)))
+            }
+            TokenKind::True => {
+                self.advance();
+                Ok(Pattern::Literal(Literal::Bool(true)))
+            }
+            TokenKind::False => {
+                self.advance();
+                Ok(Pattern::Literal(Literal::Bool(false)))
+            }
+            TokenKind::Identifier => {
+                let name = self.parse_identifier()?;
+                Ok(Pattern::Identifier(name))
+            }
+            _ => Err(format!(
+                "Unexpected token in pattern: {:?}",
+                self.current().kind
+            )),
+        }
+    }
+
+    // Parse loop expression
+    fn parse_loop(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Loop)?;
+        let body = self.parse_block()?;
+        Ok(ASTNode::Loop(Box::new(body)))
+    }
+
+    // Parse struct definition
+    fn parse_struct_def(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Struct)?;
+        let name = self.parse_identifier()?;
+
+        let mut fields = Vec::new();
+        if self.current().kind == TokenKind::LBrace {
+            self.advance();
+            while self.current().kind != TokenKind::RBrace && self.current().kind != TokenKind::Eof
+            {
+                let field_name = self.parse_identifier()?;
+                self.expect(TokenKind::Colon)?;
+                let ty = self.parse_type()?;
+                fields.push((field_name, ty));
+
+                if self.current().kind == TokenKind::Comma {
+                    self.advance();
+                }
+            }
+            self.expect(TokenKind::RBrace)?;
+        }
+        Ok(ASTNode::StructDef { name, fields })
+    }
+
+    // Parse enum definition
+    fn parse_enum_def(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Enum)?;
+        let name = self.parse_identifier()?;
+
+        let mut variants = Vec::new();
+        if self.current().kind == TokenKind::LBrace {
+            self.advance();
+            while self.current().kind != TokenKind::RBrace && self.current().kind != TokenKind::Eof
+            {
+                let variant_name = self.parse_identifier()?;
+                let data = if self.current().kind == TokenKind::LParen {
+                    self.advance();
+                    let ty = self.parse_type()?;
+                    self.expect(TokenKind::RParen)?;
+                    Some(ty)
+                } else {
+                    None
+                };
+                variants.push(EnumVariant {
+                    name: variant_name,
+                    data,
+                });
+
+                if self.current().kind == TokenKind::Comma {
+                    self.advance();
+                }
+            }
+            self.expect(TokenKind::RBrace)?;
+        }
+        Ok(ASTNode::EnumDef { name, variants })
+    }
+
+    // Parse impl block
+    fn parse_impl(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Impl)?;
+        let ty = self.parse_identifier()?;
+
+        let mut methods = Vec::new();
+        if self.current().kind == TokenKind::LBrace {
+            self.advance();
+            while self.current().kind != TokenKind::RBrace && self.current().kind != TokenKind::Eof
+            {
+                if self.current().kind == TokenKind::Fn {
+                    methods.push(self.parse_function()?);
+                } else {
+                    self.advance();
+                }
+            }
+            self.expect(TokenKind::RBrace)?;
+        }
+        Ok(ASTNode::Impl { ty, methods })
+    }
+
+    // Parse trait definition
+    fn parse_trait(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Trait)?;
+        let name = self.parse_identifier()?;
+        // Skip trait body for now
+        if self.current().kind == TokenKind::LBrace {
+            self.advance();
+            while self.current().kind != TokenKind::RBrace && self.current().kind != TokenKind::Eof
+            {
+                self.advance();
+            }
+            self.expect(TokenKind::RBrace)?;
+        }
+        Ok(ASTNode::Identifier(name))
+    }
+
+    // Parse module declaration
+    fn parse_module_decl(&mut self) -> Result<ASTNode, String> {
+        self.advance(); // skip 'mod'
+        let name = self.parse_identifier()?;
+        Ok(ASTNode::Mod(name))
+    }
+
+    // Parse type alias
+    fn parse_type_alias(&mut self) -> Result<(), String> {
+        self.parse_identifier()?; // type name
+        self.expect(TokenKind::Eq)?;
+        self.parse_type()?;
         Ok(())
+    }
+
+    // Parse type
+    fn parse_type(&mut self) -> Result<Type, String> {
+        match self.current().kind {
+            TokenKind::Identifier => {
+                let name = self.current().value.clone();
+                self.advance();
+                Type::from_str(&name).ok_or_else(|| format!("Unknown type: {}", name))
+            }
+            TokenKind::Star => {
+                self.advance();
+                let ty = self.parse_type()?;
+                Ok(Type::RawPtr(Box::new(ty)))
+            }
+            TokenKind::Ampersand => {
+                self.advance();
+                let ty = self.parse_type()?;
+                Ok(Type::Ref(Box::new(ty)))
+            }
+            _ => Ok(Type::Custom(self.current().value.clone())),
+        }
+    }
+
+    // Parse inline assembly
+    fn parse_asm(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Asm)?;
+        self.expect(TokenKind::LParen)?;
+        let code = self.current().value.clone();
+        self.advance(); // string literal
+        self.expect(TokenKind::RParen)?;
+        Ok(ASTNode::Asm(code))
+    }
+
+    // Parse syscall
+    fn parse_syscall(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Syscall)?;
+        self.expect(TokenKind::LParen)?;
+        let mut args = Vec::new();
+        while self.current().kind != TokenKind::RParen && self.current().kind != TokenKind::Eof {
+            args.push(self.parse_expression()?);
+            if self.current().kind == TokenKind::Comma {
+                self.advance();
+            }
+        }
+        self.expect(TokenKind::RParen)?;
+        Ok(ASTNode::Syscall(args))
     }
 }
 

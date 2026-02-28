@@ -88,7 +88,7 @@ impl CCodeGen {
                     self.functions.insert(
                         name.clone(),
                         FunctionInfo {
-                            params: params.clone(),
+                            params: params.iter().map(|p| p.name.clone()).collect(),
                             has_return: false,
                         },
                     );
@@ -190,7 +190,12 @@ impl CCodeGen {
                 }
                 Ok(String::new())
             }
-            ASTNode::Function { name, params, body } => {
+            ASTNode::Function {
+                name,
+                params,
+                ret_type: _,
+                body,
+            } => {
                 self.current_function = Some(name.clone());
 
                 let params_str = if params.is_empty() {
@@ -213,7 +218,7 @@ impl CCodeGen {
 
                 // Store param mappings
                 for (i, param) in params.iter().enumerate() {
-                    self.emit_line(&format!("knull_int {} = arg{};", param, i));
+                    self.emit_line(&format!("knull_int {} = arg{};", param.name, i));
                 }
 
                 self.compile_node(body)?;
@@ -237,7 +242,7 @@ impl CCodeGen {
                 }
                 Ok(String::new())
             }
-            ASTNode::Let { name, value } => {
+            ASTNode::Let { name, value, .. } => {
                 let val_code = self.compile_node(value)?;
                 self.emit_line(&format!("knull_int {} = {};", name, val_code));
                 Ok(String::new())
@@ -317,7 +322,16 @@ impl CCodeGen {
                     args.iter().map(|a| self.compile_node(a)).collect();
                 let args_str = args_code?.join(", ");
 
-                match func.as_str() {
+                let func_name = match func.as_ref() {
+                    ASTNode::Identifier(name) => name.clone(),
+                    _ => {
+                        return Err(
+                            "Complex function expressions not supported in C codegen".to_string()
+                        )
+                    }
+                };
+
+                match func_name.as_str() {
                     "println" => {
                         if args.is_empty() {
                             self.emit_line("printf(\"\\n\");");
@@ -356,7 +370,7 @@ impl CCodeGen {
                         self.emit_line("gc_collect();");
                         Ok("0".to_string())
                     }
-                    _ => Ok(format!("{}({})", func, args_str)),
+                    _ => Ok(format!("{}({})", func_name, args_str)),
                 }
             }
             ASTNode::Literal(lit) => match lit {

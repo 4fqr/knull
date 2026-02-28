@@ -262,12 +262,15 @@ impl Interpreter {
             ASTNode::Program(items) => {
                 // First pass: collect function definitions
                 for item in items {
-                    if let ASTNode::Function { name, params, body } = item {
+                    if let ASTNode::Function {
+                        name, params, body, ..
+                    } = item
+                    {
                         self.functions.insert(
                             name.clone(),
                             FunctionDef {
                                 name: name.clone(),
-                                params: params.clone(),
+                                params: params.iter().map(|p| p.name.clone()).collect(),
                                 body: *body.clone(),
                             },
                         );
@@ -299,7 +302,7 @@ impl Interpreter {
         }
 
         match node {
-            ASTNode::Let { name, value } => {
+            ASTNode::Let { name, value, .. } => {
                 let val = self.evaluate(value)?;
                 self.set_variable(name.clone(), val);
                 Ok(())
@@ -381,7 +384,11 @@ impl Interpreter {
             ASTNode::Call { func, args } => {
                 let arg_values: Result<Vec<Value>, String> =
                     args.iter().map(|arg| self.evaluate(arg)).collect();
-                self.call_function(func, arg_values?)?;
+                let func_name = match func.as_ref() {
+                    ASTNode::Identifier(name) => name.clone(),
+                    _ => return Err("Complex function calls not yet supported".to_string()),
+                };
+                self.call_function(&func_name, arg_values?)?;
                 Ok(())
             }
             other => {
@@ -419,7 +426,11 @@ impl Interpreter {
             ASTNode::Call { func, args } => {
                 let arg_values: Result<Vec<Value>, String> =
                     args.iter().map(|arg| self.evaluate(arg)).collect();
-                self.call_function(func, arg_values?)
+                let func_name = match func.as_ref() {
+                    ASTNode::Identifier(name) => name.clone(),
+                    _ => return Err("Complex function calls not yet supported".to_string()),
+                };
+                self.call_function(&func_name, arg_values?)
             }
             ASTNode::Index { obj, index } => {
                 let obj_val = self.evaluate(obj)?;

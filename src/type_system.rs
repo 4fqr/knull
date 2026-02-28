@@ -75,6 +75,7 @@ impl TypeChecker {
                 name: _,
                 params: _,
                 body,
+                ..
             } => {
                 self.push_scope();
                 self.check_node(body)?;
@@ -90,8 +91,10 @@ impl TypeChecker {
                 self.pop_scope();
                 Ok(last_type)
             }
-            ASTNode::Let { name, value } => {
+            ASTNode::Let { name, value, ty } => {
                 let val_type = self.check_node(value)?;
+                // TODO: Check against declared type if present
+                let _ = ty;
                 self.current_scope().insert(name.clone(), val_type);
                 Ok(Type::Void)
             }
@@ -156,7 +159,11 @@ impl TypeChecker {
                     self.check_node(arg)?;
                 }
                 // Return type depends on function
-                match func.as_str() {
+                let func_name = match func.as_ref() {
+                    ASTNode::Identifier(name) => name.as_str(),
+                    _ => return Ok(Type::Unknown),
+                };
+                match func_name {
                     "println" | "print" => Ok(Type::Void),
                     _ => Ok(Type::Unknown),
                 }

@@ -33,6 +33,21 @@ pub enum TokenKind {
     True,
     False,
     Null,
+    // Modes
+    Mode,
+    Novice,
+    Expert,
+    God,
+    // Special
+    Asm,
+    Syscall,
+    // Range
+    DotDot,
+    DotDotEq,
+    // Arrows
+    Arrow,
+    FatArrow,
+    DoubleColon,
     Plus,
     Minus,
     Star,
@@ -104,6 +119,14 @@ impl TokenKind {
             "true" => Some(TokenKind::True),
             "false" => Some(TokenKind::False),
             "null" => Some(TokenKind::Null),
+            // Modes
+            "mode" => Some(TokenKind::Mode),
+            "novice" => Some(TokenKind::Novice),
+            "expert" => Some(TokenKind::Expert),
+            "god" => Some(TokenKind::God),
+            // Special
+            "asm" => Some(TokenKind::Asm),
+            "syscall" => Some(TokenKind::Syscall),
             _ => None,
         }
     }
@@ -271,6 +294,17 @@ impl Lexer {
                 }
                 '-' => {
                     self.advance();
+                    // Check for -> (arrow)
+                    if self.peek() == Some('>') {
+                        self.advance();
+                        tokens.push(Token {
+                            kind: TokenKind::Arrow,
+                            value: "->".to_string(),
+                            line,
+                            col,
+                        });
+                        continue;
+                    }
                     TokenKind::Minus
                 }
                 '*' => {
@@ -355,10 +389,42 @@ impl Lexer {
                 }
                 ':' => {
                     self.advance();
+                    // Check for :: (double colon)
+                    if self.peek() == Some(':') {
+                        self.advance();
+                        tokens.push(Token {
+                            kind: TokenKind::DoubleColon,
+                            value: "::".to_string(),
+                            line,
+                            col,
+                        });
+                        continue;
+                    }
                     TokenKind::Colon
                 }
                 '.' => {
                     self.advance();
+                    // Check for .. or ..=
+                    if self.peek() == Some('.') {
+                        self.advance();
+                        if self.peek() == Some('=') {
+                            self.advance();
+                            tokens.push(Token {
+                                kind: TokenKind::DotDotEq,
+                                value: "..=".to_string(),
+                                line,
+                                col,
+                            });
+                        } else {
+                            tokens.push(Token {
+                                kind: TokenKind::DotDot,
+                                value: "..".to_string(),
+                                line,
+                                col,
+                            });
+                        }
+                        continue;
+                    }
                     TokenKind::Dot
                 }
                 '@' => {
@@ -376,6 +442,14 @@ impl Lexer {
                         tokens.push(Token {
                             kind: TokenKind::EqEq,
                             value: "==".to_string(),
+                            line,
+                            col,
+                        });
+                    } else if self.peek() == Some('>') {
+                        self.advance();
+                        tokens.push(Token {
+                            kind: TokenKind::FatArrow,
+                            value: "=>".to_string(),
                             line,
                             col,
                         });

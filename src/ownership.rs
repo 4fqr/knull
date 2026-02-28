@@ -98,6 +98,7 @@ impl OwnershipChecker {
                 name: _,
                 params: _,
                 body,
+                ..
             } => {
                 self.push_scope();
                 self.check_node(body)?;
@@ -112,7 +113,7 @@ impl OwnershipChecker {
                 self.pop_scope();
                 Ok(())
             }
-            ASTNode::Let { name, value } => {
+            ASTNode::Let { name, value, .. } => {
                 let ownership = self.check_expr(value);
                 match ownership {
                     Ownership::Moved | Ownership::Owned => {
