@@ -1,0 +1,413 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - COLLECTIONS MODULE
+// =============================================================================
+// Data structures: Vector, Map, Set, Queue, Stack
+
+// -----------------------------------------------------------------------------
+// DYNAMIC ARRAY (VECTOR)
+// -----------------------------------------------------------------------------
+
+struct Vec<T> {
+    data: *T,
+    len: i64,
+    capacity: i64,
+}
+
+fn vec_new<T>() -> Vec<T> {
+    return Vec<T> {
+        data: 0 as *T,
+        len: 0,
+        capacity: 0,
+    }
+}
+
+fn vec_with_capacity<T>(cap: i64) -> Vec<T> {
+    let size = cap * sizeof(T)
+    return Vec<T> {
+        data: alloc(size) as *T,
+        len: 0,
+        capacity: cap,
+    }
+}
+
+fn vec_push<T>(v: *Vec<T>, val: T) {
+    if v.len >= v.capacity {
+        // Grow
+        let new_cap = if v.capacity == 0 { 4 } else { v.capacity * 2 }
+        let new_data = alloc(new_cap * sizeof(T)) as *T
+        
+        // Copy old data
+        let i = 0
+        while i < v.len {
+            new_data[i] = v.data[i]
+            i = i + 1
+        }
+        
+        if v.data != 0 as *T {
+            free(v.data as *void)
+        }
+        
+        v.data = new_data
+        v.capacity = new_cap
+    }
+    
+    v.data[v.len] = val
+    v.len = v.len + 1
+}
+
+fn vec_pop<T>(v: *Vec<T>) -> Option<T> {
+    if v.len == 0 {
+        return None()
+    }
+    v.len = v.len - 1
+    return Some(v.data[v.len])
+}
+
+fn vec_get<T>(v: *Vec<T>, idx: i64) -> Option<T> {
+    if idx < 0 || idx >= v.len {
+        return None()
+    }
+    return Some(v.data[idx])
+}
+
+fn vec_set<T>(v: *Vec<T>, idx: i64, val: T) {
+    if idx >= 0 && idx < v.len {
+        v.data[idx] = val
+    }
+}
+
+fn vec_len<T>(v: *Vec<T>) -> i64 {
+    return v.len
+}
+
+fn vec_capacity<T>(v: *Vec<T>) -> i64 {
+    return v.capacity
+}
+
+fn vec_is_empty<T>(v: *Vec<T>) -> bool {
+    return v.len == 0
+}
+
+fn vec_clear<T>(v: *Vec<T>) {
+    v.len = 0
+}
+
+fn vec_free<T>(v: *Vec<T>) {
+    if v.data != 0 as *T {
+        free(v.data as *void)
+    }
+    v.data = 0 as *T
+    v.len = 0
+    v.capacity = 0
+}
+
+// -----------------------------------------------------------------------------
+// STACK (LIFO)
+// -----------------------------------------------------------------------------
+
+struct Stack<T> {
+    data: Vec<T>,
+}
+
+fn stack_new<T>() -> Stack<T> {
+    return Stack<T> {
+        data: vec_new<T>(),
+    }
+}
+
+fn stack_push<T>(s: *Stack<T>, val: T) {
+    vec_push(&s.data, val)
+}
+
+fn stack_pop<T>(s: *Stack<T>) -> Option<T> {
+    return vec_pop(&s.data)
+}
+
+fn stack_peek<T>(s: *Stack<T>) -> Option<T> {
+    let len = s.data.len
+    if len == 0 {
+        return None()
+    }
+    return Some(s.data.data[len - 1])
+}
+
+fn stack_is_empty<T>(s: *Stack<T>) -> bool {
+    return vec_is_empty(&s.data)
+}
+
+fn stack_size<T>(s: *Stack<T>) -> i64 {
+    return s.data.len
+}
+
+// -----------------------------------------------------------------------------
+// QUEUE (FIFO)
+// -----------------------------------------------------------------------------
+
+struct Queue<T> {
+    data: Vec<T>,
+    head: i64,
+}
+
+fn queue_new<T>() -> Queue<T> {
+    return Queue<T> {
+        data: vec_new<T>(),
+        head: 0,
+    }
+}
+
+fn queue_enqueue<T>(q: *Queue<T>, val: T) {
+    vec_push(&q.data, val)
+}
+
+fn queue_dequeue<T>(q: *Queue<T>) -> Option<T> {
+    if q.head >= q.data.len {
+        return None()
+    }
+    
+    let val = q.data.data[q.head]
+    q.head = q.head + 1
+    
+    // Compact if needed
+    if q.head > q.data.capacity / 2 {
+        let i = 0
+        while q.head + i < q.data.len {
+            q.data.data[i] = q.data.data[q.head + i]
+            i = i + 1
+        }
+        q.data.len = q.data.len - q.head
+        q.head = 0
+    }
+    
+    return Some(val)
+}
+
+fn queue_peek<T>(q: *Queue<T>) -> Option<T> {
+    if q.head >= q.data.len {
+        return None()
+    }
+    return Some(q.data.data[q.head])
+}
+
+fn queue_is_empty<T>(q: *Queue<T>) -> bool {
+    return q.head >= q.data.len
+}
+
+fn queue_size<T>(q: *Queue<T>) -> i64 {
+    return q.data.len - q.head
+}
+
+// -----------------------------------------------------------------------------
+// LINKED LIST
+// -----------------------------------------------------------------------------
+
+struct ListNode<T> {
+    data: T,
+    next: *ListNode<T>,
+}
+
+struct List<T> {
+    head: *ListNode<T>,
+    tail: *ListNode<T>,
+    len: i64,
+}
+
+fn list_new<T>() -> List<T> {
+    return List<T> {
+        head: 0 as *ListNode<T>,
+        tail: 0 as *ListNode<T>,
+        len: 0,
+    }
+}
+
+fn list_push_front<T>(l: *List<T>, val: T) {
+    let node = alloc(sizeof(ListNode<T>)) as *ListNode<T>
+    node.data = val
+    node.next = l.head
+    l.head = node
+    if l.tail == 0 as *ListNode<T> {
+        l.tail = node
+    }
+    l.len = l.len + 1
+}
+
+fn list_push_back<T>(l: *List<T>, val: T) {
+    let node = alloc(sizeof(ListNode<T>)) as *ListNode<T>
+    node.data = val
+    node.next = 0 as *ListNode<T>
+    
+    if l.tail == 0 as *ListNode<T> {
+        l.head = node
+        l.tail = node
+    } else {
+        l.tail.next = node
+        l.tail = node
+    }
+    l.len = l.len + 1
+}
+
+fn list_pop_front<T>(l: *List<T>) -> Option<T> {
+    if l.head == 0 as *ListNode<T> {
+        return None()
+    }
+    
+    let val = l.head.data
+    let old_head = l.head
+    l.head = l.head.next
+    
+    if l.head == 0 as *ListNode<T> {
+        l.tail = 0 as *ListNode<T>
+    }
+    
+    free(old_head as *void)
+    l.len = l.len - 1
+    
+    return Some(val)
+}
+
+fn list_len<T>(l: *List<T>) -> i64 {
+    return l.len
+}
+
+fn list_is_empty<T>(l: *List<T>) -> bool {
+    return l.len == 0
+}
+
+// -----------------------------------------------------------------------------
+// HASH MAP (SIMPLE IMPLEMENTATION)
+// -----------------------------------------------------------------------------
+
+const MAP_DEFAULT_CAPACITY: i64 = 16
+
+struct MapEntry<K, V> {
+    key: K,
+    value: V,
+    hash: i64,
+    next: *MapEntry<K, V>,
+}
+
+struct Map<K, V> {
+    buckets: **MapEntry<K, V>,
+    len: i64,
+    capacity: i64,
+}
+
+fn map_new<K, V>() -> Map<K, V> {
+    let buckets = alloc(MAP_DEFAULT_CAPACITY * sizeof(*MapEntry<K, V>)) as **MapEntry<K, V>
+    memset(buckets, 0, MAP_DEFAULT_CAPACITY * sizeof(*MapEntry<K, V>))
+    
+    return Map<K, V> {
+        buckets: buckets,
+        len: 0,
+        capacity: MAP_DEFAULT_CAPACITY,
+    }
+}
+
+fn hash_i64(key: i64) -> i64 {
+    return key * 2654435761
+}
+
+fn map_insert(m: *Map<i64, i64>, key: i64, value: i64) {
+    let h = hash_i64(key)
+    let idx = h & (m.capacity - 1)
+    
+    // Check if exists
+    let entry = m.buckets[idx]
+    while entry != 0 as *MapEntry<i64, i64> {
+        if entry.key == key {
+            entry.value = value
+            return
+        }
+        entry = entry.next
+    }
+    
+    // Insert new
+    let new_entry = alloc(sizeof(MapEntry<i64, i64>)) as *MapEntry<i64, i64>
+    new_entry.key = key
+    new_entry.value = value
+    new_entry.hash = h
+    new_entry.next = m.buckets[idx]
+    m.buckets[idx] = new_entry
+    m.len = m.len + 1
+}
+
+fn map_get(m: *Map<i64, i64>, key: i64) -> Option<i64> {
+    let h = hash_i64(key)
+    let idx = h & (m.capacity - 1)
+    
+    let entry = m.buckets[idx]
+    while entry != 0 as *MapEntry<i64, i64> {
+        if entry.key == key {
+            return Some(entry.value)
+        }
+        entry = entry.next
+    }
+    
+    return None()
+}
+
+fn map_contains(m: *Map<i64, i64>, key: i64) -> bool {
+    return is_some(map_get(m, key))
+}
+
+fn map_remove(m: *Map<i64, i64>, key: i64) -> bool {
+    let h = hash_i64(key)
+    let idx = h & (m.capacity - 1)
+    
+    let entry = m.buckets[idx]
+    let prev: *MapEntry<i64, i64> = 0 as *MapEntry<i64, i64>
+    
+    while entry != 0 as *MapEntry<i64, i64> {
+        if entry.key == key {
+            if prev == 0 as *MapEntry<i64, i64> {
+                m.buckets[idx] = entry.next
+            } else {
+                prev.next = entry.next
+            }
+            free(entry as *void)
+            m.len = m.len - 1
+            return true
+        }
+        prev = entry
+        entry = entry.next
+    }
+    
+    return false
+}
+
+fn map_len(m: *Map<i64, i64>) -> i64 {
+    return m.len
+}
+
+fn map_is_empty(m: *Map<i64, i64>) -> bool {
+    return m.len == 0
+}
+
+// -----------------------------------------------------------------------------
+// HASH SET
+// -----------------------------------------------------------------------------
+
+struct Set<T> {
+    data: Map<T, bool>,
+}
+
+fn set_new<T>() -> Set<T> {
+    return Set<T> {
+        data: map_new<T, bool>(),
+    }
+}
+
+fn set_insert(s: *Set<i64>, val: i64) {
+    map_insert(&s.data, val, true)
+}
+
+fn set_contains(s: *Set<i64>, val: i64) -> bool {
+    return map_contains(&s.data, val)
+}
+
+fn set_remove(s: *Set<i64>, val: i64) -> bool {
+    return map_remove(&s.data, val)
+}
+
+fn set_len(s: *Set<i64>) -> i64 {
+    return s.data.len
+}

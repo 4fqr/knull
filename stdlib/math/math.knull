@@ -1,0 +1,302 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - MATH MODULE
+// =============================================================================
+// Mathematical functions and constants
+
+// -----------------------------------------------------------------------------
+// CONSTANTS
+// -----------------------------------------------------------------------------
+
+const PI: f64 = 3.141592653589793
+const E: f64 = 2.718281828459045
+const TAU: f64 = 6.283185307179586
+const PHI: f64 = 1.618033988749895
+
+const EPSILON: f64 = 2.220446049250313e-16
+const INFINITY: f64 = 1.0 / 0.0
+const NAN: f64 = 0.0 / 0.0
+
+// -----------------------------------------------------------------------------
+// TRIGONOMETRY
+// -----------------------------------------------------------------------------
+
+// Taylor series approximation for sine
+fn sin(x: f64) -> f64 {
+    // Normalize to [0, 2*PI]
+    while x > TAU {
+        x = x - TAU
+    }
+    while x < 0.0 {
+        x = x + TAU
+    }
+    
+    // Taylor series: sin(x) = x - x^3/3! + x^5/5! - x^7/7! + ...
+    let result = x
+    let term = x
+    let n = 1
+    
+    while n < 10 {
+        term = -term * x * x / ((2 * n) * (2 * n + 1))
+        result = result + term
+        n = n + 1
+    }
+    
+    return result
+}
+
+// Taylor series approximation for cosine
+fn cos(x: f64) -> f64 {
+    // cos(x) = sin(x + PI/2)
+    return sin(x + PI / 2.0)
+}
+
+fn tan(x: f64) -> f64 {
+    return sin(x) / cos(x)
+}
+
+fn asin(x: f64) -> f64 {
+    // Not implemented - would need more complex algorithm
+    return 0.0
+}
+
+fn acos(x: f64) -> f64 {
+    return 0.0
+}
+
+fn atan(x: f64) -> f64 {
+    return 0.0
+}
+
+fn atan2(y: f64, x: f64) -> f64 {
+    return 0.0
+}
+
+// -----------------------------------------------------------------------------
+// HYPERBOLIC FUNCTIONS
+// -----------------------------------------------------------------------------
+
+fn sinh(x: f64) -> f64 {
+    let e_x = exp(x)
+    let e_nx = exp(-x)
+    return (e_x - e_nx) / 2.0
+}
+
+fn cosh(x: f64) -> f64 {
+    let e_x = exp(x)
+    let e_nx = exp(-x)
+    return (e_x + e_nx) / 2.0
+}
+
+fn tanh(x: f64) -> f64 {
+    return sinh(x) / cosh(x)
+}
+
+// -----------------------------------------------------------------------------
+// EXPONENTIAL AND LOGARITHMIC
+// -----------------------------------------------------------------------------
+
+// Exponential using Taylor series
+fn exp(x: f64) -> f64 {
+    let result = 1.0
+    let term = 1.0
+    let n = 1
+    
+    while n < 20 {
+        term = term * x / n
+        result = result + term
+        n = n + 1
+    }
+    
+    return result
+}
+
+// Natural logarithm using Newton-Raphson
+fn ln(x: f64) -> f64 {
+    if x <= 0.0 {
+        return NAN
+    }
+    
+    // Initial guess
+    let mut result = x - 1.0
+    
+    // Newton-Raphson iteration
+    let i = 0
+    while i < 10 {
+        result = result - (exp(result) - x) / exp(result)
+        i = i + 1
+    }
+    
+    return result
+}
+
+fn log10(x: f64) -> f64 {
+    return ln(x) / ln(10.0)
+}
+
+fn log2(x: f64) -> f64 {
+    return ln(x) / ln(2.0)
+}
+
+fn pow(base: f64, exp_val: f64) -> f64 {
+    if exp_val == 0.0 {
+        return 1.0
+    }
+    if exp_val == 1.0 {
+        return base
+    }
+    if base == 0.0 {
+        return 0.0
+    }
+    
+    // x^y = e^(y * ln(x))
+    return exp(exp_val * ln(base))
+}
+
+fn sqrt(x: f64) -> f64 {
+    if x < 0.0 {
+        return NAN
+    }
+    if x == 0.0 {
+        return 0.0
+    }
+    
+    // Newton-Raphson method
+    let mut guess = x / 2.0
+    
+    let i = 0
+    while i < 20 {
+        guess = (guess + x / guess) / 2.0
+        i = i + 1
+    }
+    
+    return guess
+}
+
+fn cbrt(x: f64) -> f64 {
+    if x < 0.0 {
+        return -pow(-x, 1.0 / 3.0)
+    }
+    return pow(x, 1.0 / 3.0)
+}
+
+// -----------------------------------------------------------------------------
+// ROUNDING
+// -----------------------------------------------------------------------------
+
+fn floor(x: f64) -> f64 {
+    let int_part = x as i64
+    if x >= 0.0 || x == int_part as f64 {
+        return int_part as f64
+    }
+    return (int_part - 1) as f64
+}
+
+fn ceil(x: f64) -> f64 {
+    let int_part = x as i64
+    if x <= 0.0 || x == int_part as f64 {
+        return int_part as f64
+    }
+    return (int_part + 1) as f64
+}
+
+fn round(x: f64) -> f64 {
+    if x >= 0.0 {
+        return floor(x + 0.5)
+    }
+    return ceil(x - 0.5)
+}
+
+fn trunc(x: f64) -> f64 {
+    return x as i64 as f64
+}
+
+fn abs_f64(x: f64) -> f64 {
+    if x < 0.0 {
+        return -x
+    }
+    return x
+}
+
+// -----------------------------------------------------------------------------
+// GCD AND LCM
+// -----------------------------------------------------------------------------
+
+fn gcd(a: i64, b: i64) -> i64 {
+    while b != 0 {
+        let t = b
+        b = a % b
+        a = t
+    }
+    return a
+}
+
+fn lcm(a: i64, b: i64) -> i64 {
+    return (a * b) / gcd(a, b)
+}
+
+// -----------------------------------------------------------------------------
+// NUMBER THEORY
+// -----------------------------------------------------------------------------
+
+fn is_prime(n: i64) -> bool {
+    if n <= 1 {
+        return false
+    }
+    if n <= 3 {
+        return true
+    }
+    if n % 2 == 0 || n % 3 == 0 {
+        return false
+    }
+    
+    let i = 5
+    while i * i <= n {
+        if n % i == 0 || n % (i + 2) == 0 {
+            return false
+        }
+        i = i + 6
+    }
+    return true
+}
+
+fn factorial(n: i64) -> i64 {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+fn fibonacci(n: i64) -> i64 {
+    if n <= 1 {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+// -----------------------------------------------------------------------------
+// RANDOM NUMBER GENERATION
+// -----------------------------------------------------------------------------
+
+struct Rng {
+    state: u64,
+}
+
+fn rng_new(seed: u64) -> Rng {
+    return Rng { state: seed }
+}
+
+// xorshift64*
+fn rng_next(rng: *Rng) -> u64 {
+    rng.state = rng.state ^ (rng.state >> 12)
+    rng.state = rng.state ^ (rng.state << 25)
+    rng.state = rng.state ^ (rng.state >> 27)
+    return rng.state * 2685821657736338717
+}
+
+fn rng_next_f64(rng: *Rng) -> f64 {
+    return (rng_next(rng) as f64) / (18446744073709551615 as f64)
+}
+
+fn rng_range(rng: *Rng, min: i64, max: i64) -> i64 {
+    return min + (rng_next(rng) % (max - min) as u64) as i64
+}

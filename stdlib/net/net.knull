@@ -1,0 +1,289 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - NET MODULE
+// =============================================================================
+// Network programming: TCP, UDP, HTTP, and more
+
+// -----------------------------------------------------------------------------
+// SOCKET TYPES
+// -----------------------------------------------------------------------------
+
+const AF_INET: i32 = 2
+const AF_INET6: i32 = 10
+
+const SOCK_STREAM: i32 = 1
+const SOCK_DGRAM: i32 = 2
+const SOCK_RAW: i32 = 3
+
+const IPPROTO_TCP: i32 = 6
+const IPPROTO_UDP: i32 = 17
+
+// -----------------------------------------------------------------------------
+// TCP SOCKET
+// -----------------------------------------------------------------------------
+
+struct TcpStream {
+    fd: i32,
+    connected: bool,
+}
+
+struct TcpListener {
+    fd: i32,
+    bound: bool,
+}
+
+fn tcp_connect(addr: *i8, port: i32) -> TcpStream {
+    // Create socket
+    // fd = syscall(SYS_SOCKET, AF_INET, SOCK_STREAM, 0)
+    
+    // Parse address and connect
+    // syscall(SYS_CONNECT, fd, sockaddr, len)
+    
+    return TcpStream {
+        fd: -1,
+        connected: false,
+    }
+}
+
+fn tcp_connect_str(addr_str: *i8) -> TcpStream {
+    // Parse "host:port" format
+    let colon = strchr(addr_str, ':')
+    // ...parse host and port
+    return tcp_connect(addr_str, 80)
+}
+
+fn tcp_read(stream: *TcpStream, buf: *void, len: i64) -> i64 {
+    if !stream.connected {
+        return -1
+    }
+    // return syscall(SYS_READ, stream.fd, buf, len)
+    return 0
+}
+
+fn tcp_write(stream: *TcpStream, buf: *void, len: i64) -> i64 {
+    if !stream.connected {
+        return -1
+    }
+    // return syscall(SYS_WRITE, stream.fd, buf, len)
+    return 0
+}
+
+fn tcp_write_str(stream: *TcpStream, s: *i8) -> i64 {
+    return tcp_write(stream, s, strlen(s))
+}
+
+fn tcp_close(stream: *TcpStream) {
+    if stream.fd >= 0 {
+        // syscall(SYS_CLOSE, stream.fd)
+        stream.fd = -1
+        stream.connected = false
+    }
+}
+
+fn tcp_listen(bind_addr: *i8, port: i32) -> TcpListener {
+    // Create socket
+    // Bind
+    // Listen
+    
+    return TcpListener {
+        fd: -1,
+        bound: false,
+    }
+}
+
+fn tcp_accept(listener: *TcpListener) -> TcpStream {
+    // Accept connection
+    // return syscall(SYS_ACCEPT, listener.fd, addr, len)
+    
+    return TcpStream {
+        fd: -1,
+        connected: true,
+    }
+}
+
+// -----------------------------------------------------------------------------
+// UDP SOCKET
+// -----------------------------------------------------------------------------
+
+struct UdpSocket {
+    fd: i32,
+    bound: bool,
+}
+
+fn udp_bind(addr: *i8, port: i32) -> UdpSocket {
+    // Create UDP socket and bind
+    return UdpSocket {
+        fd: -1,
+        bound: false,
+    }
+}
+
+fn udp_send_to(sock: *UdpSocket, buf: *void, len: i64, addr: *i8, port: i32) -> i64 {
+    // syscall(SYS_SENDTO, sock.fd, buf, len, 0, addr, addrlen)
+    return 0
+}
+
+fn udp_recv_from(sock: *UdpSocket, buf: *void, len: i64, addr: *i8, port: *i32) -> i64 {
+    // syscall(SYS_RECVFROM, sock.fd, buf, len, 0, addr, addrlen)
+    return 0
+}
+
+fn udp_close(sock: *UdpSocket) {
+    if sock.fd >= 0 {
+        // syscall(SYS_CLOSE, sock.fd)
+        sock.fd = -1
+    }
+}
+
+// -----------------------------------------------------------------------------
+// HTTP CLIENT
+// -----------------------------------------------------------------------------
+
+struct HttpRequest {
+    method: *i8,
+    url: *i8,
+    headers: *Map<i64, i64>,  // Simplified
+    body: *i8,
+}
+
+struct HttpResponse {
+    status: i32,
+    headers: *Map<i64, i64>,
+    body: *i8,
+    body_len: i64,
+}
+
+fn http_get(url: *i8) -> HttpResponse {
+    // Parse URL
+    // Connect to host
+    // Send GET request
+    // Read response
+    
+    return HttpResponse {
+        status: 200,
+        headers: 0 as *Map<i64, i64>,
+        body: "",
+        body_len: 0,
+    }
+}
+
+fn http_post(url: *i8, body: *i8, content_type: *i8) -> HttpResponse {
+    return HttpResponse {
+        status: 200,
+        headers: 0 as *Map<i64, i64>,
+        body: "",
+        body_len: 0,
+    }
+}
+
+// -----------------------------------------------------------------------------
+// HTTP SERVER
+// -----------------------------------------------------------------------------
+
+struct HttpServer {
+    listener: TcpListener,
+}
+
+type HttpHandler = fn(*HttpRequest) -> HttpResponse
+
+fn http_server_new(bind_addr: *i8, port: i32) -> HttpServer {
+    return HttpServer {
+        listener: tcp_listen(bind_addr, port),
+    }
+}
+
+fn http_server_run(server: *HttpServer, handler: HttpHandler) {
+    while true {
+        let stream = tcp_accept(&server.listener)
+        
+        // Read request
+        let req_buf: i8[4096]
+        let n = tcp_read(&stream, &req_buf, 4096)
+        
+        if n > 0 {
+            // Parse request
+            let req = http_parse_request(&req_buf, n)
+            
+            // Call handler
+            let resp = handler(&req)
+            
+            // Send response
+            http_send_response(&stream, &resp)
+        }
+        
+        tcp_close(&stream)
+    }
+}
+
+fn http_parse_request(buf: *i8, len: i64) -> HttpRequest {
+    // Parse HTTP request
+    return HttpRequest {
+        method: "GET",
+        url: "/",
+        headers: 0 as *Map<i64, i64>,
+        body: "",
+    }
+}
+
+fn http_send_response(stream: *TcpStream, resp: *HttpResponse) {
+    // Send HTTP response
+}
+
+// -----------------------------------------------------------------------------
+// URL PARSING
+// -----------------------------------------------------------------------------
+
+struct Url {
+    scheme: *i8,
+    host: *i8,
+    port: i32,
+    path: *i8,
+    query: *i8,
+}
+
+fn url_parse(url_str: *i8) -> Url {
+    let url: Url
+    
+    // Find scheme
+    let colon = strchr(url_str, ':')
+    if colon != 0 as *i8 {
+        url.scheme = substr(url_str, 0, colon - url_str)
+    } else {
+        url.scheme = "http"
+    }
+    
+    // Find host and port
+    // ...
+    url.host = "localhost"
+    url.port = 80
+    url.path = "/"
+    url.query = ""
+    
+    return url
+}
+
+fn url_encode(s: *i8, out: *i8) {
+    // URL-encode string
+    let i = 0
+    let j = 0
+    while s[i] != 0 {
+        let c = s[i]
+        if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+            out[j] = c
+            j = j + 1
+        } else if c == ' ' {
+            out[j] = '+'
+            j = j + 1
+        } else {
+            // Percent encoding
+            out[j] = '%'
+            // Add hex digits
+            j = j + 3
+        }
+        i = i + 1
+    }
+    out[j] = 0
+}
+
+fn url_decode(s: *i8, out: *i8) {
+    // URL-decode string
+}

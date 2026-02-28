@@ -1,0 +1,226 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - ASYNC MODULE
+// =============================================================================
+// Asynchronous programming support
+
+// -----------------------------------------------------------------------------
+// FUTURE/PROMISE
+// -----------------------------------------------------------------------------
+
+struct Future<T> {
+    completed: bool,
+    value: T,
+    error: *i8,
+    callbacks: *void,  // List of callbacks
+}
+
+struct Promise<T> {
+    future: Future<T>,
+}
+
+fn promise_new<T>() -> Promise<T> {
+    return Promise<T> {
+        future: Future<T> {
+            completed: false,
+            value: null,
+            error: 0 as *i8,
+            callbacks: 0 as *void,
+        },
+    }
+}
+
+fn promise_resolve<T>(p: *Promise<T>, val: T) {
+    if !p.future.completed {
+        p.future.value = val
+        p.future.completed = true
+        // Call all callbacks
+    }
+}
+
+fn promise_reject<T>(p: *Promise<T>, err: *i8) {
+    if !p.future.completed {
+        p.future.error = err
+        p.future.completed = true
+    }
+}
+
+fn future_then<T, U>(f: *Future<T>, callback: fn(T) -> U) -> Future<U> {
+    // Register callback
+    return Future<U> {
+        completed: false,
+        value: null,
+        error: 0 as *i8,
+        callbacks: 0 as *void,
+    }
+}
+
+fn future_catch<T>(f: *Future<T>, callback: fn(*i8)) -> Future<T> {
+    // Register error callback
+    return f
+}
+
+fn future_await<T>(f: *Future<T>) -> T {
+    // Block until future completes
+    while !f.completed {
+        // Yield or sleep
+        sleep(1)
+    }
+    return f.value
+}
+
+// -----------------------------------------------------------------------------
+// ASYNC/AWAIT
+// -----------------------------------------------------------------------------
+
+// These would be language-level features in real implementation
+// For now, macros and conventions
+
+// async fn example() -> i32 {
+//     // Body
+// }
+// 
+// Desugars to:
+// fn example() -> Future<i32> {
+//     return async_block {
+//         // Body
+//     }
+// }
+
+// await expr
+// Desugars to:
+// future_await(expr)
+
+// -----------------------------------------------------------------------------
+// TASK SCHEDULER
+// -----------------------------------------------------------------------------
+
+struct Task {
+    id: i64,
+    func: fn() -> *void,
+    state: i32,  // 0=pending, 1=running, 2=completed
+    priority: i32,
+}
+
+struct Scheduler {
+    tasks: Vec<Task>,
+    current: i64,
+}
+
+fn scheduler_new() -> Scheduler {
+    return Scheduler {
+        tasks: vec_new<Task>(),
+        current: 0,
+    }
+}
+
+fn scheduler_spawn(s: *Scheduler, f: fn() -> *void, priority: i32) -> i64 {
+    let task = Task {
+        id: s.tasks.len,
+        func: f,
+        state: 0,
+        priority: priority,
+    }
+    vec_push(&s.tasks, task)
+    return task.id
+}
+
+fn scheduler_run(s: *Scheduler) {
+    while s.tasks.len > 0 {
+        let i = 0
+        while i < s.tasks.len {
+            let task = &s.tasks.data[i]
+            if task.state == 0 {
+                task.state = 1
+                task.func()
+                task.state = 2
+            }
+            i = i + 1
+        }
+        
+        // Remove completed tasks
+        // (Simplified - in real impl would use proper queue)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// CHANNEL (MESSAGE PASSING)
+// -----------------------------------------------------------------------------
+
+struct Channel<T> {
+    queue: Queue<T>,
+    closed: bool,
+}
+
+struct Sender<T> {
+    chan: *Channel<T>,
+}
+
+struct Receiver<T> {
+    chan: *Channel<T>,
+}
+
+fn channel_new<T>() -> (Sender<T>, Receiver<T>) {
+    let chan = alloc(sizeof(Channel<T>)) as *Channel<T>
+    chan.queue = queue_new<T>()
+    chan.closed = false
+    
+    let tx = Sender<T> { chan: chan }
+    let rx = Receiver<T> { chan: chan }
+    
+    return (tx, rx)
+}
+
+fn sender_send<T>(tx: *Sender<T>, val: T) -> bool {
+    if tx.chan.closed {
+        return false
+    }
+    queue_enqueue(&tx.chan.queue, val)
+    return true
+}
+
+fn sender_close<T>(tx: *Sender<T>) {
+    tx.chan.closed = true
+}
+
+fn receiver_recv<T>(rx: *Receiver<T>) -> Option<T> {
+    // Block until message available
+    while queue_is_empty(&rx.chan.queue) && !rx.chan.closed {
+        sleep(1)
+    }
+    
+    if queue_is_empty(&rx.chan.queue) {
+        return None()
+    }
+    
+    return queue_dequeue(&rx.chan.queue)
+}
+
+fn receiver_try_recv<T>(rx: *Receiver<T>) -> Option<T> {
+    return queue_dequeue(&rx.chan.queue)
+}
+
+// -----------------------------------------------------------------------------
+// TIMEOUT AND DELAY
+// -----------------------------------------------------------------------------
+
+fn delay(ms: i64) -> Future<i64> {
+    let p = promise_new<i64>()
+    // Spawn thread that sleeps and then resolves
+    return p.future
+}
+
+fn timeout<T>(f: *Future<T>, ms: i64) -> Future<T> {
+    // Race between future completing and timeout
+    return f
+}
+
+// -----------------------------------------------------------------------------
+// SELECT (RACE MULTIPLE FUTURES)
+// -----------------------------------------------------------------------------
+
+fn select2<T, U>(a: *Future<T>, b: *Future<U>) -> Future<i64> {
+    // Return which completes first
+    let p = promise_new<i64>()
+    // Race them
+    return p.future
+}

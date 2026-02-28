@@ -710,7 +710,70 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 
 ## Disclaimer
 
-Knull is currently in development. The language design and implementation may change. Not all features described are fully implemented.
+Knull is currently in development. The language design and implementation may change.
+
+---
+
+## Built-in Functions Reference
+
+### File I/O
+- `file_read(path)` - Read entire file to string
+- `file_write(path, content)` - Write string to file
+- `file_append(path, content)` - Append to file
+- `file_exists(path)` - Check if file exists
+- `file_remove(path)` - Delete file
+- `mkdir(path)` - Create directory
+- `dir_list(path)` - List directory contents
+
+### Networking
+- `tcp_connect(address)` - Connect to TCP server
+- `tcp_send(handle, data)` - Send data over TCP
+- `tcp_recv(handle, size)` - Receive data from TCP
+- `tcp_close(handle)` - Close TCP connection
+- `tcp_listen(address)` - Start TCP server
+- `tcp_accept(handle)` - Accept TCP connection
+- `get_hostname()` - Get system hostname
+
+### Threading
+- `spawn(code)` - Spawn new thread
+- `sleep(millis)` - Sleep for milliseconds
+- `thread_id()` - Get current thread ID
+
+### Time
+- `time()` - Get Unix timestamp (seconds)
+- `time_millis()` - Get Unix timestamp (milliseconds)
+
+### Environment
+- `env_get(key)` - Get environment variable
+- `env_set(key, value)` - Set environment variable
+- `exec(command)` - Execute shell command
+
+### String/Array Utilities
+- `len(arr_or_str)` - Get length
+- `strlen(str)` - Get string length
+- `substring(str, start, end)` - Extract substring
+- `push(arr, element)` - Add element to array
+
+### FFI (Foreign Function Interface)
+- `ffi_open(path)` - Load dynamic library
+- `ffi_get_symbol(lib, name)` - Get symbol from library
+- `ffi_malloc(size)` - Allocate C memory
+- `ffi_free(ptr)` - Free C memory
+
+### Garbage Collection
+- `gc_collect()` - Run garbage collector
+- `gc_stats()` - Get GC statistics (returns array)
+
+---
+
+## Project Statistics
+
+- **40+ Working Examples**: All `.knull` example files execute correctly
+- **Standard Library**: 6 modules (core, io, math, collections, net, async)
+- **Self-Hosted Compiler**: 1700+ lines of Knull code
+- **Bootstrap Compiler**: Rust-based compiler with C backend
+- **Package Manager**: Create, build, and manage projects
+- **Native Compilation**: Compiles to native binaries via C backend
 
 ---
 

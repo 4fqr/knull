@@ -1,0 +1,244 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - IO MODULE
+// =============================================================================
+// Input/Output operations for files, console, and streams
+
+// -----------------------------------------------------------------------------
+// STANDARD STREAMS
+// -----------------------------------------------------------------------------
+
+const STDIN_FILENO: i32 = 0
+const STDOUT_FILENO: i32 = 1
+const STDERR_FILENO: i32 = 2
+
+fn print_str(s: *i8) {
+    let len = strlen(s)
+    // syscall(SYS_WRITE, STDOUT_FILENO, s, len)
+}
+
+fn eprint(s: *i8) {
+    // syscall(SYS_WRITE, STDERR_FILENO, s, strlen(s))
+}
+
+fn eprintln(s: *i8) {
+    eprint(s)
+    // eprint("\n")
+}
+
+// -----------------------------------------------------------------------------
+// FILE OPERATIONS
+// -----------------------------------------------------------------------------
+
+struct File {
+    fd: i32,
+    is_open: bool,
+    mode: i32,
+}
+
+const FILE_MODE_READ: i32 = 0
+const FILE_MODE_WRITE: i32 = 1
+const FILE_MODE_APPEND: i32 = 2
+
+fn file_open(path: *i8, mode: i32) -> File {
+    let f: File
+    // In real implementation, use syscall(SYS_OPEN, path, flags, mode)
+    f.fd = -1
+    f.is_open = false
+    f.mode = mode
+    return f
+}
+
+fn file_close(f: *File) {
+    if f.is_open {
+        // syscall(SYS_CLOSE, f.fd)
+        f.is_open = false
+    }
+}
+
+fn file_read_bytes(f: *File, buf: *void, len: i64) -> i64 {
+    if !f.is_open {
+        return -1
+    }
+    // return syscall(SYS_READ, f.fd, buf, len)
+    return 0
+}
+
+fn file_write_bytes(f: *File, buf: *void, len: i64) -> i64 {
+    if !f.is_open {
+        return -1
+    }
+    // return syscall(SYS_WRITE, f.fd, buf, len)
+    return 0
+}
+
+fn file_seek(f: *File, offset: i64, whence: i32) -> i64 {
+    // return syscall(SYS_LSEEK, f.fd, offset, whence)
+    return 0
+}
+
+fn file_size(path: *i8) -> i64 {
+    // Use stat syscall
+    return 0
+}
+
+// -----------------------------------------------------------------------------
+// BUFFERED READER
+// -----------------------------------------------------------------------------
+
+struct BufReader {
+    file: File,
+    buffer: *i8,
+    capacity: i64,
+    size: i64,
+    pos: i64,
+}
+
+fn buf_reader_new(f: File, capacity: i64) -> BufReader {
+    return BufReader {
+        file: f,
+        buffer: alloc(capacity) as *i8,
+        capacity: capacity,
+        size: 0,
+        pos: 0,
+    }
+}
+
+fn buf_reader_fill(br: *BufReader) -> bool {
+    br.pos = 0
+    br.size = file_read_bytes(&br.file, br.buffer as *void, br.capacity)
+    return br.size > 0
+}
+
+fn buf_reader_read_line(br: *BufReader, line: *i8, max_len: i64) -> i64 {
+    let i = 0
+    while i < max_len - 1 {
+        if br.pos >= br.size {
+            if !buf_reader_fill(br) {
+                break
+            }
+        }
+        
+        let c = br.buffer[br.pos]
+        br.pos = br.pos + 1
+        
+        if c == '\n' {
+            break
+        }
+        
+        line[i] = c
+        i = i + 1
+    }
+    
+    line[i] = 0
+    return i
+}
+
+// -----------------------------------------------------------------------------
+// BUFFERED WRITER
+// -----------------------------------------------------------------------------
+
+struct BufWriter {
+    file: File,
+    buffer: *i8,
+    capacity: i64,
+    pos: i64,
+}
+
+fn buf_writer_new(f: File, capacity: i64) -> BufWriter {
+    return BufWriter {
+        file: f,
+        buffer: alloc(capacity) as *i8,
+        capacity: capacity,
+        pos: 0,
+    }
+}
+
+fn buf_writer_flush(bw: *BufWriter) {
+    if bw.pos > 0 {
+        file_write_bytes(&bw.file, bw.buffer as *void, bw.pos)
+        bw.pos = 0
+    }
+}
+
+fn buf_writer_write(bw: *BufWriter, data: *i8, len: i64) {
+    if bw.pos + len > bw.capacity {
+        buf_writer_flush(bw)
+    }
+    
+    if len > bw.capacity {
+        // Write directly
+        file_write_bytes(&bw.file, data as *void, len)
+    } else {
+        // Buffer it
+        memcpy(&bw.buffer[bw.pos], data, len)
+        bw.pos = bw.pos + len
+    }
+}
+
+fn buf_writer_write_str(bw: *BufWriter, s: *i8) {
+    buf_writer_write(bw, s, strlen(s))
+}
+
+// -----------------------------------------------------------------------------
+// PATH OPERATIONS
+// -----------------------------------------------------------------------------
+
+fn path_exists(path: *i8) -> bool {
+    // Use access syscall
+    return false
+}
+
+fn path_is_file(path: *i8) -> bool {
+    // Use stat syscall
+    return false
+}
+
+fn path_is_dir(path: *i8) -> bool {
+    // Use stat syscall
+    return false
+}
+
+fn path_join(a: *i8, b: *i8, out: *i8) {
+    let len_a = strlen(a)
+    strcpy(out, a)
+    
+    // Add separator if needed
+    if a[len_a - 1] != '/' {
+        out[len_a] = '/'
+        out[len_a + 1] = 0
+        len_a = len_a + 1
+    }
+    
+    strcat(out, b)
+}
+
+fn path_filename(path: *i8) -> *i8 {
+    let len = strlen(path)
+    let i = len - 1
+    
+    while i >= 0 {
+        if path[i] == '/' {
+            return &path[i + 1]
+        }
+        i = i - 1
+    }
+    
+    return path
+}
+
+fn path_dirname(path: *i8, out: *i8) {
+    let len = strlen(path)
+    let i = len - 1
+    
+    while i >= 0 {
+        if path[i] == '/' {
+            memcpy(out, path, i)
+            out[i] = 0
+            return
+        }
+        i = i - 1
+    }
+    
+    out[0] = '.'
+    out[1] = 0
+}

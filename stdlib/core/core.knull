@@ -1,0 +1,309 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - CORE MODULE
+// =============================================================================
+// Essential types and functions used by all Knull programs
+
+// -----------------------------------------------------------------------------
+// OPTION TYPE - For nullable values
+// -----------------------------------------------------------------------------
+
+struct Option<T> {
+    is_some: bool,
+    value: T,
+}
+
+fn Some<T>(value: T) -> Option<T> {
+    return Option<T> {
+        is_some: true,
+        value: value,
+    }
+}
+
+fn None<T>() -> Option<T> {
+    return Option<T> {
+        is_some: false,
+        value: null,
+    }
+}
+
+fn is_some<T>(opt: Option<T>) -> bool {
+    return opt.is_some
+}
+
+fn is_none<T>(opt: Option<T>) -> bool {
+    return !opt.is_some
+}
+
+fn unwrap<T>(opt: Option<T>) -> T {
+    if opt.is_some {
+        return opt.value
+    }
+    panic("Called unwrap on None")
+}
+
+fn unwrap_or<T>(opt: Option<T>, default: T) -> T {
+    if opt.is_some {
+        return opt.value
+    }
+    return default
+}
+
+// -----------------------------------------------------------------------------
+// RESULT TYPE - For error handling
+// -----------------------------------------------------------------------------
+
+struct Result<T, E> {
+    is_ok: bool,
+    value: T,
+    error: E,
+}
+
+fn Ok<T, E>(value: T) -> Result<T, E> {
+    return Result<T, E> {
+        is_ok: true,
+        value: value,
+        error: null,
+    }
+}
+
+fn Err<T, E>(error: E) -> Result<T, E> {
+    return Result<T, E> {
+        is_ok: false,
+        value: null,
+        error: error,
+    }
+}
+
+fn is_ok<T, E>(res: Result<T, E>) -> bool {
+    return res.is_ok
+}
+
+fn is_err<T, E>(res: Result<T, E>) -> bool {
+    return !res.is_ok
+}
+
+// -----------------------------------------------------------------------------
+// MEMORY MANAGEMENT
+// -----------------------------------------------------------------------------
+
+fn alloc(size: i64) -> *void {
+    return ffi_malloc(size as i32) as *void
+}
+
+fn free(ptr: *void) {
+    ffi_free(ptr as i64)
+}
+
+fn memcpy(dst: *void, src: *void, len: i64) {
+    let d = dst as *i8
+    let s = src as *i8
+    let i = 0
+    while i < len {
+        d[i] = s[i]
+        i = i + 1
+    }
+}
+
+fn memset(ptr: *void, val: i8, len: i64) {
+    let p = ptr as *i8
+    let i = 0
+    while i < len {
+        p[i] = val
+        i = i + 1
+    }
+}
+
+// -----------------------------------------------------------------------------
+// PANIC & ASSERT
+// -----------------------------------------------------------------------------
+
+fn panic(msg: *i8) {
+    println("PANIC: ")
+    println(msg)
+    // In real implementation, this would abort
+}
+
+fn assert(cond: bool, msg: *i8) {
+    if !cond {
+        print("Assertion failed: ")
+        println(msg)
+        panic("assertion failed")
+    }
+}
+
+fn assert_eq<T>(a: T, b: T, msg: *i8) {
+    assert(a == b, msg)
+}
+
+// -----------------------------------------------------------------------------
+// COMPARISON UTILITIES
+// -----------------------------------------------------------------------------
+
+fn min(a: i64, b: i64) -> i64 {
+    if a < b { return a }
+    return b
+}
+
+fn max(a: i64, b: i64) -> i64 {
+    if a > b { return a }
+    return b
+}
+
+fn clamp(val: i64, min_val: i64, max_val: i64) -> i64 {
+    if val < min_val { return min_val }
+    if val > max_val { return max_val }
+    return val
+}
+
+fn abs(x: i64) -> i64 {
+    if x < 0 { return -x }
+    return x
+}
+
+// -----------------------------------------------------------------------------
+// STRING UTILITIES
+// -----------------------------------------------------------------------------
+
+fn strlen(s: *i8) -> i64 {
+    let len = 0
+    while s[len] != 0 {
+        len = len + 1
+    }
+    return len
+}
+
+fn strcmp(a: *i8, b: *i8) -> i64 {
+    let i = 0
+    while a[i] != 0 && b[i] != 0 {
+        if a[i] != b[i] {
+            return a[i] - b[i]
+        }
+        i = i + 1
+    }
+    return a[i] - b[i]
+}
+
+fn strcpy(dst: *i8, src: *i8) {
+    let i = 0
+    while src[i] != 0 {
+        dst[i] = src[i]
+        i = i + 1
+    }
+    dst[i] = 0
+}
+
+fn strcat(dst: *i8, src: *i8) {
+    let dst_len = strlen(dst)
+    let i = 0
+    while src[i] != 0 {
+        dst[dst_len + i] = src[i]
+        i = i + 1
+    }
+    dst[dst_len + i] = 0
+}
+
+fn substr(s: *i8, start: i64, len: i64) -> *i8 {
+    let result = alloc(len + 1) as *i8
+    let i = 0
+    while i < len {
+        result[i] = s[start + i]
+        i = i + 1
+    }
+    result[len] = 0
+    return result
+}
+
+fn strchr(s: *i8, c: i8) -> *i8 {
+    let i = 0
+    while s[i] != 0 {
+        if s[i] == c {
+            return &s[i]
+        }
+        i = i + 1
+    }
+    return 0 as *i8
+}
+
+fn atoi(s: *i8) -> i64 {
+    let result = 0
+    let sign = 1
+    let i = 0
+    
+    if s[0] == '-' {
+        sign = -1
+        i = 1
+    }
+    
+    while s[i] >= '0' && s[i] <= '9' {
+        result = result * 10 + (s[i] - '0')
+        i = i + 1
+    }
+    
+    return result * sign
+}
+
+fn itoa(n: i64, buf: *i8) {
+    if n == 0 {
+        buf[0] = '0'
+        buf[1] = 0
+        return
+    }
+    
+    let is_neg = false
+    if n < 0 {
+        is_neg = true
+        n = -n
+    }
+    
+    let i = 0
+    while n > 0 {
+        buf[i] = '0' + (n % 10)
+        n = n / 10
+        i = i + 1
+    }
+    
+    if is_neg {
+        buf[i] = '-'
+        i = i + 1
+    }
+    
+    // Reverse
+    let j = 0
+    let k = i - 1
+    while j < k {
+        let tmp = buf[j]
+        buf[j] = buf[k]
+        buf[k] = tmp
+        j = j + 1
+        k = k - 1
+    }
+    
+    buf[i] = 0
+}
+
+// -----------------------------------------------------------------------------
+// RANGE ITERATOR
+// -----------------------------------------------------------------------------
+
+struct Range {
+    start: i64,
+    end: i64,
+    current: i64,
+}
+
+fn range(start: i64, end: i64) -> Range {
+    return Range {
+        start: start,
+        end: end,
+        current: start,
+    }
+}
+
+fn next(r: *Range) -> Option<i64> {
+    if r.current < r.end {
+        let val = r.current
+        r.current = r.current + 1
+        return Some(val)
+    }
+    return None()
+}
