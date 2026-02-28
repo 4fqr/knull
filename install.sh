@@ -1,6 +1,6 @@
 #!/bin/bash
 # Knull Language Installer
-# Usage: curl -sSL https://raw.githubusercontent.com/4fqr/knull/main/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
 
 set -e
 
@@ -8,36 +8,36 @@ VERSION="1.0.0"
 REPO_URL="https://github.com/4fqr/knull.git"
 TEMP_DIR="/tmp/knull-install-$$"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Colors using printf for portability
+red=$(printf '\033[0;31m')
+green=$(printf '\033[0;32m')
+yellow=$(printf '\033[1;33m')
+blue=$(printf '\033[0;34m')
+nc=$(printf '\033[0m')
 
 # Print functions
 print_header() {
-    echo -e "${BLUE}"
-    echo "  _  __    _    _   _ _   _ "
-    echo " | |/ /   | |  | | | | \ | |"
-    echo " | ' / ___| |  | | | |  \| |"
-    echo " | . \\___ | |  | |_| | |\  |"
-    echo " |_|\_\___|_|   \___/|_| \_|"
-    echo -e "${NC}"
-    echo -e "${GREEN}The God Programming Language${NC}"
-    echo ""
+    printf "%s\n" "${blue}"
+    printf "  _  __    _    _   _ _   _ \n"
+    printf " | |/ /   | |  | | | | \\ | |\n"
+    printf " | ' / ___| |  | | | |  \\| |\n"
+    printf " | . \\___ | |  | |_| | |\\  |\n"
+    printf " |_|\\_\\___|_|   \\___/|_| \\_|\n"
+    printf "%s\n" "${nc}"
+    printf "%sThe God Programming Language%s\n" "${green}" "${nc}"
+    printf "\n"
 }
 
 print_success() {
-    echo -e "${GREEN}✓${NC} $1"
+    printf "%s✓%s %s\n" "${green}" "${nc}" "$1"
 }
 
 print_error() {
-    echo -e "${RED}✗${NC} $1"
+    printf "%s✗%s %s\n" "${red}" "${nc}" "$1"
 }
 
 print_info() {
-    echo -e "${YELLOW}→${NC} $1"
+    printf "%s→%s %s\n" "${yellow}" "${nc}" "$1"
 }
 
 # Detect OS
@@ -72,11 +72,9 @@ check_deps() {
     # Check for Rust
     if ! command_exists cargo; then
         print_error "Rust not found"
-        echo ""
-        echo "Please install Rust:"
-        echo "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-        echo ""
-        echo "Then restart your shell and run this installer again."
+        printf "\nPlease install Rust:\n"
+        printf "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh\n"
+        printf "\nThen restart your shell and run this installer again.\n"
         exit 1
     fi
     print_success "Rust found: $(cargo --version)"
@@ -84,7 +82,7 @@ check_deps() {
     # Check for git
     if ! command_exists git; then
         print_error "Git not found"
-        echo "Please install Git and try again."
+        printf "Please install Git and try again.\n"
         exit 1
     fi
     print_success "Git found"
@@ -94,7 +92,7 @@ check_deps() {
         print_success "C compiler found"
     else
         print_error "No C compiler found (cc, gcc, or clang)"
-        echo "Please install a C compiler for linking."
+        printf "Please install a C compiler for linking.\n"
         exit 1
     fi
 }
@@ -121,9 +119,7 @@ clone_repo() {
     fi
     
     mkdir -p "$TEMP_DIR"
-    git clone --depth 1 --branch master "$REPO_URL" "$TEMP_DIR/knull" 2>&1 | while read line; do
-        echo "  $line"
-    done
+    git clone --depth 1 --branch master "$REPO_URL" "$TEMP_DIR/knull" 2>&1
     
     print_success "Repository cloned"
 }
@@ -135,9 +131,7 @@ build_knull() {
     cd "$TEMP_DIR/knull/src"
     
     # Build release version
-    cargo build --release --no-default-features 2>&1 | while read line; do
-        echo "  $line"
-    done
+    cargo build --release --no-default-features 2>&1
     
     if [ ! -f "target/release/knull" ]; then
         print_error "Build failed - binary not found"
@@ -149,7 +143,8 @@ build_knull() {
 
 # Install binary
 install_binary() {
-    local install_dir=$(get_install_dir)
+    local install_dir
+    install_dir=$(get_install_dir)
     
     print_info "Installing to $install_dir..."
     
@@ -168,28 +163,32 @@ install_binary() {
     print_success "Binary installed"
     
     # Check if in PATH
-    if [[ ":$PATH:" != *":$install_dir:"* ]]; then
-        echo ""
-        print_info "Adding to PATH..."
-        
-        # Detect shell
-        local shell_rc=""
-        if [ -n "$ZSH_VERSION" ]; then
-            shell_rc="$HOME/.zshrc"
-        elif [ -n "$BASH_VERSION" ]; then
-            shell_rc="$HOME/.bashrc"
-        else
-            shell_rc="$HOME/.profile"
-        fi
-        
-        # Add to shell rc
-        echo "" >> "$shell_rc"
-        echo "# Knull Programming Language" >> "$shell_rc"
-        echo "export PATH=\"$install_dir:\$PATH\"" >> "$shell_rc"
-        
-        print_success "Added to PATH in $shell_rc"
-        echo "  Run 'source $shell_rc' to update your current shell"
-    fi
+    case ":$PATH:" in
+        *":$install_dir:"*)
+            # Already in PATH
+            ;;
+        *)
+            printf "\n"
+            print_info "Adding to PATH..."
+            
+            # Detect shell
+            local shell_rc=""
+            if [ -n "$ZSH_VERSION" ]; then
+                shell_rc="$HOME/.zshrc"
+            elif [ -n "$BASH_VERSION" ]; then
+                shell_rc="$HOME/.bashrc"
+            else
+                shell_rc="$HOME/.profile"
+            fi
+            
+            # Add to shell rc
+            printf "\n# Knull Programming Language\n" >> "$shell_rc"
+            printf "export PATH=\"%s:\$PATH\"\n" "$install_dir" >> "$shell_rc"
+            
+            print_success "Added to PATH in $shell_rc"
+            printf "  Run 'source %s' to update your current shell\n" "$shell_rc"
+            ;;
+    esac
 }
 
 # Install stdlib
@@ -225,7 +224,7 @@ create_config() {
 # Knull Configuration
 
 [compiler]
-mode = "novice"  # novice, expert, god
+mode = "novice"
 opt_level = 2
 target = "x86_64-linux-gnu"
 
@@ -256,12 +255,14 @@ run_tests() {
 
 # Verify installation
 verify_install() {
-    local install_dir=$(get_install_dir)
+    local install_dir
+    install_dir=$(get_install_dir)
     
     print_info "Verifying installation..."
     
     if [ -x "$install_dir/knull" ]; then
-        local version=$("$install_dir/knull" --version 2>/dev/null || echo "unknown")
+        local version
+        version=$("$install_dir/knull" --version 2>/dev/null || echo "unknown")
         print_success "Knull installed: $version"
     else
         print_error "Installation verification failed"
@@ -278,33 +279,36 @@ cleanup() {
 
 # Print final message
 print_footer() {
-    local install_dir=$(get_install_dir)
+    local install_dir
+    install_dir=$(get_install_dir)
     
-    echo ""
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║          Knull Installation Complete!                  ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo "Quick start:"
-    echo "  knull --version          # Show version"
-    echo "  knull run hello.knull    # Run a program"
-    echo "  knull new myproject      # Create new project"
-    echo "  knull repl               # Interactive shell"
-    echo ""
-    echo "Documentation:"
-    echo "  https://github.com/4fqr/knull#readme"
-    echo ""
-    echo "To uninstall:"
-    echo "  curl -sSL https://raw.githubusercontent.com/4fqr/knull/main/uninstall.sh | bash"
-    echo ""
+    printf "\n"
+    printf "%s╔════════════════════════════════════════════════════════╗%s\n" "${green}" "${nc}"
+    printf "%s║          Knull Installation Complete!                  ║%s\n" "${green}" "${nc}"
+    printf "%s╚════════════════════════════════════════════════════════╝%s\n" "${green}" "${nc}"
+    printf "\n"
+    printf "Quick start:\n"
+    printf "  knull --version          # Show version\n"
+    printf "  knull run hello.knull    # Run a program\n"
+    printf "  knull new myproject      # Create new project\n"
+    printf "  knull repl               # Interactive shell\n"
+    printf "\n"
+    printf "Documentation:\n"
+    printf "  https://github.com/4fqr/knull#readme\n"
+    printf "\n"
+    printf "To uninstall:\n"
+    printf "  curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/uninstall.sh | bash\n"
+    printf "\n"
 }
 
 # Main installation
 main() {
     print_header
     
-    local os=$(detect_os)
-    local arch=$(detect_arch)
+    local os
+    os=$(detect_os)
+    local arch
+    arch=$(detect_arch)
     
     print_info "Detected: $os ($arch)"
     

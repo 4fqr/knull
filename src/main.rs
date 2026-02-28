@@ -1,6 +1,8 @@
 //! Knull Programming Language - CLI Entry Point
 //! The God Programming Language
 
+#![allow(dead_code)]
+
 mod ast;
 mod cli;
 mod compiler;
@@ -14,6 +16,14 @@ mod type_system;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::path::PathBuf;
+
+const ASCII_ART: &str = r#"
+  _  __    _    _   _ _   _ 
+ | |/ /   | |  | | | | \ | |
+ | ' / ___| |  | | | |  \| |
+ | . \___ | |  | |_| | |\  |
+ |_|\_\___|_|   \___/|_| \_|
+"#;
 
 #[derive(Parser)]
 #[command(name = "knull")]
@@ -126,11 +136,11 @@ fn main() {
         Some(Commands::Test) => cli::run_tests(),
         Some(Commands::Repl) => cli::start_repl(),
         Some(Commands::Version) => {
-            cli::show_version();
+            show_version();
             Ok(())
         }
         Some(Commands::Help) | None => {
-            cli::show_help();
+            show_help();
             Ok(())
         }
     };
@@ -142,4 +152,51 @@ fn main() {
             std::process::exit(1);
         }
     }
+}
+
+fn show_version() {
+    println!("{}", ASCII_ART.bright_cyan());
+    println!(
+        "{} {}",
+        "Knull".bright_green().bold(),
+        "1.0.0".bright_white()
+    );
+    println!("{}", "The God Programming Language".bright_yellow());
+}
+
+fn show_help() {
+    println!("{}", ASCII_ART.bright_cyan());
+    println!(
+        "{} {} - {}",
+        "Knull".bright_green().bold(),
+        "1.0.0".bright_white(),
+        "The God Programming Language".bright_yellow()
+    );
+    println!();
+    println!("{}", "USAGE:".bright_white().bold());
+    println!("  knull [OPTIONS] <COMMAND>");
+    println!();
+    println!("{}", "COMMANDS:".bright_white().bold());
+    println!("  run <file>      Run a Knull file");
+    println!("  build <file>    Compile a Knull file to binary");
+    println!("  check <file>    Check syntax without building");
+    println!("  fmt <file>      Format a Knull file");
+    println!("  new <name>      Create a new Knull project");
+    println!("  add <pkg>       Add a dependency to the project");
+    println!("  test            Run tests");
+    println!("  repl            Start interactive REPL");
+    println!("  version         Show version information");
+    println!("  help            Show this help message");
+    println!();
+    println!("{}", "OPTIONS:".bright_white().bold());
+    println!("  -v, --verbose   Verbose output");
+    println!("  -h, --help      Print help");
+    println!("  -V, --version   Print version");
+    println!();
+    println!("{}", "EXAMPLES:".bright_white().bold());
+    println!("  knull run hello.knull           # Run a program");
+    println!("  knull new myproject             # Create new project");
+    println!("  knull build --release main.knull # Build optimized binary");
+    println!();
+    println!("Documentation: https://github.com/4fqr/knull");
 }

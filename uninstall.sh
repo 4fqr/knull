@@ -1,51 +1,46 @@
 #!/bin/bash
 # Knull Language Uninstaller
-# Usage: curl -sSL https://raw.githubusercontent.com/4fqr/knull/main/uninstall.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/uninstall.sh | bash
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Colors using printf for portability
+red=$(printf '\033[0;31m')
+green=$(printf '\033[0;32m')
+yellow=$(printf '\033[1;33m')
+blue=$(printf '\033[0;34m')
+nc=$(printf '\033[0m')
 
 # Print functions
 print_header() {
-    echo -e "${BLUE}"
-    echo "  _  __    _    _   _ _   _ "
-    echo " | |/ /   | |  | | | | \ | |"
-    echo " | ' / ___| |  | | | |  \| |"
-    echo " | . \\___ | |  | |_| | |\  |"
-    echo " |_|\_\___|_|   \___/|_| \_|"
-    echo -e "${NC}"
-    echo -e "${YELLOW}Uninstaller${NC}"
-    echo ""
+    printf "%s\n" "${blue}"
+    printf "  _  __    _    _   _ _   _ \n"
+    printf " | |/ /   | |  | | | | \\ | |\n"
+    printf " | ' / ___| |  | | | |  \\| |\n"
+    printf " | . \\___ | |  | |_| | |\\  |\n"
+    printf " |_|\\_\\___|_|   \\___/|_| \\_|\n"
+    printf "%s\n" "${nc}"
+    printf "%sUninstaller%s\n" "${yellow}" "${nc}"
+    printf "\n"
 }
 
 print_success() {
-    echo -e "${GREEN}✓${NC} $1"
+    printf "%s✓%s %s\n" "${green}" "${nc}" "$1"
 }
 
 print_error() {
-    echo -e "${RED}✗${NC} $1"
+    printf "%s✗%s %s\n" "${red}" "${nc}" "$1"
 }
 
 print_info() {
-    echo -e "${YELLOW}→${NC} $1"
+    printf "%s→%s %s\n" "${yellow}" "${nc}" "$1"
 }
 
 # Find install directory
 find_install_dir() {
-    local paths=(
-        "$HOME/.local/bin/knull"
-        "$HOME/.knull/bin/knull"
-        "/usr/local/bin/knull"
-        "/usr/bin/knull"
-    )
+    local paths="$HOME/.local/bin/knull $HOME/.knull/bin/knull /usr/local/bin/knull /usr/bin/knull"
     
-    for path in "${paths[@]}"; do
+    for path in $paths; do
         if [ -x "$path" ]; then
             dirname "$path"
             return 0
@@ -57,7 +52,8 @@ find_install_dir() {
 
 # Remove binary
 remove_binary() {
-    local install_dir=$(find_install_dir)
+    local install_dir
+    install_dir=$(find_install_dir)
     
     if [ -n "$install_dir" ]; then
         print_info "Removing binary from $install_dir..."
@@ -86,14 +82,9 @@ remove_stdlib() {
 remove_from_path() {
     print_info "Cleaning up PATH..."
     
-    local shell_rcs=(
-        "$HOME/.bashrc"
-        "$HOME/.zshrc"
-        "$HOME/.profile"
-        "$HOME/.bash_profile"
-    )
+    local shell_rcs="$HOME/.bashrc $HOME/.zshrc $HOME/.profile $HOME/.bash_profile"
     
-    for rc in "${shell_rcs[@]}"; do
+    for rc in $shell_rcs; do
         if [ -f "$rc" ]; then
             # Remove Knull-related lines
             sed -i '/# Knull Programming Language/d' "$rc" 2>/dev/null || true
@@ -106,46 +97,45 @@ remove_from_path() {
 
 # Remove cache
 remove_cache() {
-    local cache_dirs=(
-        "$HOME/.knull/cache"
-        "/tmp/knull-*"
-    )
-    
     print_info "Removing cache..."
     
-    for dir in "${cache_dirs[@]}"; do
-        rm -rf $dir 2>/dev/null || true
-    done
+    rm -rf "$HOME/.knull/cache" 2>/dev/null || true
+    rm -rf /tmp/knull-* 2>/dev/null || true
     
     print_success "Cache removed"
 }
 
 # Confirm uninstall
 confirm_uninstall() {
-    echo ""
-    echo "This will completely remove Knull from your system."
-    echo ""
-    read -p "Are you sure? [y/N] " -n 1 -r
-    echo ""
+    printf "\n"
+    printf "This will completely remove Knull from your system.\n"
+    printf "\n"
+    printf "Are you sure? [y/N] "
+    read -r REPLY
+    printf "\n"
     
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Uninstall cancelled."
-        exit 0
-    fi
+    case "$REPLY" in
+        [Yy]*)
+            ;;
+        *)
+            printf "Uninstall cancelled.\n"
+            exit 0
+            ;;
+    esac
 }
 
 # Print final message
 print_footer() {
-    echo ""
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║     Knull has been successfully uninstalled            ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo "To reinstall:"
-    echo "  curl -sSL https://raw.githubusercontent.com/4fqr/knull/main/install.sh | bash"
-    echo ""
-    echo "Thanks for trying Knull!"
-    echo ""
+    printf "\n"
+    printf "%s╔════════════════════════════════════════════════════════╗%s\n" "${green}" "${nc}"
+    printf "%s║     Knull has been successfully uninstalled            ║%s\n" "${green}" "${nc}"
+    printf "%s╚════════════════════════════════════════════════════════╝%s\n" "${green}" "${nc}"
+    printf "\n"
+    printf "To reinstall:\n"
+    printf "  curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash\n"
+    printf "\n"
+    printf "Thanks for trying Knull!\n"
+    printf "\n"
 }
 
 # Main
@@ -159,7 +149,9 @@ main() {
     fi
     
     # Confirm
-    confirm_uninstall
+    if [ "$1" != "--force" ] && [ "$1" != "-f" ]; then
+        confirm_uninstall
+    fi
     
     # Remove everything
     remove_binary
@@ -170,9 +162,4 @@ main() {
     print_footer
 }
 
-# Handle force uninstall
-if [ "$1" = "--force" ] || [ "$1" = "-f" ]; then
-    main
-else
-    main
-fi
+main "$@"

@@ -1,6 +1,6 @@
     Blocking waiting for file lock on package cache
-   1.403898233s  INFO prepare_target{force=false package_id=knull v1.0.0 (/home/foufqr/Documents/knull-lang/src) target="knull"}: cargo::core::compiler::fingerprint: fingerprint error for knull v1.0.0 (/home/foufqr/Documents/knull-lang/src)/Check { test: false }/TargetInner { name: "knull", doc: true, ..: with_path("/home/foufqr/Documents/knull-lang/src/main.rs", Edition2021) }
-   1.403914095s  INFO prepare_target{force=false package_id=knull v1.0.0 (/home/foufqr/Documents/knull-lang/src) target="knull"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/foufqr/Documents/knull-lang/src/target/debug/.fingerprint/knull-28055568b07f3a2a/bin-knull`
+  16.456438268s  INFO prepare_target{force=false package_id=knull v1.0.0 (/home/foufqr/Documents/knull-lang/src) target="knull"}: cargo::core::compiler::fingerprint: fingerprint error for knull v1.0.0 (/home/foufqr/Documents/knull-lang/src)/Check { test: false }/TargetInner { name: "knull", doc: true, ..: with_path("/home/foufqr/Documents/knull-lang/src/main.rs", Edition2021) }
+  16.463032052s  INFO prepare_target{force=false package_id=knull v1.0.0 (/home/foufqr/Documents/knull-lang/src) target="knull"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/foufqr/Documents/knull-lang/src/target/debug/.fingerprint/knull-28055568b07f3a2a/bin-knull`
 
 Caused by:
     No such file or directory (os error 2)
@@ -44,8 +44,8 @@ Stack backtrace:
   25: __libc_start_main_impl
              at ./csu/../csu/libc-start.c:360:3
   26: <unknown>
-   1.455982851s  INFO prepare_target{force=false package_id=inkwell v0.2.0 target="inkwell"}: cargo::core::compiler::fingerprint: fingerprint error for inkwell v0.2.0/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("inkwell", ["lib"], "/home/foufqr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inkwell-0.2.0/src/lib.rs", Edition2021) }
-   1.455999317s  INFO prepare_target{force=false package_id=inkwell v0.2.0 target="inkwell"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/foufqr/Documents/knull-lang/src/target/debug/.fingerprint/inkwell-bf20262615f98c78/lib-inkwell`
+  16.587100852s  INFO prepare_target{force=false package_id=inkwell v0.2.0 target="inkwell"}: cargo::core::compiler::fingerprint: fingerprint error for inkwell v0.2.0/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("inkwell", ["lib"], "/home/foufqr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inkwell-0.2.0/src/lib.rs", Edition2021) }
+  16.587132681s  INFO prepare_target{force=false package_id=inkwell v0.2.0 target="inkwell"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/foufqr/Documents/knull-lang/src/target/debug/.fingerprint/inkwell-bf20262615f98c78/lib-inkwell`
 
 Caused by:
     No such file or directory (os error 2)
@@ -90,8 +90,8 @@ Stack backtrace:
   26: __libc_start_main_impl
              at ./csu/../csu/libc-start.c:360:3
   27: <unknown>
-   1.456771991s  INFO prepare_target{force=false package_id=llvm-sys v160.2.1 target="llvm_sys"}: cargo::core::compiler::fingerprint: fingerprint error for llvm-sys v160.2.1/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("llvm_sys", ["lib"], "/home/foufqr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/llvm-sys-160.2.1/src/lib.rs", Edition2015) }
-   1.456780503s  INFO prepare_target{force=false package_id=llvm-sys v160.2.1 target="llvm_sys"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/foufqr/Documents/knull-lang/src/target/debug/.fingerprint/llvm-sys-e1db838fff2ec2bb/lib-llvm_sys`
+  16.593377890s  INFO prepare_target{force=false package_id=llvm-sys v160.2.1 target="llvm_sys"}: cargo::core::compiler::fingerprint: fingerprint error for llvm-sys v160.2.1/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("llvm_sys", ["lib"], "/home/foufqr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/llvm-sys-160.2.1/src/lib.rs", Edition2015) }
+  16.593401078s  INFO prepare_target{force=false package_id=llvm-sys v160.2.1 target="llvm_sys"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/foufqr/Documents/knull-lang/src/target/debug/.fingerprint/llvm-sys-e1db838fff2ec2bb/lib-llvm_sys`
 
 Caused by:
     No such file or directory (os error 2)
@@ -137,8 +137,8 @@ Stack backtrace:
   27: __libc_start_main_impl
              at ./csu/../csu/libc-start.c:360:3
   28: <unknown>
-   1.460583815s  INFO prepare_target{force=false package_id=knull v1.0.0 (/home/foufqr/Documents/knull-lang/src) target="knull"}: cargo::core::compiler::fingerprint: fingerprint error for knull v1.0.0 (/home/foufqr/Documents/knull-lang/src)/Check { test: true }/TargetInner { name: "knull", doc: true, ..: with_path("/home/foufqr/Documents/knull-lang/src/main.rs", Edition2021) }
-   1.460592858s  INFO prepare_target{force=false package_id=knull v1.0.0 (/home/foufqr/Documents/knull-lang/src) target="knull"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/foufqr/Documents/knull-lang/src/target/debug/.fingerprint/knull-2ee7f9c244f8e806/test-bin-knull`
+  16.635239730s  INFO prepare_target{force=false package_id=knull v1.0.0 (/home/foufqr/Documents/knull-lang/src) target="knull"}: cargo::core::compiler::fingerprint: fingerprint error for knull v1.0.0 (/home/foufqr/Documents/knull-lang/src)/Check { test: true }/TargetInner { name: "knull", doc: true, ..: with_path("/home/foufqr/Documents/knull-lang/src/main.rs", Edition2021) }
+  16.635264342s  INFO prepare_target{force=false package_id=knull v1.0.0 (/home/foufqr/Documents/knull-lang/src) target="knull"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/foufqr/Documents/knull-lang/src/target/debug/.fingerprint/knull-2ee7f9c244f8e806/test-bin-knull`
 
 Caused by:
     No such file or directory (os error 2)
