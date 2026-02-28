@@ -95,6 +95,29 @@ impl Parser {
                 TokenKind::If => items.push(self.parse_if()?),
                 TokenKind::While => items.push(self.parse_while()?),
                 TokenKind::For => items.push(self.parse_for()?),
+                TokenKind::Mod => {
+                    self.parse_module_decl()?;
+                }
+                TokenKind::Struct => {
+                    self.parse_struct_decl()?;
+                }
+                TokenKind::Use => {
+                    self.parse_use_decl()?;
+                }
+                TokenKind::Unsafe => {
+                    self.advance();
+                    if self.current().kind == TokenKind::LBrace {
+                        self.advance();
+                        while self.current().kind != TokenKind::RBrace
+                            && self.current().kind != TokenKind::Eof
+                        {
+                            self.advance();
+                        }
+                        self.expect(TokenKind::RBrace)?;
+                    } else if self.current().kind == TokenKind::Fn {
+                        items.push(self.parse_function()?);
+                    }
+                }
                 _ => {
                     let expr = self.parse_expression()?;
                     items.push(expr);
@@ -564,6 +587,58 @@ impl Parser {
                 self.current().kind
             ))
         }
+    }
+
+    // Skip module declarations (module <name>)
+    fn parse_module_decl(&mut self) -> Result<(), String> {
+        self.advance(); // skip 'mod'
+        self.parse_identifier()?; // module name
+        if self.current().kind == TokenKind::LBrace {
+            // Module body - skip it
+            self.advance();
+            let mut depth = 1;
+            while depth > 0 && self.current().kind != TokenKind::Eof {
+                if self.current().kind == TokenKind::LBrace {
+                    depth += 1;
+                } else if self.current().kind == TokenKind::RBrace {
+                    depth -= 1;
+                }
+                self.advance();
+            }
+        }
+        Ok(())
+    }
+
+    // Skip struct declarations
+    fn parse_struct_decl(&mut self) -> Result<(), String> {
+        self.advance(); // skip 'struct'
+        self.parse_identifier()?; // struct name
+        if self.current().kind == TokenKind::LBrace {
+            self.advance();
+            let mut depth = 1;
+            while depth > 0 && self.current().kind != TokenKind::Eof {
+                if self.current().kind == TokenKind::LBrace {
+                    depth += 1;
+                } else if self.current().kind == TokenKind::RBrace {
+                    depth -= 1;
+                }
+                self.advance();
+            }
+        }
+        Ok(())
+    }
+
+    // Skip use declarations
+    fn parse_use_decl(&mut self) -> Result<(), String> {
+        self.advance(); // skip 'use'
+                        // Skip until semicolon or newline
+        while self.current().kind != TokenKind::Semicolon && self.current().kind != TokenKind::Eof {
+            self.advance();
+        }
+        if self.current().kind == TokenKind::Semicolon {
+            self.advance();
+        }
+        Ok(())
     }
 }
 

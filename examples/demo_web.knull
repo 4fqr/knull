@@ -2,71 +2,43 @@
 // KNULL WEB DEMO - Simple HTTP Server
 // =============================================================================
 
-module web_demo
-
-// Simple HTTP response
-struct HttpResponse {
-    status: i32,
-    status_text: string,
-    headers: string,
-    body: string,
-}
-
-// Create HTTP response
-fn ok(body: string) -> HttpResponse {
-    HttpResponse {
-        status: 200,
-        status_text: "OK",
-        headers: "Content-Type: text/plain\r\n",
-        body: body,
-    }
-}
-
-fn not_found() -> HttpResponse {
-    HttpResponse {
-        status: 404,
-        status_text: "Not Found",
-        headers: "Content-Type: text/plain\r\n",
-        body: "404 Not Found",
-    }
-}
-
-// Convert response to string
-fn to_string(resp: HttpResponse) -> string {
-    let result = "HTTP/1.1 " + resp.status + " " + resp.status_text + "\r\n"
-    result = result + resp.headers + "\r\n"
-    result = result + resp.body
-    result
+fn main() {
+    println("Knull Web Demo")
+    println("")
+    println("This demo shows how Knull can be used for web development.")
+    println("Full HTTP server support coming soon!")
+    println("")
+    
+    // Simulate HTTP routing
+    let response = route("/")
+    println("GET / => " + response)
+    
+    let response2 = route("/api/status")
+    println("GET /api/status => " + response2)
+    
+    let response3 = route("/unknown")
+    println("GET /unknown => " + response3)
 }
 
 // Simple router
-fn route(path: string) -> HttpResponse {
+fn route(path) {
     if path == "/" {
-        ok("Welcome to Knull Web Server!")
-    } else if path == "/api/status" {
-        ok("{\"status\": \"running\", \"version\": \"1.0.0\"}")
-    } else if path == "/api/time" {
-        let t = std.time.now()
-        ok("{\"timestamp\": " + t + "}")
-    } else {
-        not_found()
+        return ok("Welcome to Knull Web Server!")
     }
+    if path == "/api/status" {
+        return ok("{\"status\": \"running\", \"version\": \"1.0.0\"}")
+    }
+    if path == "/api/hello" {
+        return ok("Hello from Knull!")
+    }
+    return not_found()
 }
 
-// Main server
-fn main() {
-    println "Starting Knull HTTP Server..."
-    println "Listening on http://localhost:8080"
-    println "Press Ctrl+C to stop"
-    
-    // In a full implementation, this would listen on a socket
-    // For demo purposes, we just show the concept
-    
-    let response = route("/api/status")
-    println ""
-    println "Example Request:"
-    println "GET /api/status"
-    println ""
-    println "Response:"
-    println to_string(response)
+// Create HTTP response
+fn ok(body) {
+    return "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n" + body
+}
+
+fn not_found() {
+    return "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\n404 Not Found"
 }

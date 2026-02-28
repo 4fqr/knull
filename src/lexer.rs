@@ -89,6 +89,7 @@ impl TokenKind {
             "return" => Some(TokenKind::Return),
             "pub" => Some(TokenKind::Pub),
             "mod" => Some(TokenKind::Mod),
+            "module" => Some(TokenKind::Mod),
             "use" => Some(TokenKind::Use),
             "struct" => Some(TokenKind::Struct),
             "enum" => Some(TokenKind::Enum),
