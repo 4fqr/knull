@@ -1,0 +1,7 @@
+fn test() -> i32 {
+    42
+}
+
+fn main() {
+    println "Hello"
+}

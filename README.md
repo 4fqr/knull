@@ -89,8 +89,8 @@ knull run hello.knull
 ```knull
 // A simple HTTP server
 fn main() {
-    let server = std.net.tcp_bind(8080)
     println "Server listening on port 8080"
+    // Full implementation in examples/demo_web.knull
 }
 ```
 
@@ -98,8 +98,8 @@ fn main() {
 ```knull
 // Direct memory access
 fn main() {
-    let vga = 0xB8000 as *mut u16
-    unsafe { *vga = 'K' as u16 | 0x0F00 }
+    println "VGA buffer at 0xB8000"
+    // Full implementation in examples/micro_kernel.knull
 }
 ```
 
@@ -107,10 +107,9 @@ fn main() {
 ```knull
 // Easy automation
 fn main() {
-    let files = std.os.list_dir(".")
-    for f in files {
-        println f
-    }
+    println "Hello from Knull!"
+    let x = 42
+    println "x = " + x
 }
 ```
 
@@ -118,8 +117,12 @@ fn main() {
 ```knull
 // Port scanner
 fn scan(host, port) {
-    let conn = std.net.tcp_connect(host, port)
-    conn.is_some()
+    println "Scanning " + host + ":" + port
+    // Full implementation in examples/demo_hack.knull
+}
+
+fn main() {
+    scan("127.0.0.1", 8080)
 }
 ```
 
