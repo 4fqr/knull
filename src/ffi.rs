@@ -3,7 +3,7 @@
 //! Allows Knull to call C libraries and external functions.
 //! Uses libffi for cross-platform dynamic function invocation.
 
-use libc::{c_char, c_double, c_int, c_long, c_void, size_t};
+use libc::{c_char, c_double, c_int, c_void, size_t};
 use std::ffi::{CStr, CString};
 use std::sync::Mutex;
 
@@ -174,7 +174,7 @@ impl FFIValue {
     }
 }
 
-/// Global library registry
+// Global library registry
 lazy_static::lazy_static! {
     static ref LIBRARIES: Mutex<Vec<DynamicLibrary>> = Mutex::new(Vec::new());
 }

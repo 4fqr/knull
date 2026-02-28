@@ -44,7 +44,7 @@ impl<T: Send> GCPtr<T> {
         Self { ptr, id }
     }
 
-    pub fn get(&self) -> std::sync::MutexGuard<GCObject<T>> {
+    pub fn get(&self) -> std::sync::MutexGuard<'_, GCObject<T>> {
         self.ptr.lock().unwrap()
     }
 }
@@ -78,7 +78,7 @@ impl GCState {
         self.next_id.fetch_add(1, Ordering::SeqCst)
     }
 
-    fn register(&self, id: usize, size: usize) {
+    fn register(&self, _id: usize, size: usize) {
         self.total_allocated.fetch_add(size, Ordering::SeqCst);
     }
 
@@ -133,7 +133,7 @@ pub struct GCStats {
     pub total_freed: usize,
 }
 
-/// Global GC instance
+// Global GC instance
 lazy_static::lazy_static! {
     pub static ref GC_STATE: GCState = GCState::new();
 }

@@ -207,15 +207,13 @@ struct FunctionDef {
 
 impl Interpreter {
     pub fn new() -> Self {
-        let mut interpreter = Interpreter {
+        Interpreter {
             scopes: vec![Scope::new()],
             functions: HashMap::new(),
             return_value: None,
             break_flag: false,
             continue_flag: false,
-        };
-
-        interpreter
+        }
     }
 
     fn current_scope(&mut self) -> &mut Scope {

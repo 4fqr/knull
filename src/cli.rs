@@ -1,13 +1,11 @@
 //! Knull CLI - Command Line Interface
 //! Professional compiler interface for the Knull programming language
 
+use crate::compiler::CompileOptions;
 use colored::Colorize;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
-
-use crate::compiler::{CompileMode, CompileOptions};
 
 /// Run a Knull file (compile and execute)
 pub fn run_file(path: &Path, verbose: bool) -> Result<(), String> {
@@ -57,11 +55,11 @@ pub fn build_file(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(
         );
     }
 
-    let options = CompileOptions::default();
+    let _options = CompileOptions::default();
 
     #[cfg(feature = "llvm-backend")]
     {
-        let result = crate::compiler::compile(&source, &out_path, options)
+        let result = crate::compiler::compile(&source, &out_path, _options)
             .map_err(|e| format!("Compilation failed: {}", e))?;
 
         if verbose {
@@ -100,7 +98,7 @@ pub fn build_release(path: &Path, output: Option<&Path>, verbose: bool) -> Resul
 
 /// Generate assembly output
 pub fn generate_asm(path: &Path, output: Option<&Path>) -> Result<(), String> {
-    let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
+    let _source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
     let out_path = output
         .map(|p| p.to_path_buf())
@@ -113,26 +111,24 @@ pub fn generate_asm(path: &Path, output: Option<&Path>) -> Result<(), String> {
         out_path.display()
     );
 
-    let options = CompileOptions::default();
+    let _options = CompileOptions::default();
 
     #[cfg(feature = "llvm-backend")]
     {
-        crate::compiler::generate_assembly(&source, &out_path, options)
+        crate::compiler::generate_assembly(&_source, &out_path, _options)
             .map_err(|e| format!("Assembly generation failed: {}", e))?;
+        println!(
+            "{} Assembly generated: {}",
+            "✓".green().bold(),
+            out_path.display()
+        );
+        Ok(())
     }
 
     #[cfg(not(feature = "llvm-backend"))]
     {
-        return Err("LLVM backend not available".to_string());
+        Err("LLVM backend not available".to_string())
     }
-
-    println!(
-        "{} Assembly generated: {}",
-        "✓".green().bold(),
-        out_path.display()
-    );
-
-    Ok(())
 }
 
 /// Check syntax and types without building

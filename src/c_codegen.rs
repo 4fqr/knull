@@ -363,7 +363,6 @@ impl CCodeGen {
                 Literal::Int(n) => Ok(n.to_string()),
                 Literal::Float(f) => Ok(f.to_string()),
                 Literal::String(s) => {
-                    let idx = self.string_literals.len();
                     self.string_literals.push(s.clone());
                     Ok(format!("(knull_string)\"{}\"", s))
                 }
