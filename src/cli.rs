@@ -18,48 +18,13 @@ pub fn run_file(path: &Path) -> Result<(), String> {
     // Parse
     let mut parser = crate::parser::Parser::new(&source);
     match parser.parse() {
-        Ok(_) => println!("Parsed successfully"),
-        Err(e) => return Err(format!("Parse error: {}", e)),
-    }
+        Ok(ast) => {
+            println!("Parsed successfully");
 
-    // Compile
-    match crate::compiler::compile(&source) {
-        Ok(asm) => {
-            // Write assembly
-            let asm_path = path.with_extension("asm");
-            fs::write(&asm_path, &asm).map_err(|e| format!("Failed to write assembly: {}", e))?;
-            println!("Wrote: {}", asm_path.display());
-
-            // Try to assemble and run (if nasm available)
-            if let Ok(output) = Command::new("nasm")
-                .args([
-                    "-f",
-                    "elf64",
-                    "-o",
-                    "/tmp/knull.o",
-                    asm_path.to_str().unwrap(),
-                ])
-                .output()
-            {
-                if output.status.success() {
-                    // Link
-                    if let Ok(link_output) = Command::new("ld")
-                        .args(["-o", "/tmp/knull", "/tmp/knull.o"])
-                        .output()
-                    {
-                        if link_output.status.success() {
-                            // Run
-                            println!("Executing...");
-                            if let Ok(run_output) = Command::new("/tmp/knull").output() {
-                                io::stdout().write_all(&run_output.stdout).ok();
-                                io::stderr().write_all(&run_output.stderr).ok();
-                            }
-                        }
-                    }
-                }
-            }
+            // Interpret/Execute
+            crate::compiler::execute(&ast);
         }
-        Err(e) => return Err(format!("Compile error: {}", e)),
+        Err(e) => return Err(format!("Parse error: {}", e)),
     }
 
     Ok(())
@@ -101,10 +66,12 @@ pub fn start_repl() -> Result<(), String> {
                 continue;
             }
 
-            // Parse and evaluate
+            // Parse and interpret
             let mut parser = crate::parser::Parser::new(input);
             match parser.parse() {
-                Ok(_) => println!("Ok"),
+                Ok(ast) => {
+                    crate::compiler::execute(&ast);
+                }
                 Err(e) => println!("Error: {}", e),
             }
         }
@@ -116,7 +83,6 @@ pub fn start_repl() -> Result<(), String> {
 pub fn format_file(path: &Path) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
-    // Simple formatting: just re-tokenize and print
     let mut lexer = crate::lexer::Lexer::new(&source);
     let tokens = lexer.tokenize();
 
@@ -134,11 +100,9 @@ pub fn format_file(path: &Path) -> Result<(), String> {
 pub fn check_file(path: &Path) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
-    // Tokenize
     let mut lexer = crate::lexer::Lexer::new(&source);
     lexer.tokenize();
 
-    // Parse
     let mut parser = crate::parser::Parser::new(&source);
     parser.parse().map_err(|e| format!("Error: {}", e))?;
 
