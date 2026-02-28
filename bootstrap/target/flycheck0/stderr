@@ -1,6 +1,7 @@
 warning: file `/home/foufqr/Documents/knull-lang/bootstrap/src/main.rs` found to be present in multiple build targets:
   * `bin` target `knull`
   * `bin` target `knullc`
+    Blocking waiting for file lock on package cache
     Updating crates.io index
 error: failed to select a version for the requirement `unicode-xid = "^0.3"`
 candidate versions found which didn't match: 0.2.6, 0.2.5, 0.2.4, ...

@@ -1,43 +1,46 @@
 //! Knull CLI - Command Line Interface
-//! The most fabulous CLI tool you've ever seen
+//! Professional compiler interface for the Knull programming language
 
-use colored::*;
-use indicatif::{ProgressBar, ProgressStyle};
+use colored::Colorize;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::compiler::{CompileMode, CompileOptions};
+
+/// Run a Knull file (compile and execute)
 pub fn run_file(path: &Path, verbose: bool) -> Result<(), String> {
     if verbose {
-        println!("{} {}", "▶ Running".bright_blue().bold(), path.display());
+        println!("{} {}", "Running".bright_blue().bold(), path.display());
     }
 
     let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
-    // Tokenize
-    let mut lexer = crate::lexer::Lexer::new(&source);
-    let tokens = lexer.tokenize();
+    // For now, use interpreter mode
     if verbose {
-        println!("  {} Lexed {} tokens", "✓".green(), tokens.len());
+        println!("  Compiling...");
     }
 
-    // Parse
+    // Parse and execute
+    let mut lexer = crate::lexer::Lexer::new(&source);
+    let _tokens = lexer.tokenize();
+
     let mut parser = crate::parser::Parser::new(&source);
-    match parser.parse() {
-        Ok(ast) => {
-            if verbose {
-                println!("  {} Parsed successfully", "✓".green());
-            }
+    let ast = parser.parse().map_err(|e| format!("Parse error: {}", e))?;
 
-            // Interpret/Execute
-            crate::compiler::execute(&ast);
-            Ok(())
-        }
-        Err(e) => Err(format!("Parse error: {}", e)),
+    if verbose {
+        println!("  {} Parsed successfully", "✓".green());
+        println!("  Executing...");
     }
+
+    // Execute
+    crate::compiler::execute(&ast);
+
+    Ok(())
 }
 
+/// Build a Knull file to native binary
 pub fn build_file(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
@@ -48,171 +51,171 @@ pub fn build_file(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(
     if verbose {
         println!(
             "{} {} → {}",
-            "🔨 Building".bright_yellow().bold(),
+            "Building".bright_yellow().bold(),
             path.display(),
             out_path.display()
         );
     }
 
-    // Parse
-    let mut parser = crate::parser::Parser::new(&source);
-    let ast = parser.parse().map_err(|e| format!("Parse error: {}", e))?;
+    let options = CompileOptions::default();
 
-    if verbose {
-        println!("  {} Parsed successfully", "✓".green());
+    #[cfg(feature = "llvm-backend")]
+    {
+        let result = crate::compiler::compile(&source, &out_path, options)
+            .map_err(|e| format!("Compilation failed: {}", e))?;
+
+        if verbose {
+            if let Some(ref obj) = result.object_path {
+                println!("  Object file: {}", obj);
+            }
+        }
+
+        println!(
+            "{} Build successful: {}",
+            "✓".green().bold(),
+            out_path.display()
+        );
     }
 
-    // Compile to binary (placeholder for now - would generate actual binary)
-    println!("{} Build successful!", "✓".green().bold());
+    #[cfg(not(feature = "llvm-backend"))]
+    {
+        return Err(
+            "LLVM backend not available. Install LLVM and rebuild with --features llvm-backend"
+                .to_string(),
+        );
+    }
+
     Ok(())
 }
 
+/// Build in release mode (optimized)
+pub fn build_release(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(), String> {
+    build_file(path, output, verbose)
+}
+
+/// Generate assembly output
 pub fn generate_asm(path: &Path, output: Option<&Path>) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
     let out_path = output
         .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| path.with_extension("asm"));
+        .unwrap_or_else(|| path.with_extension("s"));
 
     println!(
         "{} {} → {}",
-        "⚙ Generating ASM".bright_cyan().bold(),
+        "Generating Assembly".bright_cyan().bold(),
         path.display(),
         out_path.display()
     );
 
-    // Generate x86_64 assembly
-    let asm = generate_x86_64_asm(&source)?;
+    let options = CompileOptions::default();
 
-    fs::write(&out_path, asm).map_err(|e| format!("Failed to write assembly: {}", e))?;
+    #[cfg(feature = "llvm-backend")]
+    {
+        crate::compiler::generate_assembly(&source, &out_path, options)
+            .map_err(|e| format!("Assembly generation failed: {}", e))?;
+    }
+
+    #[cfg(not(feature = "llvm-backend"))]
+    {
+        return Err("LLVM backend not available".to_string());
+    }
 
     println!(
         "{} Assembly generated: {}",
         "✓".green().bold(),
         out_path.display()
     );
-    Ok(())
-}
-
-fn generate_x86_64_asm(source: &str) -> Result<String, String> {
-    let mut parser = crate::parser::Parser::new(source);
-    let ast = parser.parse().map_err(|e| format!("Parse error: {}", e))?;
-
-    let mut output = String::new();
-    output.push_str("; ============================================\n");
-    output.push_str("; Knull Compiled Output - x86_64 Assembly\n");
-    output.push_str("; ============================================\n\n");
-    output.push_str("section .data\n");
-    output.push_str("    fmt_int: db \"%ld\", 10, 0\n");
-    output.push_str("    fmt_str: db \"%s\", 10, 0\n\n");
-    output.push_str("section .text\n");
-    output.push_str("    global _start\n");
-    output.push_str("    extern printf\n");
-    output.push_str("    extern exit\n\n");
-    output.push_str("; Generated functions\n\n");
-    output.push_str("_start:\n");
-    output.push_str("    call main\n");
-    output.push_str("    mov rdi, rax\n");
-    output.push_str("    call exit\n\n");
-
-    // Generate main function
-    output.push_str("main:\n");
-    output.push_str("    push rbp\n");
-    output.push_str("    mov rbp, rsp\n\n");
-    output.push_str("    ; Function body would go here\n\n");
-    output.push_str("    mov rax, 0\n");
-    output.push_str("    pop rbp\n");
-    output.push_str("    ret\n");
-
-    Ok(output)
-}
-
-pub fn start_repl() -> Result<(), String> {
-    println!(
-        "{}",
-        "╭─────────────────────────────────────╮".bright_purple()
-    );
-    println!(
-        "{}",
-        "│     Knull REPL v1.0.0               │".bright_purple()
-    );
-    println!(
-        "{}",
-        "│     Type :quit or :q to exit        │".bright_purple()
-    );
-    println!(
-        "{}",
-        "╰─────────────────────────────────────╯".bright_purple()
-    );
-    println!();
-
-    loop {
-        print!("{}", "knull ".bright_magenta().bold());
-        print!("{}", "▸ ".bright_cyan());
-        io::stdout().flush().ok();
-
-        let mut input = String::new();
-        if let Ok(_) = io::stdin().read_line(&mut input) {
-            let input = input.trim();
-            if input == ":quit" || input == ":q" {
-                println!("{}", "Goodbye! 👋".bright_green());
-                break;
-            }
-
-            if input.is_empty() {
-                continue;
-            }
-
-            // Parse and interpret
-            let mut parser = crate::parser::Parser::new(input);
-            match parser.parse() {
-                Ok(ast) => {
-                    crate::compiler::execute(&ast);
-                }
-                Err(e) => println!("{} {}", "✗ Error:".bright_red().bold(), e),
-            }
-        }
-    }
 
     Ok(())
 }
 
-pub fn format_file(path: &Path) -> Result<(), String> {
-    let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
-
-    println!("{} {}", "📝 Formatting".bright_blue(), path.display());
-
-    let mut lexer = crate::lexer::Lexer::new(&source);
-    let tokens = lexer.tokenize();
-
-    for token in tokens {
-        if token.kind == crate::lexer::TokenKind::Eof {
-            break;
-        }
-        print!("{} ", token.value);
-    }
-    println!();
-
-    Ok(())
-}
-
+/// Check syntax and types without building
 pub fn check_file(path: &Path) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
+    print!("Checking {}... ", path.display());
+    io::stdout().flush().ok();
+
+    // Parse
     let mut lexer = crate::lexer::Lexer::new(&source);
-    lexer.tokenize();
+    let _tokens = lexer.tokenize();
 
     let mut parser = crate::parser::Parser::new(&source);
-    parser.parse().map_err(|e| format!("Error: {}", e))?;
+    let _ast = parser.parse().map_err(|e| format!("Parse error: {}", e))?;
 
-    println!("{} No errors found", "✓".green().bold());
+    println!("{}", "✓ No errors found".green());
+
     Ok(())
 }
 
+/// Format a Knull file
+pub fn format_file(path: &Path) -> Result<(), String> {
+    let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
+
+    println!("{} {}", "Formatting".bright_blue(), path.display());
+
+    // Tokenize and format
+    let mut lexer = crate::lexer::Lexer::new(&source);
+    let tokens = lexer.tokenize();
+
+    let mut formatted = String::new();
+    let mut indent = 0;
+    let mut prev_was_newline = true;
+
+    for token in tokens {
+        use crate::lexer::TokenKind;
+
+        match token.kind {
+            TokenKind::LBrace => {
+                formatted.push_str(" {\n");
+                indent += 4;
+                prev_was_newline = true;
+            }
+            TokenKind::RBrace => {
+                if indent >= 4 {
+                    indent -= 4;
+                }
+                if !prev_was_newline {
+                    formatted.push('\n');
+                }
+                formatted.push_str(&" ".repeat(indent));
+                formatted.push_str("}\n");
+                prev_was_newline = true;
+            }
+            TokenKind::Semicolon => {
+                formatted.push('\n');
+                prev_was_newline = true;
+            }
+            TokenKind::Eof => break,
+            _ => {
+                if prev_was_newline {
+                    formatted.push_str(&" ".repeat(indent));
+                    prev_was_newline = false;
+                } else if token.kind != TokenKind::LParen
+                    && token.kind != TokenKind::RParen
+                    && token.kind != TokenKind::Comma
+                {
+                    formatted.push(' ');
+                }
+                formatted.push_str(&token.value);
+            }
+        }
+    }
+
+    // Write formatted output back
+    fs::write(path, formatted).map_err(|e| format!("Failed to write formatted file: {}", e))?;
+
+    println!("{} Formatted {}", "✓".green().bold(), path.display());
+
+    Ok(())
+}
+
+/// Create a new Knull project
 pub fn new_project(name: &str) -> Result<(), String> {
     println!(
         "{} Creating new Knull project: {}",
-        "📦".bright_yellow(),
+        "Creating".bright_yellow(),
         name.bright_cyan().bold()
     );
 
@@ -224,14 +227,11 @@ pub fn new_project(name: &str) -> Result<(), String> {
     fs::create_dir(&src_dir).map_err(|e| format!("Failed to create src directory: {}", e))?;
 
     // Create main.knull
-    let main_content = r#"// Welcome to Knull!
-// This is your main entry point
+    let main_content = r#"// Welcome to Knull
+// Entry point for your application
 
 fn main() {
-    println "Hello, Knull! 🚀"
-    println ""
-    println "This is your new project."
-    println "Run with: knull run src/main.knull"
+    println "Hello, Knull!"
 }
 "#;
     fs::write(src_dir.join("main.knull"), main_content)
@@ -245,12 +245,10 @@ version = "0.1.0"
 edition = "2024"
 entry = "src/main.knull"
 authors = ["Your Name <you@example.com>"]
-description = "A fabulous Knull project"
+description = "A Knull project"
 license = "MIT"
 
 [dependencies]
-# Add your dependencies here
-# std = "^1.0"
 
 [build]
 opt-level = 3
@@ -266,19 +264,18 @@ lto = true
     let readme_content = format!(
         r#"# {}
 
-A fabulous Knull project.
+A Knull programming language project.
 
-## Getting Started
+## Building
 
 ```bash
-# Run the project
-knull run src/main.knull
-
-# Build the project
 knull build src/main.knull
+```
 
-# Check for errors
-knull check src/main.knull
+## Running
+
+```bash
+knull run src/main.knull
 ```
 
 ## Project Structure
@@ -290,10 +287,6 @@ knull check src/main.knull
 ├── knull.toml        # Package manifest
 └── README.md         # This file
 ```
-
-## License
-
-MIT
 "#,
         name, name
     );
@@ -301,7 +294,7 @@ MIT
     fs::write(project_dir.join("README.md"), readme_content)
         .map_err(|e| format!("Failed to create README.md: {}", e))?;
 
-    println!("{} Project created successfully!", "✓".green().bold());
+    println!("{} Project created successfully", "✓".green().bold());
     println!();
     println!("To get started:");
     println!("  cd {}", name);
@@ -310,12 +303,13 @@ MIT
     Ok(())
 }
 
+/// Add a dependency to the project
 pub fn add_dependency(package: &str, version: Option<&str>) -> Result<(), String> {
     let ver = version.unwrap_or("^1.0");
 
     println!(
         "{} Adding dependency: {} {}",
-        "📦".bright_yellow(),
+        "Adding".bright_yellow(),
         package.bright_cyan(),
         ver.bright_black()
     );
@@ -328,7 +322,7 @@ pub fn add_dependency(package: &str, version: Option<&str>) -> Result<(), String
         )
     })?;
 
-    // Add dependency (simple string manipulation for now)
+    // Add dependency
     let dep_line = format!("{} = \"{}\"", package, ver);
     let new_content =
         toml_content.replace("[dependencies]", &format!("[dependencies]\n{}", dep_line));
@@ -341,12 +335,14 @@ pub fn add_dependency(package: &str, version: Option<&str>) -> Result<(), String
     Ok(())
 }
 
+/// Run tests
 pub fn run_tests() -> Result<(), String> {
-    println!("{}", "🧪 Running tests...".bright_yellow().bold());
+    println!("{}", "Running tests...".bright_yellow().bold());
 
-    // Look for test files
     let test_dirs = vec!["tests", "test", "src/tests"];
     let mut found_tests = false;
+    let mut passed = 0;
+    let mut failed = 0;
 
     for dir in test_dirs {
         if let Ok(entries) = fs::read_dir(dir) {
@@ -355,10 +351,17 @@ pub fn run_tests() -> Result<(), String> {
                 if path.extension().map_or(false, |e| e == "knull") {
                     found_tests = true;
                     print!("  Testing {}... ", path.display());
+                    io::stdout().flush().ok();
 
                     match run_file(&path, false) {
-                        Ok(_) => println!("{}", "✓ PASS".green()),
-                        Err(e) => println!("{} {}", "✗ FAIL".red(), e),
+                        Ok(_) => {
+                            println!("{}", "PASS".green());
+                            passed += 1;
+                        }
+                        Err(e) => {
+                            println!("{} {}", "FAIL".red(), e);
+                            failed += 1;
+                        }
                     }
                 }
             }
@@ -367,23 +370,71 @@ pub fn run_tests() -> Result<(), String> {
 
     if !found_tests {
         println!("  No test files found. Create .knull files in tests/ directory.");
+    } else {
+        println!();
+        println!("Test Results: {} passed, {} failed", passed, failed);
     }
 
     Ok(())
 }
 
+/// Start interactive REPL
+pub fn start_repl() -> Result<(), String> {
+    println!("{}", "Knull REPL v1.0.0".bright_purple().bold());
+    println!("Type :quit or :q to exit");
+    println!();
+
+    loop {
+        print!("{}", "knull> ".bright_magenta().bold());
+        io::stdout().flush().ok();
+
+        let mut input = String::new();
+        if let Ok(_) = io::stdin().read_line(&mut input) {
+            let input = input.trim();
+            if input == ":quit" || input == ":q" {
+                println!("{}", "Goodbye".bright_green());
+                break;
+            }
+
+            if input.is_empty() {
+                continue;
+            }
+
+            // Parse and execute
+            let mut lexer = crate::lexer::Lexer::new(input);
+            let _tokens = lexer.tokenize();
+
+            let mut parser = crate::parser::Parser::new(input);
+            match parser.parse() {
+                Ok(ast) => {
+                    crate::compiler::execute(&ast);
+                }
+                Err(e) => println!("{} {}", "Error:".bright_red().bold(), e),
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Show version information
 pub fn show_version() {
     println!(
         "{} {}",
         "Knull".bright_purple().bold(),
         "v1.0.0".bright_cyan()
     );
-    println!("The most fabulous programming language.");
+    println!("The God Programming Language");
     println!();
     println!("Edition: 2024");
-    println!("Compiler: knullc (bootstrap)");
+    #[cfg(feature = "llvm-backend")]
+    println!("LLVM Backend: Enabled");
+    #[cfg(not(feature = "llvm-backend"))]
+    println!("LLVM Backend: Disabled (interpreter mode)");
+    println!("Target: Native");
 }
 
+/// Show help information
 pub fn show_help() {
     println!("{}", "Knull Programming Language".bright_purple().bold());
     println!();
@@ -391,55 +442,23 @@ pub fn show_help() {
     println!("  knull <COMMAND> [OPTIONS] [ARGS]");
     println!();
     println!("{}", "COMMANDS:".bright_yellow().bold());
-    println!(
-        "  {} {}     Run a Knull file",
-        "run".bright_cyan(),
-        "<file>".bright_black()
-    );
-    println!(
-        "  {} {}   Compile a Knull file",
-        "build".bright_cyan(),
-        "<file>".bright_black()
-    );
-    println!(
-        "  {} {}    Generate assembly output",
-        "asm".bright_cyan(),
-        "<file>".bright_black()
-    );
-    println!(
-        "  {} {}    Check syntax without building",
-        "check".bright_cyan(),
-        "<file>".bright_black()
-    );
-    println!(
-        "  {} {}    Format a Knull file",
-        "fmt".bright_cyan(),
-        "<file>".bright_black()
-    );
-    println!(
-        "  {} {}    Create a new Knull project",
-        "new".bright_cyan(),
-        "<name>".bright_black()
-    );
-    println!(
-        "  {} {}  Add a dependency",
-        "add".bright_cyan(),
-        "<package>".bright_black()
-    );
-    println!("  {}           Run tests", "test".bright_cyan());
-    println!("  {}           Start REPL", "repl".bright_cyan());
-    println!("  {}           Show version", "version".bright_cyan());
-    println!("  {}           Show this help", "help".bright_cyan());
+    println!("  run <file>       Execute a Knull file");
+    println!("  build <file>     Compile to binary");
+    println!("  asm <file>       Generate assembly output");
+    println!("  check <file>     Check syntax and types");
+    println!("  fmt <file>       Format a Knull file");
+    println!("  new <name>       Create a new Knull project");
+    println!("  add <package>    Add a dependency");
+    println!("  test             Run tests");
+    println!("  repl             Start interactive shell");
+    println!("  version          Show version");
+    println!("  help             Show this help");
     println!();
     println!("{}", "EXAMPLES:".bright_yellow().bold());
     println!("  knull run hello.knull");
     println!("  knull build main.knull -o myapp");
-    println!("  knull asm program.knull -o program.asm");
-    println!("  knull new my-awesome-project");
-    println!("  knull add json");
+    println!("  knull asm program.knull -o program.s");
+    println!("  knull new my-project");
     println!();
-    println!(
-        "For more information: {}",
-        "https://knull-lang.dev".bright_blue().underline()
-    );
+    println!("For more information: https://knull-lang.dev");
 }

@@ -1,284 +1,215 @@
-//! Knull Interpreter - Execute Knull code directly
+//! Knull Compiler
+//!
+//! Provides compilation interfaces for different backends.
 
-use crate::parser::{ASTNode, Literal};
-use std::collections::HashMap;
+#[cfg(feature = "llvm-backend")]
+pub mod llvm_codegen;
 
-struct Runtime {
-    variables: HashMap<String, Value>,
+#[cfg(feature = "llvm-backend")]
+use inkwell::OptimizationLevel;
+
+use std::path::Path;
+
+/// Compilation mode
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CompileMode {
+    /// Novice mode: Dynamic typing with garbage collection
+    Novice,
+    /// Expert mode: Static typing with ownership system
+    Expert,
+    /// God mode: Unsafe blocks, direct memory access, inline assembly
+    God,
 }
 
+/// Compilation options
 #[derive(Debug, Clone)]
-pub enum Value {
-    Int(i64),
-    Float(f64),
-    String(String),
-    Bool(bool),
+pub struct CompileOptions {
+    pub mode: CompileMode,
+    #[cfg(feature = "llvm-backend")]
+    pub opt_level: OptimizationLevel,
+    #[cfg(not(feature = "llvm-backend"))]
+    pub opt_level: u32,
+    pub output_ir: bool,
+    pub output_asm: bool,
+    pub target_triple: Option<String>,
 }
 
-impl Value {
-    fn to_string(&self) -> String {
-        match self {
-            Value::Int(n) => n.to_string(),
-            Value::Float(f) => f.to_string(),
-            Value::String(s) => s.clone(),
-            Value::Bool(b) => b.to_string(),
+#[cfg(not(feature = "llvm-backend"))]
+impl CompileOptions {
+    pub fn default() -> Self {
+        CompileOptions {
+            mode: CompileMode::Novice,
+            opt_level: 2,
+            output_ir: false,
+            output_asm: false,
+            target_triple: None,
         }
     }
 }
 
-pub fn execute(ast: &ASTNode) {
-    let mut runtime = Runtime {
-        variables: HashMap::new(),
-    };
-
-    run_program(&mut runtime, ast);
-}
-
-fn run_program(runtime: &mut Runtime, ast: &ASTNode) {
-    match ast {
-        ASTNode::Program(items) => {
-            for item in items {
-                if let ASTNode::Function { name, body } = item {
-                    if name == "main" {
-                        run_block(runtime, body);
-                        return;
-                    }
-                }
-            }
-            for item in items {
-                run_node(runtime, item);
-            }
-        }
-        _ => {
-            run_node(runtime, ast);
+#[cfg(feature = "llvm-backend")]
+impl Default for CompileOptions {
+    fn default() -> Self {
+        CompileOptions {
+            mode: CompileMode::Novice,
+            opt_level: OptimizationLevel::Default,
+            output_ir: false,
+            output_asm: false,
+            target_triple: None,
         }
     }
 }
 
-fn run_node(runtime: &mut Runtime, node: &ASTNode) -> Option<Value> {
-    match node {
-        ASTNode::Function { name: _, body } => {
-            run_block(runtime, body);
-            None
-        }
-
-        ASTNode::Block(stmts) => {
-            for stmt in stmts {
-                run_node(runtime, stmt);
-            }
-            None
-        }
-
-        ASTNode::Let { name, value } => {
-            let val = eval_expr(runtime, value);
-            if let Some(v) = val {
-                runtime.variables.insert(name.clone(), v);
-            }
-            None
-        }
-
-        ASTNode::Call { func, args } => match func.as_str() {
-            "println" => {
-                if !args.is_empty() {
-                    let arg = &args[0];
-                    if let ASTNode::Identifier(name) = arg {
-                        if let Some(val) = runtime.variables.get(name) {
-                            println!("{}", val.to_string());
-                        } else if name == "true" {
-                            println!("true");
-                        } else if name == "false" {
-                            println!("false");
-                        } else {
-                            eprintln!("Error: undefined variable '{}'", name);
-                        }
-                    } else if let Some(val) = eval_expr(runtime, arg) {
-                        println!("{}", val.to_string());
-                    } else {
-                        println!("");
-                    }
-                } else {
-                    println!("");
-                }
-                None
-            }
-            "print" => {
-                if !args.is_empty() {
-                    let arg = &args[0];
-                    if let ASTNode::Identifier(name) = arg {
-                        if let Some(val) = runtime.variables.get(name) {
-                            print!("{}", val.to_string());
-                        } else if name == "true" {
-                            print!("true");
-                        } else if name == "false" {
-                            print!("false");
-                        } else {
-                            eprintln!("Error: undefined variable '{}'", name);
-                        }
-                    } else if let Some(val) = eval_expr(runtime, arg) {
-                        print!("{}", val.to_string());
-                    }
-                }
-                None
-            }
-            _ => None,
-        },
-
-        ASTNode::If {
-            cond,
-            then_body,
-            else_body,
-        } => {
-            let cond_val = eval_expr(runtime, cond);
-            if let Some(Value::Bool(true)) = cond_val {
-                run_block(runtime, then_body);
-            } else if let Some(Value::Bool(false)) = cond_val {
-                if let Some(else_block) = else_body {
-                    run_block(runtime, else_block);
-                }
-            }
-            None
-        }
-
-        ASTNode::While { cond, body } => {
-            loop {
-                let cond_val = eval_expr(runtime, cond);
-                match cond_val {
-                    Some(Value::Bool(true)) => run_block(runtime, body),
-                    Some(Value::Bool(false)) => break,
-                    _ => break,
-                }
-            }
-            None
-        }
-
-        ASTNode::Return(expr) => eval_expr(runtime, expr),
-
-        ASTNode::Literal(_) | ASTNode::Identifier(_) | ASTNode::Binary { .. } => {
-            eval_expr(runtime, node);
-            None
-        }
-
-        _ => None,
-    }
+/// Compilation result
+#[derive(Debug)]
+pub struct CompilationResult {
+    pub output_path: String,
+    pub object_path: Option<String>,
+    pub executable_path: Option<String>,
 }
 
-fn run_block(runtime: &mut Runtime, node: &ASTNode) {
-    match node {
-        ASTNode::Block(stmts) => {
-            for stmt in stmts {
-                run_node(runtime, stmt);
-            }
-        }
-        _ => {
-            run_node(runtime, node);
-        }
+/// Compile Knull source to native code
+#[cfg(feature = "llvm-backend")]
+pub fn compile(
+    source: &str,
+    output_path: &Path,
+    options: CompileOptions,
+) -> Result<CompilationResult, String> {
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+    use inkwell::context::Context;
+    use llvm_codegen::LLVMCodeGen;
+
+    // Parse the source
+    let mut lexer = Lexer::new(source);
+    let _tokens = lexer.tokenize();
+
+    let mut parser = Parser::new(source);
+    let ast = parser
+        .parse()
+        .map_err(|e| format!("Parse error: {:?}", e))?;
+
+    // Type check (in Expert/God mode)
+    if options.mode != CompileMode::Novice {
+        let mut type_checker = crate::type_system::TypeChecker::new();
+        type_checker
+            .check(&crate::ast::ASTNode::Program(vec![]))
+            .map_err(|e| format!("Type error: {}", e))?;
     }
+
+    // Compile with LLVM
+    let context = Context::create();
+    let mut codegen = LLVMCodeGen::new(&context, "knull_module", options.mode)?;
+
+    // Generate LLVM IR
+    codegen.compile(&ast)?;
+
+    // Optimize
+    codegen.optimize(options.opt_level);
+
+    // Output LLVM IR if requested
+    if options.output_ir {
+        let ir_path = output_path.with_extension("ll");
+        codegen.write_ir(&ir_path)?;
+    }
+
+    // Compile to object file
+    let obj_path = output_path.with_extension("o");
+    codegen.compile_to_object(&obj_path)?;
+
+    // Link to create executable
+    let exe_path = output_path.to_path_buf();
+    link_object(&obj_path, &exe_path)?;
+
+    Ok(CompilationResult {
+        output_path: output_path.to_string_lossy().to_string(),
+        object_path: Some(obj_path.to_string_lossy().to_string()),
+        executable_path: Some(exe_path.to_string_lossy().to_string()),
+    })
 }
 
-fn eval_expr(runtime: &mut Runtime, expr: &ASTNode) -> Option<Value> {
-    match expr {
-        ASTNode::Literal(lit) => match lit {
-            Literal::Int(n) => Some(Value::Int(*n)),
-            Literal::Float(f) => Some(Value::Float(*f)),
-            Literal::String(s) => Some(Value::String(s.clone())),
-        },
-
-        ASTNode::Identifier(name) => {
-            if let Some(val) = runtime.variables.get(name) {
-                Some(val.clone())
-            } else if name == "true" {
-                Some(Value::Bool(true))
-            } else if name == "false" {
-                Some(Value::Bool(false))
-            } else {
-                None
-            }
-        }
-
-        ASTNode::Binary { op, left, right } => {
-            let l = eval_expr(runtime, left);
-            let r = eval_expr(runtime, right);
-
-            match (l, r) {
-                (Some(Value::Int(a)), Some(Value::Int(b))) => {
-                    let result = match op.as_str() {
-                        "+" => Value::Int(a + b),
-                        "-" => Value::Int(a - b),
-                        "*" => Value::Int(a * b),
-                        "/" => Value::Int(a / b),
-                        "%" => Value::Int(a % b),
-                        "==" => Value::Bool(a == b),
-                        "!=" => Value::Bool(a != b),
-                        "<" => Value::Bool(a < b),
-                        ">" => Value::Bool(a > b),
-                        "<=" => Value::Bool(a <= b),
-                        ">=" => Value::Bool(a >= b),
-                        _ => Value::Int(0),
-                    };
-                    Some(result)
-                }
-                (Some(Value::String(a)), Some(Value::String(b))) => {
-                    let result = match op.as_str() {
-                        "+" => Value::String(a + &b),
-                        "==" => Value::Bool(a == b),
-                        "!=" => Value::Bool(a != b),
-                        _ => Value::String(a),
-                    };
-                    Some(result)
-                }
-                (Some(Value::Int(a)), Some(Value::String(b))) => {
-                    let result = match op.as_str() {
-                        "+" => Value::String(a.to_string() + &b),
-                        _ => Value::String(a.to_string()),
-                    };
-                    Some(result)
-                }
-                (Some(Value::String(a)), Some(Value::Int(b))) => {
-                    let result = match op.as_str() {
-                        "+" => Value::String(a + &b.to_string()),
-                        _ => Value::String(a),
-                    };
-                    Some(result)
-                }
-                (Some(Value::String(a)), Some(Value::Bool(b))) => {
-                    let result = match op.as_str() {
-                        "+" => Value::String(a + &b.to_string()),
-                        _ => Value::String(a),
-                    };
-                    Some(result)
-                }
-                (Some(Value::Bool(a)), Some(Value::String(b))) => {
-                    let result = match op.as_str() {
-                        "+" => Value::String(a.to_string() + &b),
-                        _ => Value::String(a.to_string()),
-                    };
-                    Some(result)
-                }
-                _ => None,
-            }
-        }
-
-        ASTNode::Call { func, args } => match func.as_str() {
-            "len" => {
-                if !args.is_empty() {
-                    if let Some(val) = eval_expr(runtime, &args[0]) {
-                        return Some(match val {
-                            Value::String(s) => Value::Int(s.len() as i64),
-                            _ => Value::Int(0),
-                        });
-                    }
-                }
-                Some(Value::Int(0))
-            }
-            _ => None,
-        },
-
-        _ => None,
-    }
+/// Fallback compile without LLVM
+#[cfg(not(feature = "llvm-backend"))]
+pub fn compile(
+    _source: &str,
+    _output_path: &Path,
+    _options: CompileOptions,
+) -> Result<CompilationResult, String> {
+    Err(
+        "LLVM backend not available. Install LLVM and rebuild with --features llvm-backend"
+            .to_string(),
+    )
 }
 
-pub fn compile(source: &str) -> Result<String, String> {
-    use crate::parser::parse;
-    let ast = parse(source)?;
-    Ok("Parsed".to_string())
+/// Generate assembly output
+#[cfg(feature = "llvm-backend")]
+pub fn generate_assembly(
+    source: &str,
+    output_path: &Path,
+    options: CompileOptions,
+) -> Result<(), String> {
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+    use inkwell::context::Context;
+    use inkwell::targets::FileType;
+    use llvm_codegen::LLVMCodeGen;
+
+    let context = Context::create();
+    let mut codegen = LLVMCodeGen::new(&context, "knull_module", options.mode)?;
+
+    // Parse
+    let mut lexer = Lexer::new(source);
+    let _tokens = lexer.tokenize();
+    let mut parser = Parser::new(source);
+    let ast = parser
+        .parse()
+        .map_err(|e| format!("Parse error: {:?}", e))?;
+
+    // Compile
+    codegen.compile(&ast)?;
+    codegen.optimize(options.opt_level);
+
+    // Generate assembly
+    let target_machine = &codegen.target_machine;
+    target_machine
+        .write_to_file(codegen.get_module(), FileType::Assembly, output_path)
+        .map_err(|e| format!("Failed to generate assembly: {}", e.to_string()))?;
+
+    Ok(())
+}
+
+#[cfg(not(feature = "llvm-backend"))]
+pub fn generate_assembly(
+    _source: &str,
+    _output_path: &Path,
+    _options: CompileOptions,
+) -> Result<(), String> {
+    Err("LLVM backend not available".to_string())
+}
+
+/// Link object file to create executable
+fn link_object(obj_path: &Path, exe_path: &Path) -> Result<(), String> {
+    use std::process::Command;
+
+    let status = Command::new("cc")
+        .arg("-o")
+        .arg(exe_path)
+        .arg(obj_path)
+        .arg("-lm") // Math library
+        .arg("-lpthread") // Threading support
+        .status()
+        .map_err(|e| format!("Failed to link: {}", e))?;
+
+    if !status.success() {
+        return Err("Linking failed".to_string());
+    }
+
+    Ok(())
+}
+
+/// Legacy interpreter execution (fallback)
+pub fn execute(ast: &crate::parser::ASTNode) {
+    // This is a placeholder - the real implementation would be in a separate interpreter module
+    // For now, just print the AST
+    println!("{:?}", ast);
 }

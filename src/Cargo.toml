@@ -13,9 +13,9 @@ name = "knull"
 path = "main.rs"
 
 [features]
-default = []
-llvm = ["inkwell"]
-lsp = ["tower-lsp"]
+default = ["llvm-backend", "lsp"]
+llvm-backend = ["dep:inkwell"]
+lsp = ["dep:tower-lsp"]
 
 [dependencies]
 clap = { version = "4.4", features = ["derive", "env"] }
@@ -32,6 +32,8 @@ tower-lsp = { version = "0.20", optional = true }
 inkwell = { version = "0.2", optional = true, features = ["llvm16-0"] }
 colored = "2.1"
 indicatif = "0.17"
+libc = "0.2"
+tempfile = "3.8"
 
 [dev-dependencies]
 tempfile = "3.8"

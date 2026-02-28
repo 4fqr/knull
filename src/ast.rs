@@ -1,8 +1,15 @@
 //! Knull Abstract Syntax Tree
-//! 
+//!
 //! Defines all AST node types for the Knull language.
 
-use crate::lexer::{Span, TokenKind};
+/// Source location information
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+    pub line: usize,
+    pub column: usize,
+}
 
 #[derive(Debug, Clone)]
 pub struct Program {
@@ -215,49 +222,171 @@ pub struct Block {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Expr(Expr),
-    Let { pattern: Pattern, ty: Option<Type>, init: Option<Expr> },
-    Var { pattern: Pattern, ty: Option<Type>, init: Option<Expr> },
-    While { label: Option<String>, condition: Expr, body: Box<Stmt> },
-    For { pattern: Pattern, iter: Expr, body: Box<Stmt> },
-    Return { value: Option<Expr> },
-    Break { label: Option<String>, value: Option<Expr> },
-    Continue { label: Option<String> },
-    Defer { expr: Box<Expr> },
-    Unsafe { block: Box<Stmt> },
-    Asm { syntax: Option<String>, code: String },
-    Syscall { args: Vec<Expr> },
-    Comptime { block: Box<Stmt> },
+    Let {
+        pattern: Pattern,
+        ty: Option<Type>,
+        init: Option<Expr>,
+    },
+    Var {
+        pattern: Pattern,
+        ty: Option<Type>,
+        init: Option<Expr>,
+    },
+    While {
+        label: Option<String>,
+        condition: Expr,
+        body: Box<Stmt>,
+    },
+    For {
+        pattern: Pattern,
+        iter: Expr,
+        body: Box<Stmt>,
+    },
+    Return {
+        value: Option<Expr>,
+    },
+    Break {
+        label: Option<String>,
+        value: Option<Expr>,
+    },
+    Continue {
+        label: Option<String>,
+    },
+    Defer {
+        expr: Box<Expr>,
+    },
+    Unsafe {
+        block: Box<Stmt>,
+    },
+    Asm {
+        syntax: Option<String>,
+        code: String,
+    },
+    Syscall {
+        args: Vec<Expr>,
+    },
+    Comptime {
+        block: Box<Stmt>,
+    },
 }
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Literal, Span),
     Ident(String, Span),
-    Unary { op: UnaryOp, expr: Box<Expr>, span: Span },
-    Binary { op: BinaryOp, left: Box<Expr>, right: Box<Expr>, span: Span },
-    Ternary { condition: Box<Expr>, then: Box<Expr>, else_: Box<Expr>, span: Span },
+    Unary {
+        op: UnaryOp,
+        expr: Box<Expr>,
+        span: Span,
+    },
+    Binary {
+        op: BinaryOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+        span: Span,
+    },
+    Ternary {
+        condition: Box<Expr>,
+        then: Box<Expr>,
+        else_: Box<Expr>,
+        span: Span,
+    },
     Block(Block),
-    If { condition: Box<Expr>, then: Box<Expr>, else: Option<Box<Expr>>, span: Span },
-    Match { scrutinee: Box<Expr>, arms: Vec<MatchArm>, span: Span },
-    Loop { label: Option<String>, body: Box<Expr>, span: Span },
-    While { label: Option<String>, condition: Box<Expr>, body: Box<Expr>, span: Span },
-    For { pattern: Pattern, iter: Box<Expr>, body: Box<Expr>, span: Span },
-    Call { func: Box<Expr>, args: Vec<Expr>, span: Span },
-    MethodCall { expr: Box<Expr>, method: String, args: Vec<Expr>, span: Span },
-    Field { expr: Box<Expr>, field: String, span: Span },
-    Index { expr: Box<Expr>, index: Box<Expr>, span: Span },
+    If {
+        condition: Box<Expr>,
+        then_branch: Box<Expr>,
+        else_branch: Option<Box<Expr>>,
+        span: Span,
+    },
+    Match {
+        scrutinee: Box<Expr>,
+        arms: Vec<MatchArm>,
+        span: Span,
+    },
+    Loop {
+        label: Option<String>,
+        body: Box<Expr>,
+        span: Span,
+    },
+    While {
+        label: Option<String>,
+        condition: Box<Expr>,
+        body: Box<Expr>,
+        span: Span,
+    },
+    For {
+        pattern: Pattern,
+        iter: Box<Expr>,
+        body: Box<Expr>,
+        span: Span,
+    },
+    Call {
+        func: Box<Expr>,
+        args: Vec<Expr>,
+        span: Span,
+    },
+    MethodCall {
+        expr: Box<Expr>,
+        method: String,
+        args: Vec<Expr>,
+        span: Span,
+    },
+    Field {
+        expr: Box<Expr>,
+        field: String,
+        span: Span,
+    },
+    Index {
+        expr: Box<Expr>,
+        index: Box<Expr>,
+        span: Span,
+    },
     Array(Vec<Expr>, Span),
-    Struct { name: String, fields: Vec<(String, Expr)>, span: Span },
+    Struct {
+        name: String,
+        fields: Vec<(String, Expr)>,
+        span: Span,
+    },
     Tuple(Vec<Expr>, Span),
     Paren(Box<Expr>),
-    Lambda { params: Vec<String>, return_type: Option<Type>, body: Box<Expr>, span: Span },
-    Cast { expr: Box<Expr>, ty: Type, span: Span },
-    Range { start: Box<Expr>, end: Box<Expr>, inclusive: bool, span: Span },
-    Unsafe { expr: Box<Expr>, span: Span },
-    Comptime { expr: Box<Expr>, span: Span },
-    Break { label: Option<String>, value: Option<Box<Expr>>, span: Span },
-    Continue { label: Option<String>, span: Span },
-    Return { value: Option<Box<Expr>>, span: Span },
+    Lambda {
+        params: Vec<String>,
+        return_type: Option<Type>,
+        body: Box<Expr>,
+        span: Span,
+    },
+    Cast {
+        expr: Box<Expr>,
+        ty: Type,
+        span: Span,
+    },
+    Range {
+        start: Box<Expr>,
+        end: Box<Expr>,
+        inclusive: bool,
+        span: Span,
+    },
+    Unsafe {
+        expr: Box<Expr>,
+        span: Span,
+    },
+    Comptime {
+        expr: Box<Expr>,
+        span: Span,
+    },
+    Break {
+        label: Option<String>,
+        value: Option<Box<Expr>>,
+        span: Span,
+    },
+    Continue {
+        label: Option<String>,
+        span: Span,
+    },
+    Return {
+        value: Option<Box<Expr>>,
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -300,8 +429,23 @@ pub enum UnaryOp {
 
 #[derive(Debug, Clone, Copy)]
 pub enum BinaryOp {
-    Add, Sub, Mul, Div, Rem,
-    Eq, Ne, Lt, Gt, Le, Ge,
-    And, Or, BitAnd, BitOr, BitXor,
-    Shl, Shr, Pipeline,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Rem,
+    Eq,
+    Ne,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+    And,
+    Or,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
+    Pipeline,
 }

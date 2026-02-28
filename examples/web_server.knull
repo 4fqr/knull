@@ -1,5 +1,5 @@
 // =============================================================================
-// HIGH-PERFORMANCE WEB SERVER - THE EXPERT
+// HIGH-PERFORMANCE WEB SERVER
 // =============================================================================
 // A multi-threaded async TCP server handling 10,000+ concurrent connections
 // using green threads (actors) and non-blocking I/O.

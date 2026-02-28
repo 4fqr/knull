@@ -1,21 +1,23 @@
 //! Knull Programming Language - CLI Entry Point
-//! The most fabulous CLI tool ever created
+//! The God Programming Language
 
+mod ast;
 mod cli;
 mod compiler;
 mod lexer;
+mod ownership;
 mod parser;
 mod pkg;
+mod type_system;
 
 use clap::{Parser, Subcommand};
-use colored::*;
+use colored::Colorize;
 use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "knull")]
 #[command(version = "1.0.0")]
-#[command(about = "The Knull Programming Language - Fast. Powerful. Fabulous.", long_about = None)]
-#[command(arg_required_else_help = true)]
+#[command(about = "The Knull Programming Language", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -26,7 +28,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run a Knull file (like Python!)
+    /// Run a Knull file
     #[command(alias = "r")]
     Run {
         /// The .knull file to run
@@ -93,52 +95,40 @@ enum Commands {
     Help,
 }
 
-fn print_banner() {
-    println!("{}", r#"
- _  ___      _       _ 
-| |/ / |    | |     | |
-| ' /| | ___| |_   _| |
-| . \| |/ _ \ | | | | |
-| |\ \ |  __/ | |_| |_|
-|_| \_\_|\___|_|\__, (_)
-                 __/ |  
-                |___/   
-"#.bright_purple());
-}
-
 fn main() {
     // Enable colored output
     colored::control::set_override(true);
-    
+
     let cli = Cli::parse();
 
     let result = match cli.command {
         Some(Commands::Run { file }) => cli::run_file(&file, cli.verbose),
-        Some(Commands::Build { file, output, release }) => {
+        Some(Commands::Build {
+            file,
+            output,
+            release,
+        }) => {
             if release {
-                println!("{} Building in release mode...", "🚀".bright_yellow());
+                println!("{}", "Building in release mode...".bright_yellow());
+                cli::build_release(&file, output.as_deref(), cli.verbose)
+            } else {
+                cli::build_file(&file, output.as_deref(), cli.verbose)
             }
-            cli::build_file(&file, output.as_deref(), cli.verbose)
         }
         Some(Commands::Asm { file, output }) => cli::generate_asm(&file, output.as_deref()),
         Some(Commands::Check { file }) => cli::check_file(&file),
         Some(Commands::Fmt { file }) => cli::format_file(&file),
         Some(Commands::New { name }) => cli::new_project(&name),
-        Some(Commands::Add { package, version }) => cli::add_dependency(&package, version.as_deref()),
-        Some(Commands::Test) => cli::run_tests(),
-        Some(Commands::Repl) => {
-            print_banner();
-            cli::start_repl()
+        Some(Commands::Add { package, version }) => {
+            cli::add_dependency(&package, version.as_deref())
         }
+        Some(Commands::Test) => cli::run_tests(),
+        Some(Commands::Repl) => cli::start_repl(),
         Some(Commands::Version) => {
             cli::show_version();
             Ok(())
         }
-        Some(Commands::Help) => {
-            cli::show_help();
-            Ok(())
-        }
-        None => {
+        Some(Commands::Help) | None => {
             cli::show_help();
             Ok(())
         }
@@ -147,7 +137,7 @@ fn main() {
     match result {
         Ok(_) => {}
         Err(e) => {
-            eprintln!("{} {}", "✗ Error:".bright_red().bold(), e);
+            eprintln!("{} {}", "Error:".bright_red().bold(), e);
             std::process::exit(1);
         }
     }
