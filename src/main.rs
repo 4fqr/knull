@@ -4,6 +4,7 @@
 mod ast;
 mod cli;
 mod compiler;
+mod interpreter;
 mod lexer;
 mod ownership;
 mod parser;

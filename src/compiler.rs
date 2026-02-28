@@ -207,9 +207,7 @@ fn link_object(obj_path: &Path, exe_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Legacy interpreter execution (fallback)
+/// Execute an AST using the interpreter
 pub fn execute(ast: &crate::parser::ASTNode) {
-    // This is a placeholder - the real implementation would be in a separate interpreter module
-    // For now, just print the AST
-    println!("{:?}", ast);
+    crate::interpreter::execute(ast);
 }

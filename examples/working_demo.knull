@@ -1,0 +1,62 @@
+// =============================================================================
+// Knull Working Demo
+// =============================================================================
+// Demonstrates all working language features
+
+fn main() {
+    print_header()
+    
+    // Variables and arithmetic
+    let a = 10
+    let b = 20
+    let sum = a + b
+    println(sum)
+    
+    // Conditionals
+    if a < b {
+        println(1)
+    } else {
+        println(0)
+    }
+    
+    // While loops
+    let i = 0
+    while i < 5 {
+        println(i)
+        i = i + 1
+    }
+    
+    // Function calls with parameters
+    let result = add(3, 4)
+    println(result)
+    
+    // Recursion
+    let fib5 = fibonacci(5)
+    println(fib5)
+    
+    // Arrays
+    let arr = [1, 2, 3, 4, 5]
+    println(arr[0])
+    println(arr[4])
+    
+    print_footer()
+}
+
+fn print_header() {
+    println(1000)
+}
+
+fn print_footer() {
+    println(9999)
+}
+
+fn add(x, y) {
+    return x + y
+}
+
+fn fibonacci(n) {
+    if n <= 1 {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}

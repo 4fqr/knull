@@ -7,6 +7,7 @@ pub enum ASTNode {
     Program(Vec<ASTNode>),
     Function {
         name: String,
+        params: Vec<String>,
         body: Box<ASTNode>,
     },
     Let {
@@ -112,12 +113,29 @@ impl Parser {
         self.expect(TokenKind::Fn)?;
         let name = self.parse_identifier()?;
 
-        // Skip params
+        // Parse params
+        let mut params = Vec::new();
         if self.current().kind == TokenKind::LParen {
             self.advance();
             while self.current().kind != TokenKind::RParen && self.current().kind != TokenKind::Eof
             {
-                self.advance();
+                // Parse parameter name
+                let param_name = self.parse_identifier()?;
+                params.push(param_name);
+
+                // Check for type annotation
+                if self.current().kind == TokenKind::Colon {
+                    self.advance(); // skip :
+                                    // Skip type name
+                    if self.current().kind == TokenKind::Identifier {
+                        self.advance();
+                    }
+                }
+
+                // Check for comma
+                if self.current().kind == TokenKind::Comma {
+                    self.advance();
+                }
             }
             if self.current().kind == TokenKind::RParen {
                 self.advance();
@@ -130,12 +148,17 @@ impl Parser {
             if self.current().kind == TokenKind::Gt {
                 self.advance();
             }
+            // Skip return type name
+            if self.current().kind == TokenKind::Identifier {
+                self.advance();
+            }
         }
 
         // Parse body
         let body = self.parse_block()?;
         Ok(ASTNode::Function {
             name,
+            params,
             body: Box::new(body),
         })
     }

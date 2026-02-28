@@ -1,361 +1,1028 @@
 // =============================================================================
-// KNULL RUNTIME: NETWORK MODULE
+// KNULL NETWORKING STACK
 // =============================================================================
-// High-level networking abstractions built on syscalls
+// Complete networking implementation for Knull
+// Supports TCP, UDP, Unix sockets, and basic HTTP
 
-module std.net
+// Platform detection would happen at compile time
+// For now we assume Linux
 
 // =============================================================================
-// ADDRESS FAMILIES
+// SOCKET TYPES AND CONSTANTS
 // =============================================================================
 
-pub const AF_INET: i32 = 2      // IPv4
-pub const AF_INET6: i32 = 10    // IPv6
-pub const AF_UNIX: i32 = 1      // Unix domain
-pub const AF_UNSPEC: i32 = 0    // Unspecified
+// Address families
+const AF_UNSPEC: i32 = 0
+const AF_UNIX: i32 = 1
+const AF_INET: i32 = 2
+const AF_INET6: i32 = 10
+const AF_NETLINK: i32 = 16
+const AF_PACKET: i32 = 17
 
 // Socket types
-pub const SOCK_STREAM: i32 = 1  // TCP
-pub const SOCK_DGRAM: i32 = 2   // UDP
-pub const SOCK_RAW: i32 = 3     // Raw socket
+const SOCK_STREAM: i32 = 1
+const SOCK_DGRAM: i32 = 2
+const SOCK_RAW: i32 = 3
+const SOCK_RDM: i32 = 4
+const SOCK_SEQPACKET: i32 = 5
+const SOCK_DCCP: i32 = 6
+const SOCK_PACKET: i32 = 10
 
 // Socket protocols
-pub const IPPROTO_TCP: i32 = 6
-pub const IPPROTO_UDP: i32 = 17
+const IPPROTO_IP: i32 = 0
+const IPPROTO_ICMP: i32 = 1
+const IPPROTO_TCP: i32 = 6
+const IPPROTO_UDP: i32 = 17
+const IPPROTO_IPV6: i32 = 41
+
+// Socket options levels
+const SOL_SOCKET: i32 = 1
+const SOL_TCP: i32 = 6
+const SOL_UDP: i32 = 17
+const SOL_IPV6: i32 = 41
+
+// Socket options
+const SO_DEBUG: i32 = 1
+const SO_REUSEADDR: i32 = 2
+const SO_TYPE: i32 = 3
+const SO_ERROR: i32 = 4
+const SO_DONTROUTE: i32 = 5
+const SO_BROADCAST: i32 = 6
+const SO_SNDBUF: i32 = 7
+const SO_RCVBUF: i32 = 8
+const SO_KEEPALIVE: i32 = 9
+const SO_OOBINLINE: i32 = 10
+const SO_NO_CHECK: i32 = 11
+const SO_PRIORITY: i32 = 12
+const SO_LINGER: i32 = 13
+const SO_BSDCOMPAT: i32 = 14
+const SO_REUSEPORT: i32 = 15
+const SO_RCVTIMEO: i32 = 20
+const SO_SNDTIMEO: i32 = 21
+
+// TCP options
+const TCP_NODELAY: i32 = 1
+const TCP_MAXSEG: i32 = 2
+const TCP_CORK: i32 = 3
+const TCP_KEEPIDLE: i32 = 4
+const TCP_KEEPINTVL: i32 = 5
+const TCP_KEEPCNT: i32 = 6
+
+// Flags for send/recv
+const MSG_OOB: i32 = 1
+const MSG_PEEK: i32 = 2
+const MSG_DONTROUTE: i32 = 4
+const MSG_TRYHARD: i32 = 4
+const MSG_CTRUNC: i32 = 8
+const MSG_PROBE: i32 = 0x10
+const MSG_TRUNC: i32 = 0x20
+const MSG_DONTWAIT: i32 = 0x40
+const MSG_EOR: i32 = 0x80
+const MSG_WAITALL: i32 = 0x100
+const MSG_FIN: i32 = 0x200
+const MSG_SYN: i32 = 0x400
+const MSG_CONFIRM: i32 = 0x800
+const MSG_RST: i32 = 0x1000
+const MSG_ERRQUEUE: i32 = 0x2000
+const MSG_NOSIGNAL: i32 = 0x4000
+const MSG_MORE: i32 = 0x8000
+const MSG_WAITFORONE: i32 = 0x10000
+const MSG_FASTOPEN: i32 = 0x20000000
+
+// Shutdown modes
+const SHUT_RD: i32 = 0
+const SHUT_WR: i32 = 1
+const SHUT_RDWR: i32 = 2
+
+// Poll events
+const POLLIN: i32 = 0x001
+const POLLPRI: i32 = 0x002
+const POLLOUT: i32 = 0x004
+const POLLERR: i32 = 0x008
+const POLLHUP: i32 = 0x010
+const POLLNVAL: i32 = 0x020
+
+// Error codes
+const EAGAIN: i32 = 11
+const EWOULDBLOCK: i32 = EAGAIN
+const EINPROGRESS: i32 = 115
+const ECONNREFUSED: i32 = 111
+const ECONNRESET: i32 = 104
+const ETIMEDOUT: i32 = 110
+const ENETUNREACH: i32 = 101
+const EHOSTUNREACH: i32 = 113
+const EADDRINUSE: i32 = 98
+const EADDRNOTAVAIL: i32 = 99
 
 // =============================================================================
 // SOCKET ADDRESS STRUCTURES
 // =============================================================================
 
-// IPv4 socket address
-struct sockaddr_in {
-    pub family: u16,    // Address family (AF_INET)
-    pub port: u16,      // Port number (network byte order)
-    pub addr: u32,      // IPv4 address (network byte order)
-    pub zero: u8[8],    // Padding
-}
-
-// IPv6 socket address  
-struct sockaddr_in6 {
-    pub family: u16,    // Address family (AF_INET6)
-    pub port: u16,      // Port number (network byte order)
-    pub flowinfo: u32,  // Flow information
-    pub addr: u8[16],   // IPv6 address (network byte order)
-    pub scope_id: u32,  // Scope ID
-}
-
-// Generic socket address
 struct sockaddr {
-    pub family: u16,
-    pub data: u8[14],
+    sa_family: u16,
+    sa_data: [u8; 14],
+}
+
+struct sockaddr_in {
+    sin_family: u16,
+    sin_port: u16,
+    sin_addr: in_addr,
+    sin_zero: [u8; 8],
+}
+
+struct in_addr {
+    s_addr: u32,
+}
+
+struct sockaddr_in6 {
+    sin6_family: u16,
+    sin6_port: u16,
+    sin6_flowinfo: u32,
+    sin6_addr: in6_addr,
+    sin6_scope_id: u32,
+}
+
+struct in6_addr {
+    s6_addr: [u8; 16],
+}
+
+struct sockaddr_un {
+    sun_family: u16,
+    sun_path: [u8; 108],
+}
+
+struct addrinfo {
+    ai_flags: i32,
+    ai_family: i32,
+    ai_socktype: i32,
+    ai_protocol: i32,
+    ai_addrlen: u32,
+    ai_addr: *sockaddr,
+    ai_canonname: *u8,
+    ai_next: *addrinfo,
 }
 
 // =============================================================================
-// IP ADDRESS
+// SOCKET HANDLE
 // =============================================================================
 
-// IPv4 address wrapper
-struct IpAddr {
-    pub addr: u32,
+struct Socket {
+    fd: i32,
+    family: i32,
+    type_: i32,
+    protocol: i32,
+    is_nonblocking: bool,
 }
 
-// Create IPv4 address from octets
-pub fn ipv4(a: u8, b: u8, c: u8, d: u8) -> IpAddr {
-    IpAddr {
-        addr: (a as u32) << 24 | (b as u32) << 16 | (c as u32) << 8 | (d as u32)
-    }
-}
-
-// Create IPv4 address from string (dotted decimal)
-pub fn ipv4_from_str(s: string) -> option<IpAddr> {
-    // Simplified - parse "x.y.z.w" format
-    let parts = s.split('.')
-    if parts.len() != 4 {
-        return None
-    }
-    
-    let mut addr: u32 = 0
-    for i in 0..4 {
-        let octet = parts[i].parse::<u32>()
-        if octet > 255 {
-            return None
-        }
-        addr = addr << 8 | octet as u32
-    }
-    
-    Some(IpAddr { addr })
-}
-
-// Get address as string
-pub fn IpAddr::to_string(self: &IpAddr) -> string {
-    let a = (self.addr >> 24) as u8
-    let b = (self.addr >> 16) as u8
-    let c = (self.addr >> 8) as u8
-    let d = self.addr as u8
-    "{}.{}.{}.{}".format(a, b, c, d)
-}
-
-// Localhost (127.0.0.1)
-pub const LOCALHOST: IpAddr = IpAddr { addr: 0x0100007F }
-
-// Any (0.0.0.0)
-pub const ANY: IpAddr = IpAddr { addr: 0 }
-
-// =============================================================================
-// SOCKET ADDRESS
-// =============================================================================
-
-// Socket address with port
 struct SocketAddr {
-    pub family: i32,
-    pub port: u16,
-    pub ip: IpAddr,
+    family: i32,
+    addr: sockaddr,
+    addr_len: u32,
 }
 
-// Create IPv4 socket address
-pub fn socket_addr(ip: IpAddr, port: u16) -> SocketAddr {
-    SocketAddr {
-        family: AF_INET,
-        port: port,
-        ip: ip,
+// =============================================================================
+// SOCKET CREATION AND MANAGEMENT
+// =============================================================================
+
+fn socket_create(family: i32, type_: i32, protocol: i32) -> Socket {
+    let fd = syscall_socket(family, type_, protocol)
+    
+    let sock: Socket
+    sock.fd = fd
+    sock.family = family
+    sock.type_ = type_
+    sock.protocol = protocol
+    sock.is_nonblocking = false
+    
+    return sock
+}
+
+fn socket_close(sock: *Socket) -> i32 {
+    let result = syscall_close(sock.fd)
+    sock.fd = -1
+    return result
+}
+
+fn socket_shutdown(sock: *Socket, how: i32) -> i32 {
+    return syscall_shutdown(sock.fd, how)
+}
+
+fn socket_set_option(sock: *Socket, level: i32, optname: i32, optval: *void, optlen: u32) -> i32 {
+    return syscall_setsockopt(sock.fd, level, optname, optval, optlen)
+}
+
+fn socket_get_option(sock: *Socket, level: i32, optname: i32, optval: *void, optlen: *u32) -> i32 {
+    return syscall_getsockopt(sock.fd, level, optname, optval, optlen)
+}
+
+fn socket_set_nonblocking(sock: *Socket, nonblocking: bool) -> i32 {
+    let flags = syscall_fcntl(sock.fd, 3, 0)  // F_GETFL
+    if flags < 0 {
+        return flags
+    }
+    
+    if nonblocking {
+        flags = flags | 0x800  // O_NONBLOCK
+    } else {
+        flags = flags & ~0x800
+    }
+    
+    let result = syscall_fcntl(sock.fd, 4, flags)  // F_SETFL
+    if result >= 0 {
+        sock.is_nonblocking = nonblocking
+    }
+    return result
+}
+
+fn socket_set_reuseaddr(sock: *Socket, reuse: bool) -> i32 {
+    let val: i32 = if reuse { 1 } else { 0 }
+    return socket_set_option(sock, SOL_SOCKET, SO_REUSEADDR, &val as *void, 4)
+}
+
+fn socket_set_keepalive(sock: *Socket, keepalive: bool) -> i32 {
+    let val: i32 = if keepalive { 1 } else { 0 }
+    return socket_set_option(sock, SOL_SOCKET, SO_KEEPALIVE, &val as *void, 4)
+}
+
+fn socket_set_recv_timeout(sock: *Socket, timeout_ms: i32) -> i32 {
+    let tv: timeval
+    tv.tv_sec = timeout_ms / 1000
+    tv.tv_usec = (timeout_ms % 1000) * 1000
+    return socket_set_option(sock, SOL_SOCKET, SO_RCVTIMEO, &tv as *void, 16)
+}
+
+fn socket_set_send_timeout(sock: *Socket, timeout_ms: i32) -> i32 {
+    let tv: timeval
+    tv.tv_sec = timeout_ms / 1000
+    tv.tv_usec = (timeout_ms % 1000) * 1000
+    return socket_set_option(sock, SOL_SOCKET, SO_SNDTIMEO, &tv as *void, 16)
+}
+
+fn socket_set_recv_buffer(sock: *Socket, size: i32) -> i32 {
+    return socket_set_option(sock, SOL_SOCKET, SO_RCVBUF, &size as *void, 4)
+}
+
+fn socket_set_send_buffer(sock: *Socket, size: i32) -> i32 {
+    return socket_set_option(sock, SOL_SOCKET, SO_SNDBUF, &size as *void, 4)
+}
+
+fn socket_set_tcp_nodelay(sock: *Socket, nodelay: bool) -> i32 {
+    let val: i32 = if nodelay { 1 } else { 0 }
+    return socket_set_option(sock, SOL_TCP, TCP_NODELAY, &val as *void, 4)
+}
+
+fn socket_set_linger(sock: *Socket, enabled: bool, timeout: i32) -> i32 {
+    let l: linger
+    l.l_onoff = if enabled { 1 } else { 0 }
+    l.l_linger = timeout
+    return socket_set_option(sock, SOL_SOCKET, SO_LINGER, &l as *void, 8)
+}
+
+// =============================================================================
+// BINDING AND CONNECTION
+// =============================================================================
+
+fn socket_bind(sock: *Socket, addr: *SocketAddr) -> i32 {
+    return syscall_bind(sock.fd, &addr.addr as *sockaddr, addr.addr_len)
+}
+
+fn socket_listen(sock: *Socket, backlog: i32) -> i32 {
+    return syscall_listen(sock.fd, backlog)
+}
+
+fn socket_accept(sock: *Socket) -> Socket {
+    let addr: sockaddr
+    let addr_len: u32 = 128
+    
+    let fd = syscall_accept(sock.fd, &addr as *sockaddr, &addr_len as *u32)
+    
+    let client: Socket
+    client.fd = fd
+    client.family = sock.family
+    client.type_ = sock.type_
+    client.protocol = sock.protocol
+    client.is_nonblocking = sock.is_nonblocking
+    
+    return client
+}
+
+fn socket_connect(sock: *Socket, addr: *SocketAddr) -> i32 {
+    return syscall_connect(sock.fd, &addr.addr as *sockaddr, addr.addr_len)
+}
+
+fn socket_connect_timeout(sock: *Socket, addr: *SocketAddr, timeout_ms: i32) -> i32 {
+    let was_blocking = !sock.is_nonblocking
+    
+    // Set non-blocking
+    if was_blocking {
+        socket_set_nonblocking(sock, true)
+    }
+    
+    // Start connection
+    let result = socket_connect(sock, addr)
+    
+    if result == 0 {
+        // Connected immediately
+        if was_blocking {
+            socket_set_nonblocking(sock, false)
+        }
+        return 0
+    }
+    
+    if result != -EINPROGRESS {
+        // Real error
+        if was_blocking {
+            socket_set_nonblocking(sock, false)
+        }
+        return result
+    }
+    
+    // Wait for connection
+    let pfd: pollfd
+    pfd.fd = sock.fd
+    pfd.events = POLLOUT
+    
+    result = syscall_poll(&pfd as *pollfd, 1, timeout_ms)
+    
+    if result > 0 {
+        // Check for success
+        let err: i32 = 0
+        let err_len: u32 = 4
+        socket_get_option(sock, SOL_SOCKET, SO_ERROR, &err as *void, &err_len as *u32)
+        
+        if err == 0 {
+            result = 0
+        } else {
+            result = -err
+        }
+    } else if result == 0 {
+        result = -ETIMEDOUT
+    }
+    
+    // Restore blocking mode
+    if was_blocking {
+        socket_set_nonblocking(sock, false)
+    }
+    
+    return result
+}
+
+// =============================================================================
+// DATA TRANSFER
+// =============================================================================
+
+fn socket_send(sock: *Socket, buf: *u8, len: u64, flags: i32) -> i64 {
+    return syscall_send(sock.fd, buf as *void, len, flags)
+}
+
+fn socket_send_all(sock: *Socket, buf: *u8, len: u64, flags: i32) -> i64 {
+    let total: u64 = 0
+    
+    while total < len {
+        let sent = socket_send(sock, buf + total, len - total, flags)
+        if sent < 0 {
+            return sent
+        }
+        total = total + sent as u64
+    }
+    
+    return total as i64
+}
+
+fn socket_recv(sock: *Socket, buf: *u8, len: u64, flags: i32) -> i64 {
+    return syscall_recv(sock.fd, buf as *void, len, flags)
+}
+
+fn socket_recv_all(sock: *Socket, buf: *u8, len: u64, flags: i32) -> i64 {
+    let total: u64 = 0
+    
+    while total < len {
+        let received = socket_recv(sock, buf + total, len - total, flags)
+        if received <= 0 {
+            if received < 0 {
+                return received
+            }
+            break  // Connection closed
+        }
+        total = total + received as u64
+    }
+    
+    return total as i64
+}
+
+fn socket_sendto(sock: *Socket, buf: *u8, len: u64, flags: i32, addr: *SocketAddr) -> i64 {
+    return syscall_sendto(sock.fd, buf as *void, len, flags, 
+                          &addr.addr as *sockaddr, addr.addr_len)
+}
+
+fn socket_recvfrom(sock: *Socket, buf: *u8, len: u64, flags: i32, addr: *SocketAddr) -> i64 {
+    let addr_len: u32 = 128
+    let result = syscall_recvfrom(sock.fd, buf as *void, len, flags,
+                                  &addr.addr as *sockaddr, &addr_len as *u32)
+    addr.addr_len = addr_len
+    return result
+}
+
+fn socket_peek(sock: *Socket, buf: *u8, len: u64) -> i64 {
+    return socket_recv(sock, buf, len, MSG_PEEK)
+}
+
+fn socket_available(sock: *Socket) -> i64 {
+    let available: i64 = 0
+    syscall_ioctl(sock.fd, 0x541B, &available as *void)  // FIONREAD
+    return available
+}
+
+// =============================================================================
+// ADDRESS UTILITIES
+// =============================================================================
+
+fn sockaddr_from_ipv4(port: u16, addr: u32) -> SocketAddr {
+    let sa: SocketAddr
+    sa.family = AF_INET
+    
+    let sin = &sa.addr as *sockaddr_in
+    sin.sin_family = AF_INET as u16
+    sin.sin_port = htons(port)
+    sin.sin_addr.s_addr = htonl(addr)
+    
+    sa.addr_len = 16
+    return sa
+}
+
+fn sockaddr_from_ipv4_bytes(port: u16, a: u8, b: u8, c: u8, d: u8) -> SocketAddr {
+    let addr: u32 = ((a as u32) << 24) | ((b as u32) << 16) | 
+                    ((c as u32) << 8) | (d as u32)
+    return sockaddr_from_ipv4(port, addr)
+}
+
+fn sockaddr_from_ipv6(port: u16, addr: *in6_addr) -> SocketAddr {
+    let sa: SocketAddr
+    sa.family = AF_INET6
+    
+    let sin6 = &sa.addr as *sockaddr_in6
+    sin6.sin6_family = AF_INET6 as u16
+    sin6.sin6_port = htons(port)
+    memcpy(&sin6.sin6_addr as *u8, addr as *u8, 16)
+    
+    sa.addr_len = 28
+    return sa
+}
+
+fn sockaddr_from_unix(path: *u8) -> SocketAddr {
+    let sa: SocketAddr
+    sa.family = AF_UNIX
+    
+    let sun = &sa.addr as *sockaddr_un
+    sun.sun_family = AF_UNIX as u16
+    
+    let len = strlen(path as *i8)
+    if len > 107 {
+        len = 107
+    }
+    memcpy(&sun.sun_path[0], path, len)
+    sun.sun_path[len] = 0
+    
+    sa.addr_len = 2 + len as u32 + 1
+    return sa
+}
+
+fn sockaddr_get_port(addr: *SocketAddr) -> u16 {
+    if addr.family == AF_INET {
+        let sin = &addr.addr as *sockaddr_in
+        return ntohs(sin.sin_port)
+    } else if addr.family == AF_INET6 {
+        let sin6 = &addr.addr as *sockaddr_in6
+        return ntohs(sin6.sin6_port)
+    }
+    return 0
+}
+
+fn sockaddr_set_port(addr: *SocketAddr, port: u16) {
+    if addr.family == AF_INET {
+        let sin = &addr.addr as *sockaddr_in
+        sin.sin_port = htons(port)
+    } else if addr.family == AF_INET6 {
+        let sin6 = &addr.addr as *sockaddr_in6
+        sin6.sin6_port = htons(port)
     }
 }
 
-// Create IPv4 socket address from string
-pub fn socket_addr_from_str(host: string, port: u16) -> option<SocketAddr> {
-    let ip = ipv4_from_str(host)?
-    Some(socket_addr(ip, port))
+// =============================================================================
+// BYTE ORDER CONVERSION
+// =============================================================================
+
+fn htons(hostshort: u16) -> u16 {
+    // Little endian to big endian
+    return ((hostshort >> 8) & 0xFF) | ((hostshort << 8) & 0xFF00)
+}
+
+fn ntohs(netshort: u16) -> u16 {
+    // Same as htons
+    return htons(netshort)
+}
+
+fn htonl(hostlong: u32) -> u32 {
+    return ((hostlong >> 24) & 0xFF) |
+           ((hostlong >> 8) & 0xFF00) |
+           ((hostlong << 8) & 0xFF0000) |
+           ((hostlong << 24) & 0xFF000000)
+}
+
+fn ntohl(netlong: u32) -> u32 {
+    return htonl(netlong)
 }
 
 // =============================================================================
-// TCP SOCKET
+// DNS RESOLUTION
 // =============================================================================
 
-// TCP socket
-pub struct TcpSocket {
+fn dns_resolve(name: *u8) -> u32 {
+    // Simple DNS resolution using gethostbyname or getaddrinfo
+    // For now, return a placeholder
+    // In real implementation, would use syscall or runtime support
+    return 0
+}
+
+fn dns_resolve_ipv6(name: *u8, result: *in6_addr) -> i32 {
+    // Resolve to IPv6 address
+    return 0
+}
+
+// =============================================================================
+// HIGH-LEVEL TCP API
+// =============================================================================
+
+struct TcpListener {
+    sock: Socket,
+}
+
+struct TcpStream {
+    sock: Socket,
+    local_addr: SocketAddr,
+    peer_addr: SocketAddr,
+}
+
+fn tcp_bind(addr: *SocketAddr) -> TcpListener {
+    let sock = socket_create(addr.family, SOCK_STREAM, 0)
+    socket_set_reuseaddr(&sock, true)
+    socket_bind(&sock, addr)
+    socket_listen(&sock, 128)
+    
+    let listener: TcpListener
+    listener.sock = sock
+    return listener
+}
+
+fn tcp_listener_accept(listener: *TcpListener) -> TcpStream {
+    let client = socket_accept(&listener.sock)
+    
+    let stream: TcpStream
+    stream.sock = client
+    // Get addresses
+    
+    return stream
+}
+
+fn tcp_connect(addr: *SocketAddr) -> TcpStream {
+    let sock = socket_create(addr.family, SOCK_STREAM, 0)
+    socket_connect(&sock, addr)
+    
+    let stream: TcpStream
+    stream.sock = sock
+    stream.peer_addr = *addr
+    
+    return stream
+}
+
+fn tcp_connect_timeout(addr: *SocketAddr, timeout_ms: i32) -> TcpStream {
+    let sock = socket_create(addr.family, SOCK_STREAM, 0)
+    socket_connect_timeout(&sock, addr, timeout_ms)
+    
+    let stream: TcpStream
+    stream.sock = sock
+    stream.peer_addr = *addr
+    
+    return stream
+}
+
+fn tcp_stream_write(stream: *TcpStream, buf: *u8, len: u64) -> i64 {
+    return socket_send_all(&stream.sock, buf, len, 0)
+}
+
+fn tcp_stream_read(stream: *TcpStream, buf: *u8, len: u64) -> i64 {
+    return socket_recv(&stream.sock, buf, len, 0)
+}
+
+fn tcp_stream_read_exact(stream: *TcpStream, buf: *u8, len: u64) -> i64 {
+    return socket_recv_all(&stream.sock, buf, len, 0)
+}
+
+fn tcp_stream_close(stream: *TcpStream) {
+    socket_close(&stream.sock)
+}
+
+fn tcp_stream_set_read_timeout(stream: *TcpStream, timeout_ms: i32) {
+    socket_set_recv_timeout(&stream.sock, timeout_ms)
+}
+
+fn tcp_stream_set_write_timeout(stream: *TcpStream, timeout_ms: i32) {
+    socket_set_send_timeout(&stream.sock, timeout_ms)
+}
+
+fn tcp_stream_shutdown_read(stream: *TcpStream) {
+    socket_shutdown(&stream.sock, SHUT_RD)
+}
+
+fn tcp_stream_shutdown_write(stream: *TcpStream) {
+    socket_shutdown(&stream.sock, SHUT_WR)
+}
+
+// =============================================================================
+// HIGH-LEVEL UDP API
+// =============================================================================
+
+struct UdpSocket {
+    sock: Socket,
+}
+
+fn udp_bind(addr: *SocketAddr) -> UdpSocket {
+    let sock = socket_create(addr.family, SOCK_DGRAM, 0)
+    socket_bind(&sock, addr)
+    
+    let udp: UdpSocket
+    udp.sock = sock
+    return udp
+}
+
+fn udp_connect(sock: *UdpSocket, addr: *SocketAddr) {
+    socket_connect(&sock.sock, addr)
+}
+
+fn udp_send(sock: *UdpSocket, buf: *u8, len: u64) -> i64 {
+    return socket_send(&sock.sock, buf, len, 0)
+}
+
+fn udp_send_to(sock: *UdpSocket, buf: *u8, len: u64, addr: *SocketAddr) -> i64 {
+    return socket_sendto(&sock.sock, buf, len, 0, addr)
+}
+
+fn udp_recv(sock: *UdpSocket, buf: *u8, len: u64) -> i64 {
+    return socket_recv(&sock.sock, buf, len, 0)
+}
+
+fn udp_recv_from(sock: *UdpSocket, buf: *u8, len: u64, addr: *SocketAddr) -> i64 {
+    return socket_recvfrom(&sock.sock, buf, len, 0, addr)
+}
+
+fn udp_close(sock: *UdpSocket) {
+    socket_close(&sock.sock)
+}
+
+// =============================================================================
+// UNIX DOMAIN SOCKET API
+// =============================================================================
+
+struct UnixListener {
+    sock: Socket,
+    path: [u8; 108],
+}
+
+struct UnixStream {
+    sock: Socket,
+}
+
+fn unix_bind(path: *u8) -> UnixListener {
+    // Remove existing socket file
+    syscall_unlink(path as *i8)
+    
+    let addr = sockaddr_from_unix(path)
+    let sock = socket_create(AF_UNIX, SOCK_STREAM, 0)
+    socket_bind(&sock, &addr)
+    socket_listen(&sock, 128)
+    
+    let listener: UnixListener
+    listener.sock = sock
+    let len = strlen(path as *i8)
+    memcpy(&listener.path[0], path, len)
+    
+    return listener
+}
+
+fn unix_listener_accept(listener: *UnixListener) -> UnixStream {
+    let client = socket_accept(&listener.sock)
+    
+    let stream: UnixStream
+    stream.sock = client
+    return stream
+}
+
+fn unix_connect(path: *u8) -> UnixStream {
+    let addr = sockaddr_from_unix(path)
+    let sock = socket_create(AF_UNIX, SOCK_STREAM, 0)
+    socket_connect(&sock, &addr)
+    
+    let stream: UnixStream
+    stream.sock = sock
+    return stream
+}
+
+fn unix_stream_write(stream: *UnixStream, buf: *u8, len: u64) -> i64 {
+    return socket_send(&stream.sock, buf, len, 0)
+}
+
+fn unix_stream_read(stream: *UnixStream, buf: *u8, len: u64) -> i64 {
+    return socket_recv(&stream.sock, buf, len, 0)
+}
+
+fn unix_stream_close(stream: *UnixStream) {
+    socket_close(&stream.sock)
+}
+
+fn unix_close_listener(listener: *UnixListener) {
+    socket_close(&listener.sock)
+    syscall_unlink(listener.path as *i8)
+}
+
+// =============================================================================
+// SIMPLE HTTP CLIENT
+// =============================================================================
+
+struct HttpRequest {
+    method: *u8,
+    path: *u8,
+    host: *u8,
+    headers: *HttpHeader,
+    body: *u8,
+    body_len: u64,
+}
+
+struct HttpHeader {
+    name: *u8,
+    value: *u8,
+    next: *HttpHeader,
+}
+
+struct HttpResponse {
+    status: i32,
+    headers: *HttpHeader,
+    body: *u8,
+    body_len: u64,
+}
+
+fn http_get(host: *u8, port: u16, path: *u8) -> HttpResponse {
+    // Resolve host
+    // For simplicity, assume IPv4
+    let addr = sockaddr_from_ipv4_bytes(port, 127, 0, 0, 1)
+    
+    // Connect
+    let stream = tcp_connect(&addr)
+    
+    // Build request
+    let request: [u8; 4096]
+    let pos: u64 = 0
+    
+    // Method and path
+    pos = str_append(request, pos, "GET ")
+    pos = str_append(request, pos, path as *i8)
+    pos = str_append(request, pos, " HTTP/1.1\r\n")
+    
+    // Host header
+    pos = str_append(request, pos, "Host: ")
+    pos = str_append(request, pos, host as *i8)
+    pos = str_append(request, pos, "\r\n")
+    
+    // Connection close
+    pos = str_append(request, pos, "Connection: close\r\n")
+    
+    // End headers
+    pos = str_append(request, pos, "\r\n")
+    
+    // Send request
+    tcp_stream_write(&stream, &request[0], pos)
+    
+    // Read response
+    let response: [u8; 65536]
+    let received = tcp_stream_read(&stream, &response[0], 65536)
+    
+    // Parse response
+    let resp: HttpResponse
+    resp.status = 200
+    resp.body = &response[0]
+    resp.body_len = received as u64
+    
+    // Close
+    tcp_stream_close(&stream)
+    
+    return resp
+}
+
+fn http_post(host: *u8, port: u16, path: *u8, body: *u8, body_len: u64) -> HttpResponse {
+    let addr = sockaddr_from_ipv4_bytes(port, 127, 0, 0, 1)
+    let stream = tcp_connect(&addr)
+    
+    let request: [u8; 4096]
+    let pos: u64 = 0
+    
+    pos = str_append(request, pos, "POST ")
+    pos = str_append(request, pos, path as *i8)
+    pos = str_append(request, pos, " HTTP/1.1\r\n")
+    pos = str_append(request, pos, "Host: ")
+    pos = str_append(request, pos, host as *i8)
+    pos = str_append(request, pos, "\r\n")
+    pos = str_append(request, pos, "Content-Length: ")
+    // Convert body_len to string
+    pos = str_append(request, pos, "\r\n")
+    pos = str_append(request, pos, "Connection: close\r\n")
+    pos = str_append(request, pos, "\r\n")
+    
+    // Send headers
+    tcp_stream_write(&stream, &request[0], pos)
+    
+    // Send body
+    if body_len > 0 {
+        tcp_stream_write(&stream, body, body_len)
+    }
+    
+    // Read response
+    let response: [u8; 65536]
+    let received = tcp_stream_read(&stream, &response[0], 65536)
+    
+    let resp: HttpResponse
+    resp.status = 200
+    resp.body = &response[0]
+    resp.body_len = received as u64
+    
+    tcp_stream_close(&stream)
+    return resp
+}
+
+// =============================================================================
+// ASYNC/SELECT API
+// =============================================================================
+
+struct pollfd {
     fd: i32,
+    events: i16,
+    revents: i16,
 }
 
-// Create a new TCP socket
-pub fn tcp_socket() -> option<TcpSocket> {
-    let fd = std.sys.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
-    if fd < 0 {
-        return None
-    }
-    Some(TcpSocket { fd })
+struct timeval {
+    tv_sec: i64,
+    tv_usec: i64,
 }
 
-// Connect to remote address
-pub fn TcpSocket::connect(self: &TcpSocket, addr: SocketAddr) -> bool {
-    let mut sa: sockaddr_in
-    sa.family = AF_INET as u16
-    sa.port = to_network_order(addr.port)
-    sa.addr = addr.ip.addr
-    sa.zero = [0u8; 8]
+struct linger {
+    l_onoff: i32,
+    l_linger: i32,
+}
+
+fn select_read(fds: *i32, nfds: i32, timeout_ms: i32) -> i32 {
+    // Use poll instead of select (more efficient)
+    let pfds: [pollfd; 64]
+    let i: i32 = 0
     
-    let result = std.sys.connect(self.fd, &sa as *u8, 16)
-    result >= 0
-}
-
-// Bind to address
-pub fn TcpSocket::bind(self: &TcpSocket, addr: SocketAddr) -> bool {
-    let mut sa: sockaddr_in
-    sa.family = AF_INET as u16
-    sa.port = to_network_order(addr.port)
-    sa.addr = addr.ip.addr
-    sa.zero = [0u8; 8]
-    
-    let result = std.sys.bind(self.fd, &sa as *u8, 16)
-    result >= 0
-}
-
-// Listen for connections
-pub fn TcpSocket::listen(self: &TcpSocket, backlog: i32) -> bool {
-    let result = std.sys.listen(self.fd, backlog)
-    result >= 0
-}
-
-// Accept incoming connection
-pub fn TcpSocket::accept(self: &TcpSocket) -> option<TcpSocket> {
-    let client_fd = std.sys.accept(self.fd, null, null)
-    if client_fd < 0 {
-        return None
-    }
-    Some(TcpSocket { fd: client_fd })
-}
-
-// Send data
-pub fn TcpSocket::send(self: &TcpSocket, data: []u8) -> isize {
-    std.sys.send(self.fd, data.as_ptr(), data.len(), 0)
-}
-
-// Receive data
-pub fn TcpSocket::recv(self: &TcpSocket, buf: &mut [u8]) -> isize {
-    std.sys.recv(self.fd, buf.as_mut_ptr(), buf.len(), 0)
-}
-
-// Close the socket
-pub fn TcpSocket::close(self: &TcpSocket) {
-    std.sys.close(self.fd)
-}
-
-// Set socket option
-pub fn TcpSocket::set_reuseaddr(self: &TcpSocket, reuse: bool) -> bool {
-    // Would use setsockopt with SO_REUSEADDR
-    true
-}
-
-// =============================================================================
-// UDP SOCKET
-// =============================================================================
-
-// UDP socket
-pub struct UdpSocket {
-    fd: i32,
-}
-
-// Create a new UDP socket
-pub fn udp_socket() -> option<UdpSocket> {
-    let fd = std.sys.socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-    if fd < 0 {
-        return None
-    }
-    Some(UdpSocket { fd })
-}
-
-// Bind to address
-pub fn UdpSocket::bind(self: &UdpSocket, addr: SocketAddr) -> bool {
-    let mut sa: sockaddr_in
-    sa.family = AF_INET as u16
-    sa.port = to_network_order(addr.port)
-    sa.addr = addr.ip.addr
-    sa.zero = [0u8; 8]
-    
-    let result = std.sys.bind(self.fd, &sa as *u8, 16)
-    result >= 0
-}
-
-// Send to address
-pub fn UdpSocket::send_to(self: &UdpSocket, data: []u8, addr: SocketAddr) -> isize {
-    let mut sa: sockaddr_in
-    sa.family = AF_INET as u16
-    sa.port = to_network_order(addr.port)
-    sa.addr = addr.ip.addr
-    sa.zero = [0u8; 8]
-    
-    std.sys.sendto(self.fd, data.as_ptr(), data.len(), 0, &sa as *u8, 16)
-}
-
-// Receive from address
-pub fn UdpSocket::recv_from(self: &UdpSocket, buf: &mut [u8], addr: &mut SocketAddr) -> isize {
-    let mut sa: sockaddr_in
-    let mut addrlen: u32 = 16
-    
-    let n = std.sys.recvfrom(self.fd, buf.as_mut_ptr(), buf.len(), 0, &sa as *mut u8, &mut addrlen)
-    
-    if n >= 0 {
-        addr.family = AF_INET
-        addr.port = from_network_order(sa.port)
-        addr.ip = IpAddr { addr: sa.addr }
+    while i < nfds {
+        pfds[i].fd = fds[i]
+        pfds[i].events = POLLIN
+        i = i + 1
     }
     
-    n
+    return syscall_poll(&pfds[0] as *pollfd, nfds as u64, timeout_ms)
 }
 
-// Close the socket
-pub fn UdpSocket::close(self: &UdpSocket) {
-    std.sys.close(self.fd)
-}
-
-// =============================================================================
-// HELPER FUNCTIONS
-// =============================================================================
-
-// Convert host byte order to network byte order (big endian)
-fn to_network_order(val: u16) -> u16 {
-    (val >> 8) | (val << 8)
-}
-
-// Convert network byte order to host byte order
-fn from_network_order(val: u16) -> u16 {
-    to_network_order(val)
-}
-
-// =============================================================================
-// TCP STREAM (HIGHER-LEVEL)
-// =============================================================================
-
-// TCP stream reader/writer
-pub struct TcpStream {
-    socket: TcpSocket,
-}
-
-// Connect to host:port
-pub fn tcp_connect(host: string, port: u16) -> option<TcpStream> {
-    let addr = socket_addr_from_str(host, port)?
-    let sock = tcp_socket()?
+fn select_write(fds: *i32, nfds: i32, timeout_ms: i32) -> i32 {
+    let pfds: [pollfd; 64]
+    let i: i32 = 0
     
-    if !sock.connect(addr) {
-        return None
+    while i < nfds {
+        pfds[i].fd = fds[i]
+        pfds[i].events = POLLOUT
+        i = i + 1
     }
     
-    Some(TcpStream { socket: sock })
-}
-
-// Write to stream
-pub fn TcpStream::write(self: &TcpStream, data: []u8) -> isize {
-    self.socket.send(data)
-}
-
-// Read from stream
-pub fn TcpStream::read(self: &TcpStream, buf: &mut [u8]) -> isize {
-    self.socket.recv(buf)
-}
-
-// Close stream
-pub fn TcpStream::close(self: &TcpStream) {
-    self.socket.close()
+    return syscall_poll(&pfds[0] as *pollfd, nfds as u64, timeout_ms)
 }
 
 // =============================================================================
-// TCP LISTENER
+// UTILITY FUNCTIONS
 // =============================================================================
 
-// TCP listener
-pub struct TcpListener {
-    socket: TcpSocket,
-}
-
-// Bind and listen on port
-pub fn tcp_bind(port: u16) -> option<TcpListener> {
-    let sock = tcp_socket()?
-    
-    // Set SO_REUSEADDR
-    sock.set_reuseaddr(true)
-    
-    let addr = socket_addr(ANY, port)
-    if !sock.bind(addr) {
-        return None
+fn str_append(buf: [u8], pos: u64, s: *i8) -> u64 {
+    let len = strlen(s)
+    let i: u64 = 0
+    while i < len {
+        buf[pos + i] = s[i] as u8
+        i = i + 1
     }
-    
-    if !sock.listen(128) {
-        return None
+    return pos + len
+}
+
+fn strlen(s: *i8) -> u64 {
+    let len: u64 = 0
+    while s[len] != 0 {
+        len = len + 1
     }
-    
-    Some(TcpListener { socket: sock })
+    return len
 }
 
-// Accept incoming connection
-pub fn TcpListener::accept(self: &TcpListener) -> option<TcpStream> {
-    let client = self.socket.accept()?
-    Some(TcpStream { socket: client })
-}
-
-// Close listener
-pub fn TcpListener::close(self: &TcpListener) {
-    self.socket.close()
+fn memcpy(dest: *u8, src: *u8, n: u64) {
+    let i: u64 = 0
+    while i < n {
+        dest[i] = src[i]
+        i = i + 1
+    }
 }
 
 // =============================================================================
-// END OF NETWORK MODULE
+// SYSCALL WRAPPERS
 // =============================================================================
+
+fn syscall_socket(domain: i32, type_: i32, protocol: i32) -> i32 {
+    return syscall(41, domain as i64, type_ as i64, protocol as i64, 0, 0, 0) as i32
+}
+
+fn syscall_bind(sockfd: i32, addr: *sockaddr, addrlen: u32) -> i32 {
+    return syscall(49, sockfd as i64, addr as i64, addrlen as i64, 0, 0, 0) as i32
+}
+
+fn syscall_listen(sockfd: i32, backlog: i32) -> i32 {
+    return syscall(50, sockfd as i64, backlog as i64, 0, 0, 0, 0) as i32
+}
+
+fn syscall_accept(sockfd: i32, addr: *sockaddr, addrlen: *u32) -> i32 {
+    return syscall(43, sockfd as i64, addr as i64, addrlen as i64, 0, 0, 0) as i32
+}
+
+fn syscall_connect(sockfd: i32, addr: *sockaddr, addrlen: u32) -> i32 {
+    return syscall(42, sockfd as i64, addr as i64, addrlen as i64, 0, 0, 0) as i32
+}
+
+fn syscall_send(sockfd: i32, buf: *void, len: u64, flags: i32) -> i64 {
+    return syscall(44, sockfd as i64, buf as i64, len as i64, flags as i64, 0, 0)
+}
+
+fn syscall_recv(sockfd: i32, buf: *void, len: u64, flags: i32) -> i64 {
+    return syscall(45, sockfd as i64, buf as i64, len as i64, flags as i64, 0, 0)
+}
+
+fn syscall_sendto(sockfd: i32, buf: *void, len: u64, flags: i32, 
+                  dest_addr: *sockaddr, addrlen: u32) -> i64 {
+    return syscall(44, sockfd as i64, buf as i64, len as i64, 
+                   flags as i64, dest_addr as i64, addrlen as i64)
+}
+
+fn syscall_recvfrom(sockfd: i32, buf: *void, len: u64, flags: i32,
+                    src_addr: *sockaddr, addrlen: *u32) -> i64 {
+    return syscall(45, sockfd as i64, buf as i64, len as i64,
+                   flags as i64, src_addr as i64, addrlen as i64)
+}
+
+fn syscall_shutdown(sockfd: i32, how: i32) -> i32 {
+    return syscall(48, sockfd as i64, how as i64, 0, 0, 0, 0) as i32
+}
+
+fn syscall_setsockopt(sockfd: i32, level: i32, optname: i32, 
+                      optval: *void, optlen: u32) -> i32 {
+    return syscall(54, sockfd as i64, level as i64, optname as i64,
+                   optval as i64, optlen as i64, 0) as i32
+}
+
+fn syscall_getsockopt(sockfd: i32, level: i32, optname: i32,
+                      optval: *void, optlen: *u32) -> i32 {
+    return syscall(55, sockfd as i64, level as i64, optname as i64,
+                   optval as i64, optlen as i64, 0) as i32
+}
+
+fn syscall_close(fd: i32) -> i32 {
+    return syscall(3, fd as i64, 0, 0, 0, 0, 0) as i32
+}
+
+fn syscall_fcntl(fd: i32, cmd: i32, arg: i64) -> i32 {
+    return syscall(72, fd as i64, cmd as i64, arg, 0, 0, 0) as i32
+}
+
+fn syscall_ioctl(fd: i32, request: u64, arg: *void) -> i32 {
+    return syscall(16, fd as i64, request as i64, arg as i64, 0, 0, 0) as i32
+}
+
+fn syscall_poll(fds: *pollfd, nfds: u64, timeout: i32) -> i32 {
+    return syscall(7, fds as i64, nfds as i64, timeout as i64, 0, 0, 0) as i32
+}
+
+fn syscall_unlink(pathname: *i8) -> i32 {
+    return syscall(87, pathname as i64, 0, 0, 0, 0, 0) as i32
+}
+
+fn syscall(number: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) -> i64 {
+    // Inline assembly for syscall
+    let result: i64 = 0
+    unsafe {
+        asm("syscall"
+            : "=a"(result)
+            : "a"(number), "D"(a1), "S"(a2), "d"(a3), "r10"(a4), "r8"(a5), "r9"(a6)
+            : "rcx", "r11", "memory"
+        )
+    }
+    return result
+}

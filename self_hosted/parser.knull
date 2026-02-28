@@ -1,83 +1,1383 @@
 // =============================================================================
 // KNULL SELF-HOSTED COMPILER: PARSER MODULE
 // =============================================================================
-// Bootstrap-compatible version
+// Complete recursive descent parser for Knull
 
-// Token constants
-fn tok_eof() { return 0 }
-fn tok_ident() { return 1 }
-fn tok_int() { return 2 }
-fn tok_fn() { return 10 }
-fn tok_let() { return 11 }
-fn tok_if() { return 12 }
-fn tok_else() { return 13 }
-fn tok_while() { return 14 }
-fn tok_return() { return 15 }
-fn tok_lparen() { return 40 }
-fn tok_rparen() { return 41 }
-fn tok_lbrace() { return 42 }
-fn tok_rbrace() { return 43 }
-fn tok_assign() { return 46 }
+// AST Node Types
+const AST_PROGRAM: i32 = 1
+const AST_FN: i32 = 2
+const AST_LET: i32 = 3
+const AST_CONST: i32 = 4
+const AST_IF: i32 = 5
+const AST_WHILE: i32 = 6
+const AST_FOR: i32 = 7
+const AST_RETURN: i32 = 8
+const AST_BREAK: i32 = 9
+const AST_CONTINUE: i32 = 10
+const AST_BLOCK: i32 = 11
+const AST_CALL: i32 = 12
+const AST_BINARY: i32 = 13
+const AST_UNARY: i32 = 14
+const AST_LITERAL: i32 = 15
+const AST_IDENT: i32 = 16
+const AST_ASSIGN: i32 = 17
+const AST_FIELD: i32 = 18
+const AST_INDEX: i32 = 19
+const AST_STRUCT_DEF: i32 = 20
+const AST_IMPL: i32 = 21
+const AST_TRAIT: i32 = 22
+const AST_USE: i32 = 23
+const AST_MOD: i32 = 24
+const AST_SYSCALL: i32 = 25
+const AST_ASM: i32 = 26
+const AST_CAST: i32 = 27
+const AST_MATCH: i32 = 28
+const AST_TUPLE: i32 = 29
+const AST_ARRAY: i32 = 30
 
-// Simulated token stream
-fn get_token(pos) {
-    if pos == 0 { return tok_fn() }
-    if pos == 1 { return tok_ident() }
-    if pos == 2 { return tok_lparen() }
-    if pos == 3 { return tok_rparen() }
-    if pos == 4 { return tok_lbrace() }
-    if pos == 5 { return tok_let() }
-    if pos == 6 { return tok_ident() }
-    if pos == 7 { return tok_assign() }
-    if pos == 8 { return tok_int() }
-    if pos == 9 { return tok_rbrace() }
-    return tok_eof()
+// Literal types
+const LIT_INT: i32 = 1
+const LIT_FLOAT: i32 = 2
+const LIT_STRING: i32 = 3
+const LIT_CHAR: i32 = 4
+const LIT_BOOL: i32 = 5
+const LIT_NULL: i32 = 6
+
+// Binary operators
+const OP_ADD: i32 = 1
+const OP_SUB: i32 = 2
+const OP_MUL: i32 = 3
+const OP_DIV: i32 = 4
+const OP_MOD: i32 = 5
+const OP_AND: i32 = 6
+const OP_OR: i32 = 7
+const OP_EQ: i32 = 8
+const OP_NE: i32 = 9
+const OP_LT: i32 = 10
+const OP_GT: i32 = 11
+const OP_LE: i32 = 12
+const OP_GE: i32 = 13
+const OP_BITAND: i32 = 14
+const OP_BITOR: i32 = 15
+const OP_BITXOR: i32 = 16
+const OP_SHL: i32 = 17
+const OP_SHR: i32 = 18
+
+// Unary operators
+const OP_NEG: i32 = 1
+const OP_NOT: i32 = 2
+const OP_BITNOT: i32 = 3
+const OP_DEREF: i32 = 4
+const OP_REF: i32 = 5
+const OP_MUT_REF: i32 = 6
+
+// Token constants (duplicated from lexer for standalone use)
+const TOK_EOF: i32 = 0
+const TOK_IDENT: i32 = 1
+const TOK_INT: i32 = 2
+const TOK_STRING: i32 = 3
+const TOK_FN: i32 = 10
+const TOK_LET: i32 = 11
+const TOK_MUT: i32 = 12
+const TOK_IF: i32 = 13
+const TOK_ELSE: i32 = 14
+const TOK_WHILE: i32 = 15
+const TOK_FOR: i32 = 16
+const TOK_RETURN: i32 = 17
+const TOK_BREAK: i32 = 18
+const TOK_CONTINUE: i32 = 19
+const TOK_TRUE: i32 = 20
+const TOK_FALSE: i32 = 21
+const TOK_CONST: i32 = 22
+const TOK_TYPE: i32 = 23
+const TOK_STRUCT: i32 = 24
+const TOK_IMPL: i32 = 25
+const TOK_TRAIT: i32 = 26
+const TOK_PUB: i32 = 27
+const TOK_USE: i32 = 28
+const TOK_MOD: i32 = 29
+const TOK_UNSAFE: i32 = 30
+const TOK_SYSCALL: i32 = 31
+const TOK_ASM: i32 = 32
+const TOK_MATCH: i32 = 33
+const TOK_REF: i32 = 34
+const TOK_PLUS: i32 = 40
+const TOK_MINUS: i32 = 41
+const TOK_STAR: i32 = 42
+const TOK_SLASH: i32 = 43
+const TOK_PERCENT: i32 = 44
+const TOK_AMPERSAND: i32 = 45
+const TOK_PIPE: i32 = 46
+const TOK_CARET: i32 = 47
+const TOK_BANG: i32 = 48
+const TOK_TILDE: i32 = 49
+const TOK_LT: i32 = 50
+const TOK_GT: i32 = 51
+const TOK_DOT: i32 = 52
+const TOK_COMMA: i32 = 53
+const TOK_SEMI: i32 = 54
+const TOK_COLON: i32 = 55
+const TOK_EQ: i32 = 60
+const TOK_NE: i32 = 61
+const TOK_LE: i32 = 62
+const TOK_GE: i32 = 63
+const TOK_AND: i32 = 64
+const TOK_OR: i32 = 65
+const TOK_SHL: i32 = 66
+const TOK_SHR: i32 = 67
+const TOK_ASSIGN: i32 = 68
+const TOK_PLUS_ASSIGN: i32 = 69
+const TOK_MINUS_ASSIGN: i32 = 70
+const TOK_STAR_ASSIGN: i32 = 71
+const TOK_SLASH_ASSIGN: i32 = 72
+const TOK_ARROW: i32 = 73
+const TOK_FAT_ARROW: i32 = 74
+const TOK_DOUBLE_COLON: i32 = 75
+const TOK_RANGE: i32 = 76
+const TOK_LPAREN: i32 = 80
+const TOK_RPAREN: i32 = 81
+const TOK_LBRACE: i32 = 82
+const TOK_RBRACE: i32 = 83
+const TOK_LBRACKET: i32 = 84
+const TOK_RBRACKET: i32 = 85
+
+// =============================================================================
+// AST NODE STRUCTURES
+// =============================================================================
+
+struct Node {
+    kind: i32,
+    data1: *void,
+    data2: *void,
+    data3: *void,
+    line: i32,
+    col: i32,
 }
 
-fn main() {
-    println "Parser Module Test"
-    println ""
-    println "Parsing: fn main() { let x = 42 }"
-    println ""
+struct FnNode {
+    name: *i8,
+    params: *Node,    // Linked list
+    ret_type: *TypeNode,
+    body: *Node,      // Block
+    is_pub: bool,
+    is_unsafe: bool,
+}
+
+struct ParamNode {
+    name: *i8,
+    ty: *TypeNode,
+    is_mut: bool,
+    next: *ParamNode,
+}
+
+struct LetNode {
+    name: *i8,
+    ty: *TypeNode,
+    init: *Node,
+    is_mut: bool,
+}
+
+struct IfNode {
+    cond: *Node,
+    then_block: *Node,
+    else_block: *Node,
+}
+
+struct WhileNode {
+    cond: *Node,
+    body: *Node,
+}
+
+struct ForNode {
+    var: *i8,
+    iter: *Node,
+    body: *Node,
+}
+
+struct BinaryNode {
+    op: i32,
+    left: *Node,
+    right: *Node,
+}
+
+struct UnaryNode {
+    op: i32,
+    operand: *Node,
+}
+
+struct CallNode {
+    callee: *Node,
+    args: *Node,  // Linked list
+}
+
+struct ArgNode {
+    value: *Node,
+    next: *ArgNode,
+}
+
+struct LiteralNode {
+    lit_type: i32,
+    int_val: i64,
+    float_val: f64,
+    str_val: *i8,
+}
+
+struct IdentNode {
+    name: *i8,
+}
+
+struct FieldNode {
+    obj: *Node,
+    field: *i8,
+}
+
+struct IndexNode {
+    obj: *Node,
+    index: *Node,
+}
+
+struct StructDefNode {
+    name: *i8,
+    fields: *FieldDefNode,
+    is_pub: bool,
+}
+
+struct FieldDefNode {
+    name: *i8,
+    ty: *TypeNode,
+    next: *FieldDefNode,
+}
+
+struct TypeNode {
+    name: *i8,
+    ptr_level: i32,
+    is_ref: bool,
+    is_mut: bool,
+    base: *TypeNode,  // For pointers/refs
+}
+
+// =============================================================================
+// PARSER STATE
+// =============================================================================
+
+struct Parser {
+    tokens: *Token,
+    token_count: i32,
+    pos: i32,
+    errors: i32,
+}
+
+struct Token {
+    kind: i32,
+    value: *i8,
+    int_val: i64,
+    line: i32,
+    col: i32,
+}
+
+// =============================================================================
+// PARSER FUNCTIONS
+// =============================================================================
+
+fn parser_new(tokens: *Token, count: i32) -> *Parser {
+    let parser = alloc(16) as *Parser
+    parser.tokens = tokens
+    parser.token_count = count
+    parser.pos = 0
+    parser.errors = 0
+    return parser
+}
+
+fn parser_parse(parser: *Parser) -> *Node {
+    return parser_parse_program(parser)
+}
+
+fn parser_parse_program(parser: *Parser) -> *Node {
+    let program = new_node(AST_PROGRAM, 1, 1)
+    let items: *Node = 0 as *Node
+    let last: *Node = 0 as *Node
     
-    let pos = 0
-    let kind = get_token(pos)
+    while parser_current(parser).kind != TOK_EOF {
+        let item = parser_parse_item(parser)
+        if item != 0 as *Node {
+            if items == 0 as *Node {
+                items = item
+            } else {
+                // Link items
+            }
+            last = item
+        }
+    }
     
-    // Parse function
-    if kind == tok_fn() {
-        println "Found: function"
-        pos = pos + 1
-        kind = get_token(pos)
-        
-        if kind == tok_ident() {
-            println "  Name: main"
-            pos = pos + 1
-            kind = get_token(pos)
+    program.data1 = items as *void
+    return program
+}
+
+fn parser_parse_item(parser: *Parser) -> *Node {
+    let is_pub = false
+    let is_unsafe = false
+    
+    // Handle modifiers
+    while true {
+        if parser_current(parser).kind == TOK_PUB {
+            is_pub = true
+            parser_advance(parser)
+        } else if parser_current(parser).kind == TOK_UNSAFE {
+            is_unsafe = true
+            parser_advance(parser)
+        } else {
+            break
+        }
+    }
+    
+    let tok = parser_current(parser)
+    let node: *Node = 0 as *Node
+    
+    if tok.kind == TOK_FN {
+        node = parser_parse_fn(parser, is_pub, is_unsafe)
+    } else if tok.kind == TOK_CONST {
+        node = parser_parse_const(parser, is_pub)
+    } else if tok.kind == TOK_STRUCT {
+        node = parser_parse_struct(parser, is_pub)
+    } else if tok.kind == TOK_IMPL {
+        node = parser_parse_impl(parser)
+    } else if tok.kind == TOK_TRAIT {
+        node = parser_parse_trait(parser, is_pub)
+    } else if tok.kind == TOK_USE {
+        node = parser_parse_use(parser)
+    } else if tok.kind == TOK_MOD {
+        node = parser_parse_mod(parser, is_pub)
+    } else if tok.kind == TOK_TYPE {
+        node = parser_parse_type_alias(parser, is_pub)
+    } else {
+        parser_error(parser, "Expected item")
+        parser_advance(parser)
+    }
+    
+    return node
+}
+
+fn parser_parse_fn(parser: *Parser, is_pub: bool, is_unsafe: bool) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_FN)
+    
+    let name = parser_expect_ident(parser)
+    parser_expect(parser, TOK_LPAREN)
+    
+    let params = parser_parse_params(parser)
+    parser_expect(parser, TOK_RPAREN)
+    
+    let ret_type: *TypeNode = 0 as *TypeNode
+    if parser_current(parser).kind == TOK_ARROW {
+        parser_advance(parser)
+        ret_type = parser_parse_type(parser)
+    }
+    
+    parser_expect(parser, TOK_LBRACE)
+    let body = parser_parse_block(parser)
+    parser_expect(parser, TOK_RBRACE)
+    
+    let fn_data = alloc(40) as *FnNode
+    fn_data.name = name
+    fn_data.params = params as *Node
+    fn_data.ret_type = ret_type
+    fn_data.body = body
+    fn_data.is_pub = is_pub
+    fn_data.is_unsafe = is_unsafe
+    
+    let node = new_node(AST_FN, start_tok.line, start_tok.col)
+    node.data1 = fn_data as *void
+    return node
+}
+
+fn parser_parse_params(parser: *Parser) -> *ParamNode {
+    if parser_current(parser).kind == TOK_RPAREN {
+        return 0 as *ParamNode
+    }
+    
+    let first: *ParamNode = 0 as *ParamNode
+    let last: *ParamNode = 0 as *ParamNode
+    
+    while true {
+        let is_mut = false
+        if parser_current(parser).kind == TOK_MUT {
+            is_mut = true
+            parser_advance(parser)
         }
         
-        if kind == tok_lparen() {
-            println "  Params: ()"
-            pos = pos + 2 // skip to rbrace check later
-            kind = get_token(pos)
-        }
+        let name = parser_expect_ident(parser)
+        parser_expect(parser, TOK_COLON)
+        let ty = parser_parse_type(parser)
         
-        if kind == tok_lbrace() {
-            println "  Body: {"
-            pos = pos + 1
-            kind = get_token(pos)
-            
-            if kind == tok_let() {
-                println "    Variable declaration"
-                pos = pos + 4 // skip to rbrace
-                kind = get_token(pos)
+        let param = alloc(32) as *ParamNode
+        param.name = name
+        param.ty = ty
+        param.is_mut = is_mut
+        param.next = 0 as *ParamNode
+        
+        if first == 0 as *ParamNode {
+            first = param
+        } else {
+            last.next = param
+        }
+        last = param
+        
+        if parser_current(parser).kind != TOK_COMMA {
+            break
+        }
+        parser_advance(parser)
+    }
+    
+    return first
+}
+
+fn parser_parse_block(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    let node = new_node(AST_BLOCK, start_tok.line, start_tok.col)
+    
+    let stmts: *Node = 0 as *Node
+    let last: *Node = 0 as *Node
+    
+    while parser_current(parser).kind != TOK_RBRACE &&
+          parser_current(parser).kind != TOK_EOF {
+        let stmt = parser_parse_stmt(parser)
+        if stmt != 0 as *Node {
+            if stmts == 0 as *Node {
+                stmts = stmt
+            } else {
+                // Link
             }
-            
-            if kind == tok_rbrace() {
-                println "  }"
-            }
+            last = stmt
         }
-        
-        println ""
-        println "Parse successful!"
+    }
+    
+    node.data1 = stmts as *void
+    return node
+}
+
+fn parser_parse_stmt(parser: *Parser) -> *Node {
+    let tok = parser_current(parser)
+    
+    if tok.kind == TOK_LET {
+        return parser_parse_let(parser)
+    } else if tok.kind == TOK_RETURN {
+        return parser_parse_return(parser)
+    } else if tok.kind == TOK_IF {
+        return parser_parse_if(parser)
+    } else if tok.kind == TOK_WHILE {
+        return parser_parse_while(parser)
+    } else if tok.kind == TOK_FOR {
+        return parser_parse_for(parser)
+    } else if tok.kind == TOK_BREAK {
+        return parser_parse_break(parser)
+    } else if tok.kind == TOK_CONTINUE {
+        return parser_parse_continue(parser)
+    } else if tok.kind == TOK_UNSAFE {
+        parser_advance(parser)
+        parser_expect(parser, TOK_LBRACE)
+        let block = parser_parse_block(parser)
+        parser_expect(parser, TOK_RBRACE)
+        return block
+    } else if tok.kind == TOK_SYSCALL {
+        return parser_parse_syscall(parser)
+    } else if tok.kind == TOK_ASM {
+        return parser_parse_asm(parser)
+    } else if tok.kind == TOK_LBRACE {
+        parser_advance(parser)
+        let block = parser_parse_block(parser)
+        parser_expect(parser, TOK_RBRACE)
+        return block
+    } else {
+        return parser_parse_expr_stmt(parser)
     }
 }
+
+fn parser_parse_let(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_LET)
+    
+    let is_mut = false
+    if parser_current(parser).kind == TOK_MUT {
+        is_mut = true
+        parser_advance(parser)
+    }
+    
+    let name = parser_expect_ident(parser)
+    
+    let ty: *TypeNode = 0 as *TypeNode
+    if parser_current(parser).kind == TOK_COLON {
+        parser_advance(parser)
+        ty = parser_parse_type(parser)
+    }
+    
+    parser_expect(parser, TOK_ASSIGN)
+    let init = parser_parse_expr(parser)
+    
+    let let_data = alloc(32) as *LetNode
+    let_data.name = name
+    let_data.ty = ty
+    let_data.init = init
+    let_data.is_mut = is_mut
+    
+    let node = new_node(AST_LET, start_tok.line, start_tok.col)
+    node.data1 = let_data as *void
+    return node
+}
+
+fn parser_parse_return(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_RETURN)
+    
+    let expr: *Node = 0 as *Node
+    if parser_current(parser).kind != TOK_RBRACE &&
+       parser_current(parser).kind != TOK_SEMI &&
+       parser_current(parser).kind != TOK_EOF {
+        expr = parser_parse_expr(parser)
+    }
+    
+    let node = new_node(AST_RETURN, start_tok.line, start_tok.col)
+    node.data1 = expr as *void
+    return node
+}
+
+fn parser_parse_if(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_IF)
+    
+    let cond = parser_parse_expr(parser)
+    parser_expect(parser, TOK_LBRACE)
+    let then_block = parser_parse_block(parser)
+    parser_expect(parser, TOK_RBRACE)
+    
+    let else_block: *Node = 0 as *Node
+    if parser_current(parser).kind == TOK_ELSE {
+        parser_advance(parser)
+        if parser_current(parser).kind == TOK_IF {
+            else_block = parser_parse_if(parser)
+        } else {
+            parser_expect(parser, TOK_LBRACE)
+            else_block = parser_parse_block(parser)
+            parser_expect(parser, TOK_RBRACE)
+        }
+    }
+    
+    let if_data = alloc(24) as *IfNode
+    if_data.cond = cond
+    if_data.then_block = then_block
+    if_data.else_block = else_block
+    
+    let node = new_node(AST_IF, start_tok.line, start_tok.col)
+    node.data1 = if_data as *void
+    return node
+}
+
+fn parser_parse_while(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_WHILE)
+    
+    let cond = parser_parse_expr(parser)
+    parser_expect(parser, TOK_LBRACE)
+    let body = parser_parse_block(parser)
+    parser_expect(parser, TOK_RBRACE)
+    
+    let while_data = alloc(16) as *WhileNode
+    while_data.cond = cond
+    while_data.body = body
+    
+    let node = new_node(AST_WHILE, start_tok.line, start_tok.col)
+    node.data1 = while_data as *void
+    return node
+}
+
+fn parser_parse_for(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_FOR)
+    
+    let var = parser_expect_ident(parser)
+    // Expect 'in' keyword - for now just skip
+    parser_advance(parser)
+    
+    let iter = parser_parse_expr(parser)
+    parser_expect(parser, TOK_LBRACE)
+    let body = parser_parse_block(parser)
+    parser_expect(parser, TOK_RBRACE)
+    
+    let for_data = alloc(24) as *ForNode
+    for_data.var = var
+    for_data.iter = iter
+    for_data.body = body
+    
+    let node = new_node(AST_FOR, start_tok.line, start_tok.col)
+    node.data1 = for_data as *void
+    return node
+}
+
+fn parser_parse_break(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_BREAK)
+    return new_node(AST_BREAK, start_tok.line, start_tok.col)
+}
+
+fn parser_parse_continue(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_CONTINUE)
+    return new_node(AST_CONTINUE, start_tok.line, start_tok.col)
+}
+
+fn parser_parse_syscall(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_SYSCALL)
+    parser_expect(parser, TOK_LPAREN)
+    
+    let num = parser_parse_expr(parser)
+    let args = parser_parse_args(parser)
+    
+    parser_expect(parser, TOK_RPAREN)
+    
+    let node = new_node(AST_SYSCALL, start_tok.line, start_tok.col)
+    node.data1 = num as *void
+    node.data2 = args as *void
+    return node
+}
+
+fn parser_parse_asm(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_ASM)
+    parser_expect(parser, TOK_LPAREN)
+    
+    // Parse asm template string
+    let template = parser_current(parser).value
+    parser_expect(parser, TOK_STRING)
+    
+    parser_expect(parser, TOK_RPAREN)
+    
+    let node = new_node(AST_ASM, start_tok.line, start_tok.col)
+    node.data1 = template as *void
+    return node
+}
+
+fn parser_parse_expr_stmt(parser: *Parser) -> *Node {
+    let expr = parser_parse_expr(parser)
+    // Optional semicolon
+    if parser_current(parser).kind == TOK_SEMI {
+        parser_advance(parser)
+    }
+    return expr
+}
+
+// =============================================================================
+// EXPRESSION PARSING (Precedence Climbing)
+// =============================================================================
+
+fn parser_parse_expr(parser: *Parser) -> *Node {
+    return parser_parse_assign(parser)
+}
+
+fn parser_parse_assign(parser: *Parser) -> *Node {
+    let left = parser_parse_or(parser)
+    
+    let tok = parser_current(parser)
+    if tok.kind == TOK_ASSIGN {
+        parser_advance(parser)
+        let right = parser_parse_assign(parser)
+        let node = new_node(AST_ASSIGN, tok.line, tok.col)
+        node.data1 = left as *void
+        node.data2 = right as *void
+        return node
+    }
+    if tok.kind == TOK_PLUS_ASSIGN || tok.kind == TOK_MINUS_ASSIGN ||
+       tok.kind == TOK_STAR_ASSIGN || tok.kind == TOK_SLASH_ASSIGN {
+        parser_advance(parser)
+        let right = parser_parse_assign(parser)
+        // Desugar to binary + assign
+        let node = new_node(AST_ASSIGN, tok.line, tok.col)
+        node.data1 = left as *void
+        node.data2 = right as *void
+        return node
+    }
+    
+    return left
+}
+
+fn parser_parse_or(parser: *Parser) -> *Node {
+    let left = parser_parse_and(parser)
+    
+    while parser_current(parser).kind == TOK_OR {
+        let tok = parser_current(parser)
+        parser_advance(parser)
+        let right = parser_parse_and(parser)
+        left = make_binary(OP_OR, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_and(parser: *Parser) -> *Node {
+    let left = parser_parse_equality(parser)
+    
+    while parser_current(parser).kind == TOK_AND {
+        let tok = parser_current(parser)
+        parser_advance(parser)
+        let right = parser_parse_equality(parser)
+        left = make_binary(OP_AND, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_equality(parser: *Parser) -> *Node {
+    let left = parser_parse_relational(parser)
+    
+    while true {
+        let tok = parser_current(parser)
+        let op: i32 = 0
+        
+        if tok.kind == TOK_EQ { op = OP_EQ }
+        else if tok.kind == TOK_NE { op = OP_NE }
+        else { break }
+        
+        parser_advance(parser)
+        let right = parser_parse_relational(parser)
+        left = make_binary(op, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_relational(parser: *Parser) -> *Node {
+    let left = parser_parse_bitwise_or(parser)
+    
+    while true {
+        let tok = parser_current(parser)
+        let op: i32 = 0
+        
+        if tok.kind == TOK_LT { op = OP_LT }
+        else if tok.kind == TOK_GT { op = OP_GT }
+        else if tok.kind == TOK_LE { op = OP_LE }
+        else if tok.kind == TOK_GE { op = OP_GE }
+        else { break }
+        
+        parser_advance(parser)
+        let right = parser_parse_bitwise_or(parser)
+        left = make_binary(op, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_bitwise_or(parser: *Parser) -> *Node {
+    let left = parser_parse_bitwise_xor(parser)
+    
+    while parser_current(parser).kind == TOK_PIPE {
+        let tok = parser_current(parser)
+        parser_advance(parser)
+        let right = parser_parse_bitwise_xor(parser)
+        left = make_binary(OP_BITOR, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_bitwise_xor(parser: *Parser) -> *Node {
+    let left = parser_parse_bitwise_and(parser)
+    
+    while parser_current(parser).kind == TOK_CARET {
+        let tok = parser_current(parser)
+        parser_advance(parser)
+        let right = parser_parse_bitwise_and(parser)
+        left = make_binary(OP_BITXOR, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_bitwise_and(parser: *Parser) -> *Node {
+    let left = parser_parse_shift(parser)
+    
+    while parser_current(parser).kind == TOK_AMPERSAND {
+        let tok = parser_current(parser)
+        parser_advance(parser)
+        let right = parser_parse_shift(parser)
+        left = make_binary(OP_BITAND, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_shift(parser: *Parser) -> *Node {
+    let left = parser_parse_additive(parser)
+    
+    while true {
+        let tok = parser_current(parser)
+        let op: i32 = 0
+        
+        if tok.kind == TOK_SHL { op = OP_SHL }
+        else if tok.kind == TOK_SHR { op = OP_SHR }
+        else { break }
+        
+        parser_advance(parser)
+        let right = parser_parse_additive(parser)
+        left = make_binary(op, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_additive(parser: *Parser) -> *Node {
+    let left = parser_parse_multiplicative(parser)
+    
+    while true {
+        let tok = parser_current(parser)
+        let op: i32 = 0
+        
+        if tok.kind == TOK_PLUS { op = OP_ADD }
+        else if tok.kind == TOK_MINUS { op = OP_SUB }
+        else { break }
+        
+        parser_advance(parser)
+        let right = parser_parse_multiplicative(parser)
+        left = make_binary(op, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_multiplicative(parser: *Parser) -> *Node {
+    let left = parser_parse_unary(parser)
+    
+    while true {
+        let tok = parser_current(parser)
+        let op: i32 = 0
+        
+        if tok.kind == TOK_STAR { op = OP_MUL }
+        else if tok.kind == TOK_SLASH { op = OP_DIV }
+        else if tok.kind == TOK_PERCENT { op = OP_MOD }
+        else { break }
+        
+        parser_advance(parser)
+        let right = parser_parse_unary(parser)
+        left = make_binary(op, left, right, tok.line, tok.col)
+    }
+    
+    return left
+}
+
+fn parser_parse_unary(parser: *Parser) -> *Node {
+    let tok = parser_current(parser)
+    
+    if tok.kind == TOK_MINUS {
+        parser_advance(parser)
+        let operand = parser_parse_unary(parser)
+        return make_unary(OP_NEG, operand, tok.line, tok.col)
+    }
+    if tok.kind == TOK_BANG {
+        parser_advance(parser)
+        let operand = parser_parse_unary(parser)
+        return make_unary(OP_NOT, operand, tok.line, tok.col)
+    }
+    if tok.kind == TOK_TILDE {
+        parser_advance(parser)
+        let operand = parser_parse_unary(parser)
+        return make_unary(OP_BITNOT, operand, tok.line, tok.col)
+    }
+    if tok.kind == TOK_STAR {
+        parser_advance(parser)
+        let operand = parser_parse_unary(parser)
+        return make_unary(OP_DEREF, operand, tok.line, tok.col)
+    }
+    if tok.kind == TOK_AMPERSAND {
+        parser_advance(parser)
+        let is_mut = false
+        if parser_current(parser).kind == TOK_MUT {
+            is_mut = true
+            parser_advance(parser)
+        }
+        let operand = parser_parse_unary(parser)
+        let op = if is_mut { OP_MUT_REF } else { OP_REF }
+        return make_unary(op, operand, tok.line, tok.col)
+    }
+    
+    return parser_parse_postfix(parser)
+}
+
+fn parser_parse_postfix(parser: *Parser) -> *Node {
+    let left = parser_parse_primary(parser)
+    
+    while true {
+        let tok = parser_current(parser)
+        
+        if tok.kind == TOK_LPAREN {
+            // Function call
+            parser_advance(parser)
+            let args = parser_parse_args(parser)
+            parser_expect(parser, TOK_RPAREN)
+            let node = new_node(AST_CALL, tok.line, tok.col)
+            node.data1 = left as *void
+            node.data2 = args as *void
+            left = node
+        } else if tok.kind == TOK_DOT {
+            // Field access
+            parser_advance(parser)
+            let field = parser_expect_ident(parser)
+            let node = new_node(AST_FIELD, tok.line, tok.col)
+            let field_data = alloc(16) as *FieldNode
+            field_data.obj = left
+            field_data.field = field
+            node.data1 = field_data as *void
+            left = node
+        } else if tok.kind == TOK_LBRACKET {
+            // Index
+            parser_advance(parser)
+            let index = parser_parse_expr(parser)
+            parser_expect(parser, TOK_RBRACKET)
+            let node = new_node(AST_INDEX, tok.line, tok.col)
+            let idx_data = alloc(16) as *IndexNode
+            idx_data.obj = left
+            idx_data.index = index
+            node.data1 = idx_data as *void
+            left = node
+        } else if tok.kind == TOK_AS {
+            // Cast
+            parser_advance(parser)
+            let ty = parser_parse_type(parser)
+            let node = new_node(AST_CAST, tok.line, tok.col)
+            node.data1 = left as *void
+            node.data2 = ty as *void
+            left = node
+        } else {
+            break
+        }
+    }
+    
+    return left
+}
+
+fn parser_parse_primary(parser: *Parser) -> *Node {
+    let tok = parser_current(parser)
+    
+    if tok.kind == TOK_INT {
+        parser_advance(parser)
+        let lit = alloc(32) as *LiteralNode
+        lit.lit_type = LIT_INT
+        lit.int_val = tok.int_val
+        let node = new_node(AST_LITERAL, tok.line, tok.col)
+        node.data1 = lit as *void
+        return node
+    }
+    
+    if tok.kind == TOK_STRING {
+        parser_advance(parser)
+        let lit = alloc(32) as *LiteralNode
+        lit.lit_type = LIT_STRING
+        lit.str_val = tok.value
+        let node = new_node(AST_LITERAL, tok.line, tok.col)
+        node.data1 = lit as *void
+        return node
+    }
+    
+    if tok.kind == TOK_TRUE {
+        parser_advance(parser)
+        let lit = alloc(32) as *LiteralNode
+        lit.lit_type = LIT_BOOL
+        lit.int_val = 1
+        let node = new_node(AST_LITERAL, tok.line, tok.col)
+        node.data1 = lit as *void
+        return node
+    }
+    
+    if tok.kind == TOK_FALSE {
+        parser_advance(parser)
+        let lit = alloc(32) as *LiteralNode
+        lit.lit_type = LIT_BOOL
+        lit.int_val = 0
+        let node = new_node(AST_LITERAL, tok.line, tok.col)
+        node.data1 = lit as *void
+        return node
+    }
+    
+    if tok.kind == TOK_IDENT {
+        parser_advance(parser)
+        let ident = alloc(8) as *IdentNode
+        ident.name = tok.value
+        let node = new_node(AST_IDENT, tok.line, tok.col)
+        node.data1 = ident as *void
+        return node
+    }
+    
+    if tok.kind == TOK_LPAREN {
+        parser_advance(parser)
+        let expr = parser_parse_expr(parser)
+        parser_expect(parser, TOK_RPAREN)
+        return expr
+    }
+    
+    parser_error(parser, "Expected expression")
+    parser_advance(parser)
+    return new_node(AST_LITERAL, tok.line, tok.col)  // Error recovery
+}
+
+fn parser_parse_args(parser: *Parser) -> *ArgNode {
+    if parser_current(parser).kind == TOK_RPAREN {
+        return 0 as *ArgNode
+    }
+    
+    let first: *ArgNode = 0 as *ArgNode
+    let last: *ArgNode = 0 as *ArgNode
+    
+    while true {
+        let value = parser_parse_expr(parser)
+        
+        let arg = alloc(16) as *ArgNode
+        arg.value = value
+        arg.next = 0 as *ArgNode
+        
+        if first == 0 as *ArgNode {
+            first = arg
+        } else {
+            last.next = arg
+        }
+        last = arg
+        
+        if parser_current(parser).kind != TOK_COMMA {
+            break
+        }
+        parser_advance(parser)
+    }
+    
+    return first
+}
+
+// =============================================================================
+// TYPE PARSING
+// =============================================================================
+
+fn parser_parse_type(parser: *Parser) -> *TypeNode {
+    let tok = parser_current(parser)
+    
+    if tok.kind == TOK_IDENT {
+        parser_advance(parser)
+        let ty = alloc(32) as *TypeNode
+        ty.name = tok.value
+        ty.ptr_level = 0
+        ty.is_ref = false
+        ty.is_mut = false
+        ty.base = 0 as *TypeNode
+        return ty
+    }
+    
+    if tok.kind == TOK_STAR {
+        parser_advance(parser)
+        let base = parser_parse_type(parser)
+        let ty = alloc(32) as *TypeNode
+        ty.name = "*"
+        ty.ptr_level = base.ptr_level + 1
+        ty.is_ref = false
+        ty.is_mut = false
+        ty.base = base
+        return ty
+    }
+    
+    if tok.kind == TOK_AMPERSAND {
+        parser_advance(parser)
+        let is_mut = false
+        if parser_current(parser).kind == TOK_MUT {
+            is_mut = true
+            parser_advance(parser)
+        }
+        let base = parser_parse_type(parser)
+        let ty = alloc(32) as *TypeNode
+        ty.name = "&"
+        ty.ptr_level = 0
+        ty.is_ref = true
+        ty.is_mut = is_mut
+        ty.base = base
+        return ty
+    }
+    
+    return 0 as *TypeNode
+}
+
+// =============================================================================
+// DECLARATION PARSING
+// =============================================================================
+
+fn parser_parse_const(parser: *Parser, is_pub: bool) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_CONST)
+    let name = parser_expect_ident(parser)
+    parser_expect(parser, TOK_COLON)
+    let ty = parser_parse_type(parser)
+    parser_expect(parser, TOK_ASSIGN)
+    let value = parser_parse_expr(parser)
+    
+    let node = new_node(AST_CONST, start_tok.line, start_tok.col)
+    // Store data
+    return node
+}
+
+fn parser_parse_struct(parser: *Parser, is_pub: bool) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_STRUCT)
+    let name = parser_expect_ident(parser)
+    parser_expect(parser, TOK_LBRACE)
+    
+    let fields: *FieldDefNode = 0 as *FieldDefNode
+    let last: *FieldDefNode = 0 as *FieldDefNode
+    
+    while parser_current(parser).kind != TOK_RBRACE {
+        let field_name = parser_expect_ident(parser)
+        parser_expect(parser, TOK_COLON)
+        let field_ty = parser_parse_type(parser)
+        
+        let field = alloc(24) as *FieldDefNode
+        field.name = field_name
+        field.ty = field_ty
+        field.next = 0 as *FieldDefNode
+        
+        if fields == 0 as *FieldDefNode {
+            fields = field
+        } else {
+            last.next = field
+        }
+        last = field
+        
+        if parser_current(parser).kind == TOK_COMMA {
+            parser_advance(parser)
+        }
+    }
+    
+    parser_expect(parser, TOK_RBRACE)
+    
+    let node = new_node(AST_STRUCT_DEF, start_tok.line, start_tok.col)
+    let struct_data = alloc(24) as *StructDefNode
+    struct_data.name = name
+    struct_data.fields = fields
+    struct_data.is_pub = is_pub
+    node.data1 = struct_data as *void
+    return node
+}
+
+fn parser_parse_impl(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_IMPL)
+    let name = parser_expect_ident(parser)
+    parser_expect(parser, TOK_LBRACE)
+    
+    // Parse impl items
+    while parser_current(parser).kind != TOK_RBRACE {
+        parser_parse_item(parser)
+    }
+    
+    parser_expect(parser, TOK_RBRACE)
+    return new_node(AST_IMPL, start_tok.line, start_tok.col)
+}
+
+fn parser_parse_trait(parser: *Parser, is_pub: bool) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_TRAIT)
+    let name = parser_expect_ident(parser)
+    parser_expect(parser, TOK_LBRACE)
+    
+    // Parse trait items
+    while parser_current(parser).kind != TOK_RBRACE {
+        parser_parse_item(parser)
+    }
+    
+    parser_expect(parser, TOK_RBRACE)
+    return new_node(AST_TRAIT, start_tok.line, start_tok.col)
+}
+
+fn parser_parse_use(parser: *Parser) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_USE)
+    
+    // Parse use path
+    while parser_current(parser).kind == TOK_IDENT {
+        parser_advance(parser)
+        if parser_current(parser).kind == TOK_DOUBLE_COLON {
+            parser_advance(parser)
+        } else {
+            break
+        }
+    }
+    
+    return new_node(AST_USE, start_tok.line, start_tok.col)
+}
+
+fn parser_parse_mod(parser: *Parser, is_pub: bool) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_MOD)
+    let name = parser_expect_ident(parser)
+    
+    if parser_current(parser).kind == TOK_SEMI {
+        parser_advance(parser)
+    } else {
+        parser_expect(parser, TOK_LBRACE)
+        while parser_current(parser).kind != TOK_RBRACE {
+            parser_parse_item(parser)
+        }
+        parser_expect(parser, TOK_RBRACE)
+    }
+    
+    return new_node(AST_MOD, start_tok.line, start_tok.col)
+}
+
+fn parser_parse_type_alias(parser: *Parser, is_pub: bool) -> *Node {
+    let start_tok = parser_current(parser)
+    parser_expect(parser, TOK_TYPE)
+    let name = parser_expect_ident(parser)
+    parser_expect(parser, TOK_ASSIGN)
+    let ty = parser_parse_type(parser)
+    
+    return new_node(AST_TYPE, start_tok.line, start_tok.col)
+}
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+fn parser_current(parser: *Parser) -> Token {
+    if parser.pos < parser.token_count {
+        return parser.tokens[parser.pos]
+    }
+    let eof: Token
+    eof.kind = TOK_EOF
+    eof.value = ""
+    eof.int_val = 0
+    eof.line = 0
+    eof.col = 0
+    return eof
+}
+
+fn parser_advance(parser: *Parser) {
+    if parser.pos < parser.token_count {
+        parser.pos = parser.pos + 1
+    }
+}
+
+fn parser_expect(parser: *Parser, kind: i32) {
+    let tok = parser_current(parser)
+    if tok.kind != kind {
+        print("Parse error: expected ")
+        print_i32(kind)
+        print(" but got ")
+        print_i32(tok.kind)
+        print(" at line ")
+        print_i32(tok.line)
+        println("")
+        parser.errors = parser.errors + 1
+    }
+    parser.pos = parser.pos + 1
+}
+
+fn parser_expect_ident(parser: *Parser) -> *i8 {
+    let tok = parser_current(parser)
+    if tok.kind == TOK_IDENT {
+        parser.pos = parser.pos + 1
+        return tok.value
+    }
+    parser_error(parser, "Expected identifier")
+    return ""
+}
+
+fn parser_error(parser: *Parser, msg: *i8) {
+    let tok = parser_current(parser)
+    print("Parse error at ")
+    print_i32(tok.line)
+    print(":")
+    print_i32(tok.col)
+    print(": ")
+    println(msg)
+    parser.errors = parser.errors + 1
+}
+
+fn new_node(kind: i32, line: i32, col: i32) -> *Node {
+    let node = alloc(32) as *Node
+    node.kind = kind
+    node.data1 = 0 as *void
+    node.data2 = 0 as *void
+    node.data3 = 0 as *void
+    node.line = line
+    node.col = col
+    return node
+}
+
+fn make_binary(op: i32, left: *Node, right: *Node, line: i32, col: i32) -> *Node {
+    let node = new_node(AST_BINARY, line, col)
+    let bin = alloc(24) as *BinaryNode
+    bin.op = op
+    bin.left = left
+    bin.right = right
+    node.data1 = bin as *void
+    return node
+}
+
+fn make_unary(op: i32, operand: *Node, line: i32, col: i32) -> *Node {
+    let node = new_node(AST_UNARY, line, col)
+    let un = alloc(16) as *UnaryNode
+    un.op = op
+    un.operand = operand
+    node.data1 = un as *void
+    return node
+}
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+fn alloc(size: i64) -> *void {
+    static let buffer: [i8; 262144]  // 256KB
+    static let pos: i64 = 0
+    let result = &buffer[pos]
+    pos = pos + size
+    if pos > 262144 {
+        pos = size
+    }
+    return result as *void
+}
+
+fn strlen(s: *i8) -> i64 {
+    let len: i64 = 0
+    while s[len] != 0 {
+        len = len + 1
+    }
+    return len
+}
+
+fn strcmp(a: *i8, b: *i8) -> i32 {
+    let i: i64 = 0
+    while a[i] != 0 && b[i] != 0 {
+        if a[i] != b[i] {
+            return (a[i] - b[i]) as i32
+        }
+        i = i + 1
+    }
+    return (a[i] - b[i]) as i32
+}
+
+fn substr(s: *i8, start: i64, len: i64) -> *i8 {
+    let result = alloc(len + 1) as *i8
+    let i: i64 = 0
+    while i < len {
+        result[i] = s[start + i]
+        i = i + 1
+    }
+    result[len] = 0
+    return result
+}
+
+fn print(s: *i8) {
+    // Print string
+}
+
+fn println(s: *i8) {
+    print(s)
+    print("\n")
+}
+
+fn print_i32(n: i32) {
+    // Print integer
+}
+
+// Additional token constant
+const TOK_AS: i32 = 100

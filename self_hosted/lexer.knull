@@ -1,92 +1,905 @@
 // =============================================================================
 // KNULL SELF-HOSTED COMPILER: LEXER MODULE
 // =============================================================================
-// Bootstrap-compatible version
+// Complete lexical analyzer for the Knull programming language
 
-// Token constants
-fn tok_eof() { return 0 }
-fn tok_ident() { return 1 }
-fn tok_int() { return 2 }
-fn tok_string() { return 3 }
-fn tok_fn() { return 10 }
-fn tok_let() { return 11 }
-fn tok_if() { return 12 }
-fn tok_else() { return 13 }
-fn tok_while() { return 14 }
-fn tok_return() { return 15 }
-fn tok_plus() { return 20 }
-fn tok_minus() { return 21 }
-fn tok_star() { return 22 }
-fn tok_slash() { return 23 }
-fn tok_eq() { return 24 }
-fn tok_neq() { return 25 }
-fn tok_lt() { return 26 }
-fn tok_gt() { return 27 }
-fn tok_lparen() { return 40 }
-fn tok_rparen() { return 41 }
-fn tok_lbrace() { return 42 }
-fn tok_rbrace() { return 43 }
-fn tok_comma() { return 44 }
-fn tok_semi() { return 45 }
-fn tok_assign() { return 46 }
+// Token type constants
+const TOK_EOF: i32 = 0
+const TOK_IDENT: i32 = 1
+const TOK_INT: i32 = 2
+const TOK_STRING: i32 = 3
+const TOK_CHAR: i32 = 4
+const TOK_FLOAT: i32 = 5
 
-// Simulated lexer for testing
-fn lex_next(pos) {
-    // Returns token kind based on position
-    if pos == 0 { return tok_fn() }
-    if pos == 1 { return tok_ident() }
-    if pos == 2 { return tok_lparen() }
-    if pos == 3 { return tok_rparen() }
-    if pos == 4 { return tok_lbrace() }
-    if pos == 5 { return tok_let() }
-    if pos == 6 { return tok_ident() }
-    if pos == 7 { return tok_assign() }
-    if pos == 8 { return tok_int() }
-    if pos == 9 { return tok_rbrace() }
-    return tok_eof()
+// Keywords (10-39)
+const TOK_FN: i32 = 10
+const TOK_LET: i32 = 11
+const TOK_MUT: i32 = 12
+const TOK_IF: i32 = 13
+const TOK_ELSE: i32 = 14
+const TOK_WHILE: i32 = 15
+const TOK_FOR: i32 = 16
+const TOK_RETURN: i32 = 17
+const TOK_BREAK: i32 = 18
+const TOK_CONTINUE: i32 = 19
+const TOK_TRUE: i32 = 20
+const TOK_FALSE: i32 = 21
+const TOK_CONST: i32 = 22
+const TOK_TYPE: i32 = 23
+const TOK_STRUCT: i32 = 24
+const TOK_IMPL: i32 = 25
+const TOK_TRAIT: i32 = 26
+const TOK_PUB: i32 = 27
+const TOK_USE: i32 = 28
+const TOK_MOD: i32 = 29
+const TOK_UNSAFE: i32 = 30
+const TOK_SYSCALL: i32 = 31
+const TOK_ASM: i32 = 32
+const TOK_MATCH: i32 = 33
+const TOK_REF: i32 = 34
+const TOK_OWN: i32 = 35
+const TOK_BORROW: i32 = 36
+const TOK_MOVE: i32 = 37
+const TOK_STATIC: i32 = 38
+const TOK_EXTERN: i32 = 39
+
+// Operators (40-79)
+const TOK_PLUS: i32 = 40
+const TOK_MINUS: i32 = 41
+const TOK_STAR: i32 = 42
+const TOK_SLASH: i32 = 43
+const TOK_PERCENT: i32 = 44
+const TOK_AMPERSAND: i32 = 45
+const TOK_PIPE: i32 = 46
+const TOK_CARET: i32 = 47
+const TOK_BANG: i32 = 48
+const TOK_TILDE: i32 = 49
+const TOK_LT: i32 = 50
+const TOK_GT: i32 = 51
+const TOK_DOT: i32 = 52
+const TOK_COMMA: i32 = 53
+const TOK_SEMI: i32 = 54
+const TOK_COLON: i32 = 55
+
+// Multi-character operators (60-79)
+const TOK_EQ: i32 = 60
+const TOK_NE: i32 = 61
+const TOK_LE: i32 = 62
+const TOK_GE: i32 = 63
+const TOK_AND: i32 = 64
+const TOK_OR: i32 = 65
+const TOK_SHL: i32 = 66
+const TOK_SHR: i32 = 67
+const TOK_ASSIGN: i32 = 68
+const TOK_PLUS_ASSIGN: i32 = 69
+const TOK_MINUS_ASSIGN: i32 = 70
+const TOK_STAR_ASSIGN: i32 = 71
+const TOK_SLASH_ASSIGN: i32 = 72
+const TOK_ARROW: i32 = 73
+const TOK_FAT_ARROW: i32 = 74
+const TOK_DOUBLE_COLON: i32 = 75
+const TOK_RANGE: i32 = 76
+const TOK_DOTDOTDOT: i32 = 77
+const TOK_ELLIPSIS: i32 = 78
+
+// Delimiters (80-99)
+const TOK_LPAREN: i32 = 80
+const TOK_RPAREN: i32 = 81
+const TOK_LBRACE: i32 = 82
+const TOK_RBRACE: i32 = 83
+const TOK_LBRACKET: i32 = 84
+const TOK_RBRACKET: i32 = 85
+const TOK_HASH: i32 = 86
+const TOK_AT: i32 = 87
+const TOK_DOLLAR: i32 = 88
+const TOK_QUESTION: i32 = 89
+const TOK_UNDERSCORE: i32 = 90
+
+// =============================================================================
+// TOKEN STRUCTURE
+// =============================================================================
+
+struct Token {
+    kind: i32,
+    value: *i8,      // Text value
+    int_val: i64,    // For integer literals
+    float_val: f64,  // For float literals
+    line: i32,
+    col: i32,
 }
 
-fn token_name(kind) {
-    if kind == tok_eof() { return "EOF" }
-    if kind == tok_ident() { return "IDENT" }
-    if kind == tok_int() { return "INT" }
-    if kind == tok_string() { return "STRING" }
-    if kind == tok_fn() { return "FN" }
-    if kind == tok_let() { return "LET" }
-    if kind == tok_if() { return "IF" }
-    if kind == tok_else() { return "ELSE" }
-    if kind == tok_while() { return "WHILE" }
-    if kind == tok_return() { return "RETURN" }
-    if kind == tok_plus() { return "PLUS" }
-    if kind == tok_minus() { return "MINUS" }
-    if kind == tok_star() { return "STAR" }
-    if kind == tok_slash() { return "SLASH" }
-    if kind == tok_eq() { return "EQ" }
-    if kind == tok_neq() { return "NEQ" }
-    if kind == tok_lt() { return "LT" }
-    if kind == tok_gt() { return "GT" }
-    if kind == tok_lparen() { return "LPAREN" }
-    if kind == tok_rparen() { return "RPAREN" }
-    if kind == tok_lbrace() { return "LBRACE" }
-    if kind == tok_rbrace() { return "RBRACE" }
-    if kind == tok_comma() { return "COMMA" }
-    if kind == tok_semi() { return "SEMI" }
-    if kind == tok_assign() { return "ASSIGN" }
+// =============================================================================
+// LEXER STATE
+// =============================================================================
+
+struct Lexer {
+    source: *i8,
+    length: i64,
+    pos: i64,
+    line: i32,
+    col: i32,
+}
+
+// =============================================================================
+// KEYWORD TABLE
+// =============================================================================
+
+struct Keyword {
+    word: *i8,
+    token: i32,
+}
+
+// Keyword definitions - using arrays since we can't initialize complex structs at global scope
+fn keyword_count() -> i32 { return 30 }
+
+fn get_keyword_word(idx: i32) -> *i8 {
+    if idx == 0 { return "fn" }
+    if idx == 1 { return "let" }
+    if idx == 2 { return "mut" }
+    if idx == 3 { return "if" }
+    if idx == 4 { return "else" }
+    if idx == 5 { return "while" }
+    if idx == 6 { return "for" }
+    if idx == 7 { return "return" }
+    if idx == 8 { return "break" }
+    if idx == 9 { return "continue" }
+    if idx == 10 { return "true" }
+    if idx == 11 { return "false" }
+    if idx == 12 { return "const" }
+    if idx == 13 { return "type" }
+    if idx == 14 { return "struct" }
+    if idx == 15 { return "impl" }
+    if idx == 16 { return "trait" }
+    if idx == 17 { return "pub" }
+    if idx == 18 { return "use" }
+    if idx == 19 { return "mod" }
+    if idx == 20 { return "unsafe" }
+    if idx == 21 { return "syscall" }
+    if idx == 22 { return "asm" }
+    if idx == 23 { return "match" }
+    if idx == 24 { return "ref" }
+    if idx == 25 { return "own" }
+    if idx == 26 { return "borrow" }
+    if idx == 27 { return "move" }
+    if idx == 28 { return "static" }
+    if idx == 29 { return "extern" }
+    return ""
+}
+
+fn get_keyword_token(idx: i32) -> i32 {
+    if idx == 0 { return TOK_FN }
+    if idx == 1 { return TOK_LET }
+    if idx == 2 { return TOK_MUT }
+    if idx == 3 { return TOK_IF }
+    if idx == 4 { return TOK_ELSE }
+    if idx == 5 { return TOK_WHILE }
+    if idx == 6 { return TOK_FOR }
+    if idx == 7 { return TOK_RETURN }
+    if idx == 8 { return TOK_BREAK }
+    if idx == 9 { return TOK_CONTINUE }
+    if idx == 10 { return TOK_TRUE }
+    if idx == 11 { return TOK_FALSE }
+    if idx == 12 { return TOK_CONST }
+    if idx == 13 { return TOK_TYPE }
+    if idx == 14 { return TOK_STRUCT }
+    if idx == 15 { return TOK_IMPL }
+    if idx == 16 { return TOK_TRAIT }
+    if idx == 17 { return TOK_PUB }
+    if idx == 18 { return TOK_USE }
+    if idx == 19 { return TOK_MOD }
+    if idx == 20 { return TOK_UNSAFE }
+    if idx == 21 { return TOK_SYSCALL }
+    if idx == 22 { return TOK_ASM }
+    if idx == 23 { return TOK_MATCH }
+    if idx == 24 { return TOK_REF }
+    if idx == 25 { return TOK_OWN }
+    if idx == 26 { return TOK_BORROW }
+    if idx == 27 { return TOK_MOVE }
+    if idx == 28 { return TOK_STATIC }
+    if idx == 29 { return TOK_EXTERN }
+    return TOK_IDENT
+}
+
+// =============================================================================
+// LEXER FUNCTIONS
+// =============================================================================
+
+fn lexer_new(source: *i8) -> *Lexer {
+    let lexer = alloc(32) as *Lexer
+    lexer.source = source
+    lexer.length = strlen(source)
+    lexer.pos = 0
+    lexer.line = 1
+    lexer.col = 1
+    return lexer
+}
+
+fn lexer_next_token(lexer: *Lexer) -> Token {
+    lexer_skip_whitespace(lexer)
+    lexer_skip_comments(lexer)
+    lexer_skip_whitespace(lexer)
+    
+    let c = lexer_current(lexer)
+    let line = lexer.line
+    let col = lexer.col
+    
+    // EOF
+    if c == 0 {
+        return make_token(TOK_EOF, "", 0, 0.0, line, col)
+    }
+    
+    // Identifiers and keywords
+    if is_alpha(c) || c == '_' {
+        return lexer_read_ident(lexer)
+    }
+    
+    // Numbers
+    if is_digit(c) {
+        return lexer_read_number(lexer)
+    }
+    
+    // Strings
+    if c == '"' {
+        return lexer_read_string(lexer)
+    }
+    
+    // Characters
+    if c == '\'' {
+        return lexer_read_char(lexer)
+    }
+    
+    // Operators and delimiters
+    return lexer_read_operator(lexer)
+}
+
+fn lexer_read_ident(lexer: *Lexer) -> Token {
+    let start = lexer.pos
+    let line = lexer.line
+    let col = lexer.col
+    
+    while is_alnum(lexer_current(lexer)) || lexer_current(lexer) == '_' {
+        lexer_advance(lexer)
+    }
+    
+    let len = lexer.pos - start
+    let text = substr(lexer.source, start, len)
+    let kind = TOK_IDENT
+    
+    // Check for keywords
+    let i: i32 = 0
+    while i < keyword_count() {
+        if strcmp(text, get_keyword_word(i)) == 0 {
+            kind = get_keyword_token(i)
+            break
+        }
+        i = i + 1
+    }
+    
+    return make_token(kind, text, 0, 0.0, line, col)
+}
+
+fn lexer_read_number(lexer: *Lexer) -> Token {
+    let start = lexer.pos
+    let line = lexer.line
+    let col = lexer.col
+    let base: i64 = 10
+    
+    // Check for different bases
+    if lexer_current(lexer) == '0' {
+        let next = lexer_peek(lexer, 1)
+        if next == 'x' || next == 'X' {
+            base = 16
+            lexer_advance(lexer)
+            lexer_advance(lexer)
+        } else if next == 'b' || next == 'B' {
+            base = 2
+            lexer_advance(lexer)
+            lexer_advance(lexer)
+        } else if next == 'o' || next == 'O' {
+            base = 8
+            lexer_advance(lexer)
+            lexer_advance(lexer)
+        }
+    }
+    
+    // Integer part
+    while is_digit(lexer_current(lexer)) || (base == 16 && is_hex_digit(lexer_current(lexer))) {
+        lexer_advance(lexer)
+    }
+    
+    // Fractional part (float)
+    if lexer_current(lexer) == '.' && is_digit(lexer_peek(lexer, 1)) {
+        lexer_advance(lexer)  // Skip '.'
+        while is_digit(lexer_current(lexer)) {
+            lexer_advance(lexer)
+        }
+        
+        // Exponent
+        if lexer_current(lexer) == 'e' || lexer_current(lexer) == 'E' {
+            lexer_advance(lexer)
+            if lexer_current(lexer) == '+' || lexer_current(lexer) == '-' {
+                lexer_advance(lexer)
+            }
+            while is_digit(lexer_current(lexer)) {
+                lexer_advance(lexer)
+            }
+        }
+        
+        let len = lexer.pos - start
+        let text = substr(lexer.source, start, len)
+        return make_token(TOK_FLOAT, text, 0, parse_float(text), line, col)
+    }
+    
+    // Integer suffix
+    let suffix_start = lexer.pos
+    if lexer_current(lexer) == 'i' || lexer_current(lexer) == 'u' {
+        lexer_advance(lexer)
+        while is_digit(lexer_current(lexer)) {
+            lexer_advance(lexer)
+        }
+    }
+    
+    let len = lexer.pos - start
+    let text = substr(lexer.source, start, len)
+    let val = parse_int_with_base(text, base)
+    
+    return make_token(TOK_INT, text, val, 0.0, line, col)
+}
+
+fn lexer_read_string(lexer: *Lexer) -> Token {
+    let line = lexer.line
+    let col = lexer.col
+    lexer_advance(lexer)  // Skip opening quote
+    
+    let start = lexer.pos
+    
+    while lexer_current(lexer) != '"' && lexer_current(lexer) != 0 {
+        if lexer_current(lexer) == '\\' {
+            lexer_advance(lexer)  // Skip backslash
+            if lexer_current(lexer) != 0 {
+                lexer_advance(lexer)  // Skip escaped char
+            }
+        } else {
+            lexer_advance(lexer)
+        }
+    }
+    
+    let len = lexer.pos - start
+    let text = substr(lexer.source, start, len)
+    
+    if lexer_current(lexer) == '"' {
+        lexer_advance(lexer)  // Skip closing quote
+    }
+    
+    return make_token(TOK_STRING, text, 0, 0.0, line, col)
+}
+
+fn lexer_read_char(lexer: *Lexer) -> Token {
+    let line = lexer.line
+    let col = lexer.col
+    lexer_advance(lexer)  // Skip opening quote
+    
+    let val: i64 = 0
+    
+    if lexer_current(lexer) == '\\' {
+        lexer_advance(lexer)
+        let c = lexer_current(lexer)
+        if c == 'n' { val = 10 }
+        else if c == 't' { val = 9 }
+        else if c == 'r' { val = 13 }
+        else if c == '0' { val = 0 }
+        else if c == '\\' { val = '\\' as i64 }
+        else if c == '\'' { val = '\'' as i64 }
+        else if c == '"' { val = '"' as i64 }
+        else { val = c as i64 }
+        lexer_advance(lexer)
+    } else {
+        val = lexer_current(lexer) as i64
+        lexer_advance(lexer)
+    }
+    
+    if lexer_current(lexer) == '\'' {
+        lexer_advance(lexer)  // Skip closing quote
+    }
+    
+    return make_token(TOK_CHAR, "", val, 0.0, line, col)
+}
+
+fn lexer_read_operator(lexer: *Lexer) -> Token {
+    let line = lexer.line
+    let col = lexer.col
+    let c = lexer_current(lexer)
+    let c2 = lexer_peek(lexer, 1)
+    let c3 = lexer_peek(lexer, 2)
+    
+    lexer_advance(lexer)
+    
+    // Three-character operators
+    if c == '.' && c2 == '.' && c3 == '.' {
+        lexer_advance(lexer)
+        lexer_advance(lexer)
+        return make_token(TOK_DOTDOTDOT, "...", 0, 0.0, line, col)
+    }
+    
+    // Two-character operators
+    if c == '=' && c2 == '=' {
+        lexer_advance(lexer)
+        return make_token(TOK_EQ, "==", 0, 0.0, line, col)
+    }
+    if c == '!' && c2 == '=' {
+        lexer_advance(lexer)
+        return make_token(TOK_NE, "!=", 0, 0.0, line, col)
+    }
+    if c == '<' && c2 == '=' {
+        lexer_advance(lexer)
+        return make_token(TOK_LE, "<=", 0, 0.0, line, col)
+    }
+    if c == '>' && c2 == '=' {
+        lexer_advance(lexer)
+        return make_token(TOK_GE, ">=", 0, 0.0, line, col)
+    }
+    if c == '&' && c2 == '&' {
+        lexer_advance(lexer)
+        return make_token(TOK_AND, "&&", 0, 0.0, line, col)
+    }
+    if c == '|' && c2 == '|' {
+        lexer_advance(lexer)
+        return make_token(TOK_OR, "||", 0, 0.0, line, col)
+    }
+    if c == '<' && c2 == '<' {
+        lexer_advance(lexer)
+        return make_token(TOK_SHL, "<<", 0, 0.0, line, col)
+    }
+    if c == '>' && c2 == '>' {
+        lexer_advance(lexer)
+        return make_token(TOK_SHR, ">>", 0, 0.0, line, col)
+    }
+    if c == '+' && c2 == '=' {
+        lexer_advance(lexer)
+        return make_token(TOK_PLUS_ASSIGN, "+=", 0, 0.0, line, col)
+    }
+    if c == '-' && c2 == '=' {
+        lexer_advance(lexer)
+        return make_token(TOK_MINUS_ASSIGN, "-=", 0, 0.0, line, col)
+    }
+    if c == '*' && c2 == '=' {
+        lexer_advance(lexer)
+        return make_token(TOK_STAR_ASSIGN, "*=", 0, 0.0, line, col)
+    }
+    if c == '/' && c2 == '=' {
+        lexer_advance(lexer)
+        return make_token(TOK_SLASH_ASSIGN, "/=", 0, 0.0, line, col)
+    }
+    if c == '-' && c2 == '>' {
+        lexer_advance(lexer)
+        return make_token(TOK_ARROW, "->", 0, 0.0, line, col)
+    }
+    if c == '=' && c2 == '>' {
+        lexer_advance(lexer)
+        return make_token(TOK_FAT_ARROW, "=>", 0, 0.0, line, col)
+    }
+    if c == ':' && c2 == ':' {
+        lexer_advance(lexer)
+        return make_token(TOK_DOUBLE_COLON, "::", 0, 0.0, line, col)
+    }
+    if c == '.' && c2 == '.' {
+        lexer_advance(lexer)
+        return make_token(TOK_RANGE, "..", 0, 0.0, line, col)
+    }
+    
+    // Single-character operators
+    if c == '+' { return make_token(TOK_PLUS, "+", 0, 0.0, line, col) }
+    if c == '-' { return make_token(TOK_MINUS, "-", 0, 0.0, line, col) }
+    if c == '*' { return make_token(TOK_STAR, "*", 0, 0.0, line, col) }
+    if c == '/' { return make_token(TOK_SLASH, "/", 0, 0.0, line, col) }
+    if c == '%' { return make_token(TOK_PERCENT, "%", 0, 0.0, line, col) }
+    if c == '&' { return make_token(TOK_AMPERSAND, "&", 0, 0.0, line, col) }
+    if c == '|' { return make_token(TOK_PIPE, "|", 0, 0.0, line, col) }
+    if c == '^' { return make_token(TOK_CARET, "^", 0, 0.0, line, col) }
+    if c == '!' { return make_token(TOK_BANG, "!", 0, 0.0, line, col) }
+    if c == '~' { return make_token(TOK_TILDE, "~", 0, 0.0, line, col) }
+    if c == '<' { return make_token(TOK_LT, "<", 0, 0.0, line, col) }
+    if c == '>' { return make_token(TOK_GT, ">", 0, 0.0, line, col) }
+    if c == '=' { return make_token(TOK_ASSIGN, "=", 0, 0.0, line, col) }
+    if c == '.' { return make_token(TOK_DOT, ".", 0, 0.0, line, col) }
+    if c == ',' { return make_token(TOK_COMMA, ",", 0, 0.0, line, col) }
+    if c == ';' { return make_token(TOK_SEMI, ";", 0, 0.0, line, col) }
+    if c == ':' { return make_token(TOK_COLON, ":", 0, 0.0, line, col) }
+    if c == '(' { return make_token(TOK_LPAREN, "(", 0, 0.0, line, col) }
+    if c == ')' { return make_token(TOK_RPAREN, ")", 0, 0.0, line, col) }
+    if c == '{' { return make_token(TOK_LBRACE, "{", 0, 0.0, line, col) }
+    if c == '}' { return make_token(TOK_RBRACE, "}", 0, 0.0, line, col) }
+    if c == '[' { return make_token(TOK_LBRACKET, "[", 0, 0.0, line, col) }
+    if c == ']' { return make_token(TOK_RBRACKET, "]", 0, 0.0, line, col) }
+    if c == '#' { return make_token(TOK_HASH, "#", 0, 0.0, line, col) }
+    if c == '@' { return make_token(TOK_AT, "@", 0, 0.0, line, col) }
+    if c == '$' { return make_token(TOK_DOLLAR, "$", 0, 0.0, line, col) }
+    if c == '?' { return make_token(TOK_QUESTION, "?", 0, 0.0, line, col) }
+    if c == '_' { return make_token(TOK_UNDERSCORE, "_", 0, 0.0, line, col) }
+    
+    // Unknown character
+    return make_token(TOK_EOF, "", 0, 0.0, line, col)
+}
+
+fn lexer_skip_whitespace(lexer: *Lexer) {
+    while true {
+        let c = lexer_current(lexer)
+        if c == ' ' || c == '\t' || c == '\r' {
+            lexer_advance(lexer)
+        } else if c == '\n' {
+            lexer.line = lexer.line + 1
+            lexer.col = 1
+            lexer.pos = lexer.pos + 1
+        } else {
+            break
+        }
+    }
+}
+
+fn lexer_skip_comments(lexer: *Lexer) {
+    // Line comment
+    if lexer_current(lexer) == '/' && lexer_peek(lexer, 1) == '/' {
+        while lexer_current(lexer) != 0 && lexer_current(lexer) != '\n' {
+            lexer.pos = lexer.pos + 1
+        }
+    }
+    // Block comment
+    else if lexer_current(lexer) == '/' && lexer_peek(lexer, 1) == '*' {
+        lexer.pos = lexer.pos + 2
+        lexer.col = lexer.col + 2
+        while lexer_current(lexer) != 0 {
+            if lexer_current(lexer) == '*' && lexer_peek(lexer, 1) == '/' {
+                lexer.pos = lexer.pos + 2
+                lexer.col = lexer.col + 2
+                break
+            }
+            if lexer_current(lexer) == '\n' {
+                lexer.line = lexer.line + 1
+                lexer.col = 1
+            } else {
+                lexer.col = lexer.col + 1
+            }
+            lexer.pos = lexer.pos + 1
+        }
+    }
+}
+
+fn lexer_advance(lexer: *Lexer) {
+    if lexer.pos < lexer.length {
+        lexer.pos = lexer.pos + 1
+        lexer.col = lexer.col + 1
+    }
+}
+
+fn lexer_current(lexer: *Lexer) -> i8 {
+    if lexer.pos < lexer.length {
+        return lexer.source[lexer.pos]
+    }
+    return 0
+}
+
+fn lexer_peek(lexer: *Lexer, offset: i64) -> i8 {
+    let pos = lexer.pos + offset
+    if pos < lexer.length {
+        return lexer.source[pos]
+    }
+    return 0
+}
+
+fn make_token(kind: i32, value: *i8, int_val: i64, float_val: f64, line: i32, col: i32) -> Token {
+    let tok: Token
+    tok.kind = kind
+    tok.value = value
+    tok.int_val = int_val
+    tok.float_val = float_val
+    tok.line = line
+    tok.col = col
+    return tok
+}
+
+// =============================================================================
+// TOKEN NAME LOOKUP
+// =============================================================================
+
+fn token_name(kind: i32) -> *i8 {
+    if kind == TOK_EOF { return "EOF" }
+    if kind == TOK_IDENT { return "IDENT" }
+    if kind == TOK_INT { return "INT" }
+    if kind == TOK_STRING { return "STRING" }
+    if kind == TOK_CHAR { return "CHAR" }
+    if kind == TOK_FLOAT { return "FLOAT" }
+    if kind == TOK_FN { return "FN" }
+    if kind == TOK_LET { return "LET" }
+    if kind == TOK_MUT { return "MUT" }
+    if kind == TOK_IF { return "IF" }
+    if kind == TOK_ELSE { return "ELSE" }
+    if kind == TOK_WHILE { return "WHILE" }
+    if kind == TOK_FOR { return "FOR" }
+    if kind == TOK_RETURN { return "RETURN" }
+    if kind == TOK_BREAK { return "BREAK" }
+    if kind == TOK_CONTINUE { return "CONTINUE" }
+    if kind == TOK_TRUE { return "TRUE" }
+    if kind == TOK_FALSE { return "FALSE" }
+    if kind == TOK_CONST { return "CONST" }
+    if kind == TOK_TYPE { return "TYPE" }
+    if kind == TOK_STRUCT { return "STRUCT" }
+    if kind == TOK_IMPL { return "IMPL" }
+    if kind == TOK_TRAIT { return "TRAIT" }
+    if kind == TOK_PUB { return "PUB" }
+    if kind == TOK_USE { return "USE" }
+    if kind == TOK_MOD { return "MOD" }
+    if kind == TOK_UNSAFE { return "UNSAFE" }
+    if kind == TOK_SYSCALL { return "SYSCALL" }
+    if kind == TOK_ASM { return "ASM" }
+    if kind == TOK_MATCH { return "MATCH" }
+    if kind == TOK_REF { return "REF" }
+    if kind == TOK_OWN { return "OWN" }
+    if kind == TOK_BORROW { return "BORROW" }
+    if kind == TOK_MOVE { return "MOVE" }
+    if kind == TOK_STATIC { return "STATIC" }
+    if kind == TOK_EXTERN { return "EXTERN" }
+    if kind == TOK_PLUS { return "PLUS" }
+    if kind == TOK_MINUS { return "MINUS" }
+    if kind == TOK_STAR { return "STAR" }
+    if kind == TOK_SLASH { return "SLASH" }
+    if kind == TOK_PERCENT { return "PERCENT" }
+    if kind == TOK_AMPERSAND { return "AMPERSAND" }
+    if kind == TOK_PIPE { return "PIPE" }
+    if kind == TOK_CARET { return "CARET" }
+    if kind == TOK_BANG { return "BANG" }
+    if kind == TOK_TILDE { return "TILDE" }
+    if kind == TOK_LT { return "LT" }
+    if kind == TOK_GT { return "GT" }
+    if kind == TOK_DOT { return "DOT" }
+    if kind == TOK_COMMA { return "COMMA" }
+    if kind == TOK_SEMI { return "SEMI" }
+    if kind == TOK_COLON { return "COLON" }
+    if kind == TOK_EQ { return "EQ" }
+    if kind == TOK_NE { return "NE" }
+    if kind == TOK_LE { return "LE" }
+    if kind == TOK_GE { return "GE" }
+    if kind == TOK_AND { return "AND" }
+    if kind == TOK_OR { return "OR" }
+    if kind == TOK_SHL { return "SHL" }
+    if kind == TOK_SHR { return "SHR" }
+    if kind == TOK_ASSIGN { return "ASSIGN" }
+    if kind == TOK_PLUS_ASSIGN { return "PLUS_ASSIGN" }
+    if kind == TOK_MINUS_ASSIGN { return "MINUS_ASSIGN" }
+    if kind == TOK_STAR_ASSIGN { return "STAR_ASSIGN" }
+    if kind == TOK_SLASH_ASSIGN { return "SLASH_ASSIGN" }
+    if kind == TOK_ARROW { return "ARROW" }
+    if kind == TOK_FAT_ARROW { return "FAT_ARROW" }
+    if kind == TOK_DOUBLE_COLON { return "DOUBLE_COLON" }
+    if kind == TOK_RANGE { return "RANGE" }
+    if kind == TOK_DOTDOTDOT { return "DOTDOTDOT" }
+    if kind == TOK_LPAREN { return "LPAREN" }
+    if kind == TOK_RPAREN { return "RPAREN" }
+    if kind == TOK_LBRACE { return "LBRACE" }
+    if kind == TOK_RBRACE { return "RBRACE" }
+    if kind == TOK_LBRACKET { return "LBRACKET" }
+    if kind == TOK_RBRACKET { return "RBRACKET" }
+    if kind == TOK_HASH { return "HASH" }
+    if kind == TOK_AT { return "AT" }
+    if kind == TOK_DOLLAR { return "DOLLAR" }
+    if kind == TOK_QUESTION { return "QUESTION" }
+    if kind == TOK_UNDERSCORE { return "UNDERSCORE" }
     return "UNKNOWN"
 }
 
-fn main() {
-    println "Lexer Module Test"
-    println ""
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+fn is_alpha(c: i8) -> bool {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+fn is_digit(c: i8) -> bool {
+    return c >= '0' && c <= '9'
+}
+
+fn is_hex_digit(c: i8) -> bool {
+    return is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
+
+fn is_alnum(c: i8) -> bool {
+    return is_alpha(c) || is_digit(c)
+}
+
+fn strlen(s: *i8) -> i64 {
+    let len: i64 = 0
+    while s[len] != 0 {
+        len = len + 1
+    }
+    return len
+}
+
+fn strcmp(a: *i8, b: *i8) -> i32 {
+    let i: i64 = 0
+    while a[i] != 0 && b[i] != 0 {
+        if a[i] != b[i] {
+            return (a[i] - b[i]) as i32
+        }
+        i = i + 1
+    }
+    return (a[i] - b[i]) as i32
+}
+
+fn substr(s: *i8, start: i64, len: i64) -> *i8 {
+    let result = alloc(len + 1) as *i8
+    let i: i64 = 0
+    while i < len {
+        result[i] = s[start + i]
+        i = i + 1
+    }
+    result[len] = 0
+    return result
+}
+
+fn parse_int_with_base(s: *i8, base: i64) -> i64 {
+    let val: i64 = 0
+    let i: i64 = 0
     
-    let pos = 0
-    let kind = lex_next(pos)
-    
-    while kind != tok_eof() {
-        println "Token: " + token_name(kind)
-        pos = pos + 1
-        kind = lex_next(pos)
+    // Skip prefix if present
+    if s[0] == '0' && (s[1] == 'x' || s[1] == 'X' || s[1] == 'b' || s[1] == 'B' || s[1] == 'o' || s[1] == 'O') {
+        i = 2
     }
     
-    println "EOF reached"
+    while s[i] != 0 && s[i] != 'i' && s[i] != 'u' && s[i] != 'f' && s[i] != '.' {
+        let c = s[i]
+        let digit: i64 = 0
+        
+        if c >= '0' && c <= '9' {
+            digit = (c - '0') as i64
+        } else if c >= 'a' && c <= 'f' {
+            digit = (c - 'a' + 10) as i64
+        } else if c >= 'A' && c <= 'F' {
+            digit = (c - 'A' + 10) as i64
+        } else {
+            break
+        }
+        
+        val = val * base + digit
+        i = i + 1
+    }
+    
+    return val
+}
+
+fn parse_float(s: *i8) -> f64 {
+    // Simplified float parsing
+    let int_part: i64 = 0
+    let frac_part: f64 = 0.0
+    let frac_div: f64 = 1.0
+    let i: i64 = 0
+    let negative = false
+    
+    if s[0] == '-' {
+        negative = true
+        i = 1
+    }
+    
+    // Integer part
+    while s[i] != 0 && s[i] != '.' {
+        if s[i] >= '0' && s[i] <= '9' {
+            int_part = int_part * 10 + (s[i] - '0') as i64
+        }
+        i = i + 1
+    }
+    
+    // Fractional part
+    if s[i] == '.' {
+        i = i + 1
+        while s[i] != 0 && s[i] != 'e' && s[i] != 'E' {
+            if s[i] >= '0' && s[i] <= '9' {
+                frac_part = frac_part * 10.0 + (s[i] - '0') as f64
+                frac_div = frac_div * 10.0
+            }
+            i = i + 1
+        }
+    }
+    
+    let result = int_part as f64 + frac_part / frac_div
+    
+    if negative {
+        result = -result
+    }
+    
+    return result
+}
+
+fn alloc(size: i64) -> *void {
+    // Simple bump allocator or use runtime
+    // For now, return static buffer
+    static let buffer: [i8; 65536]
+    static let pos: i64 = 0
+    let result = &buffer[pos]
+    pos = pos + size
+    if pos > 65536 {
+        pos = size  // Wrap around (simplified)
+    }
+    return result as *void
+}
+
+// =============================================================================
+// TEST/DEMO
+// =============================================================================
+
+fn main() {
+    println("")
+    println("========================================")
+    println("Knull Self-Hosted Lexer v1.0.0")
+    println("========================================")
+    println("")
+    
+    let test_code = "fn main() {\n    let x: i32 = 42\n    let msg = \"Hello\"\n    if x > 0 {\n        return x + 1\n    }\n}"
+    
+    println("Tokenizing:")
+    println("-----------")
+    println(test_code)
+    println("-----------")
+    println("")
+    
+    let lexer = lexer_new(test_code)
+    let count: i32 = 0
+    
+    println("Tokens:")
+    while true {
+        let tok = lexer_next_token(lexer)
+        print("  ")
+        print(token_name(tok.kind))
+        
+        if tok.kind == TOK_IDENT || tok.kind == TOK_STRING {
+            print("(\"")
+            print(tok.value)
+            print("\")")
+        } else if tok.kind == TOK_INT {
+            print("(")
+            print_i64(tok.int_val)
+            print(")")
+        } else if tok.kind == TOK_FLOAT {
+            print("(")
+            print_f64(tok.float_val)
+            print(")")
+        }
+        
+        print(" at ")
+        print_i32(tok.line)
+        print(":")
+        print_i32(tok.col)
+        println("")
+        
+        count = count + 1
+        if tok.kind == TOK_EOF {
+            break
+        }
+    }
+    
+    println("")
+    print("Total tokens: ")
+    print_i32(count)
+    println("")
+    println("")
+    println("Lexer operational!")
+}
+
+fn print(s: *i8) {
+    // Print string
+}
+
+fn println(s: *i8) {
+    print(s)
+    print("\n")
+}
+
+fn print_i64(n: i64) {
+    // Print integer
+}
+
+fn print_f64(n: f64) {
+    // Print float
+}
+
+fn print_i32(n: i32) {
+    // Print int
 }

@@ -4,15 +4,6 @@
 // This is Knull at its simplest. One line. No boilerplate.
 // The absolute minimum needed to write to the console.
 
-module main
-
 fn main() {
-    println "Hello, World!"
+    println("Hello, World!")
 }
-
-// =============================================================================
-// ALTERNATIVE - EVEN SIMPLIER (Direct Mode)
-// =============================================================================
-// In direct mode (REPL or script), you can omit the module declaration
-
-// println "Hello, World!"

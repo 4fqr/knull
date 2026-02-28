@@ -70,7 +70,11 @@ impl TypeChecker {
                 }
                 Ok(Type::Void)
             }
-            ASTNode::Function { name: _, body } => {
+            ASTNode::Function {
+                name: _,
+                params: _,
+                body,
+            } => {
                 self.push_scope();
                 self.check_node(body)?;
                 self.pop_scope();

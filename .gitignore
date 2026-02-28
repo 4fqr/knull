@@ -1,0 +1,29 @@
+# Rust
+target/
+Cargo.lock
+*.rs.bk
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flycheck
+flycheck*
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.out
+
+# Test outputs
+*.log
