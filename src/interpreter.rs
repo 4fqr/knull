@@ -5,10 +5,91 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 use crate::parser::{ASTNode, Literal};
+
+// Global TCP stream registry
+lazy_static::lazy_static! {
+    static ref TCP_STREAMS: Arc<Mutex<HashMap<i64, TcpStream>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref TCP_LISTENERS: Arc<Mutex<HashMap<i64, TcpListener>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref NEXT_HANDLE: Arc<Mutex<i64>> = Arc::new(Mutex::new(1));
+}
+
+fn next_handle() -> i64 {
+    let mut handle = NEXT_HANDLE.lock().unwrap();
+    let h = *handle;
+    *handle += 1;
+    h
+}
+
+fn save_tcp_stream(stream: TcpStream) -> i64 {
+    let handle = next_handle();
+    TCP_STREAMS.lock().unwrap().insert(handle, stream);
+    handle
+}
+
+fn get_tcp_stream(handle: i64) -> Option<std::sync::MutexGuard<'static, HashMap<i64, TcpStream>>> {
+    if TCP_STREAMS.lock().unwrap().contains_key(&handle) {
+        Some(TCP_STREAMS.lock().unwrap())
+    } else {
+        None
+    }
+}
+
+fn tcp_stream_send(handle: i64, data: &[u8]) -> Result<usize, String> {
+    let mut streams = TCP_STREAMS.lock().unwrap();
+    if let Some(stream) = streams.get_mut(&handle) {
+        stream.write(data).map_err(|e| e.to_string())
+    } else {
+        Err("Invalid stream handle".to_string())
+    }
+}
+
+fn tcp_stream_recv(handle: i64, size: usize) -> Result<String, String> {
+    let mut streams = TCP_STREAMS.lock().unwrap();
+    if let Some(stream) = streams.get_mut(&handle) {
+        let mut buf = vec![0u8; size];
+        match stream.read(&mut buf) {
+            Ok(n) => {
+                buf.truncate(n);
+                Ok(String::from_utf8_lossy(&buf).to_string())
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    } else {
+        Err("Invalid stream handle".to_string())
+    }
+}
+
+fn tcp_stream_close(handle: i64) {
+    TCP_STREAMS.lock().unwrap().remove(&handle);
+}
+
+fn save_tcp_listener(listener: TcpListener) -> i64 {
+    let handle = next_handle();
+    TCP_LISTENERS.lock().unwrap().insert(handle, listener);
+    handle
+}
+
+fn tcp_listener_accept(handle: i64) -> Result<(i64, String), String> {
+    let mut listeners = TCP_LISTENERS.lock().unwrap();
+    if let Some(listener) = listeners.get_mut(&handle) {
+        match listener.accept() {
+            Ok((stream, addr)) => {
+                let stream_handle = next_handle();
+                TCP_STREAMS.lock().unwrap().insert(stream_handle, stream);
+                Ok((stream_handle, addr.to_string()))
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    } else {
+        Err("Invalid listener handle".to_string())
+    }
+}
 
 /// Runtime value
 #[derive(Debug, Clone, PartialEq)]
@@ -378,6 +459,7 @@ impl Interpreter {
             Literal::Float(f) => Value::Float(*f),
             Literal::String(s) => Value::String(s.clone()),
             Literal::Bool(b) => Value::Bool(*b),
+            Literal::Null => Value::Null,
         }
     }
 
@@ -709,14 +791,241 @@ impl Interpreter {
                 if args.len() >= 1 {
                     let addr = args[0].as_string();
                     match std::net::TcpStream::connect(&addr) {
-                        Ok(_) => Some(Ok(Value::Bool(true))),
-                        Err(_) => Some(Ok(Value::Bool(false))),
+                        Ok(stream) => {
+                            // Store stream in a global registry and return handle
+                            let handle = save_tcp_stream(stream);
+                            Some(Ok(Value::Int(handle)))
+                        }
+                        Err(_) => Some(Ok(Value::Int(-1))),
                     }
                 } else {
                     Some(Err("tcp_connect requires address".to_string()))
                 }
             }
+            "tcp_send" => {
+                if args.len() >= 2 {
+                    let handle = args[0].as_int();
+                    let data = args[1].as_string();
+                    match tcp_stream_send(handle, data.as_bytes()) {
+                        Ok(n) => Some(Ok(Value::Int(n as i64))),
+                        Err(_) => Some(Ok(Value::Int(-1))),
+                    }
+                } else {
+                    Some(Err("tcp_send requires handle and data".to_string()))
+                }
+            }
+            "tcp_recv" => {
+                if args.len() >= 2 {
+                    let handle = args[0].as_int();
+                    let size = args[1].as_int() as usize;
+                    match tcp_stream_recv(handle, size) {
+                        Ok(data) => Some(Ok(Value::String(data))),
+                        Err(_) => Some(Ok(Value::String("".to_string()))),
+                    }
+                } else {
+                    Some(Err("tcp_recv requires handle and size".to_string()))
+                }
+            }
+            "tcp_close" => {
+                if args.len() >= 1 {
+                    let handle = args[0].as_int();
+                    tcp_stream_close(handle);
+                    Some(Ok(Value::Null))
+                } else {
+                    Some(Err("tcp_close requires handle".to_string()))
+                }
+            }
+            "tcp_listen" => {
+                if args.len() >= 1 {
+                    let addr = args[0].as_string();
+                    match std::net::TcpListener::bind(&addr) {
+                        Ok(listener) => {
+                            let handle = save_tcp_listener(listener);
+                            Some(Ok(Value::Int(handle)))
+                        }
+                        Err(_) => Some(Ok(Value::Int(-1))),
+                    }
+                } else {
+                    Some(Err("tcp_listen requires address".to_string()))
+                }
+            }
+            "tcp_accept" => {
+                if args.len() >= 1 {
+                    let handle = args[0].as_int();
+                    match tcp_listener_accept(handle) {
+                        Ok((stream_handle, addr)) => {
+                            // Return array [stream_handle, client_addr]
+                            Some(Ok(Value::Array(vec![
+                                Value::Int(stream_handle),
+                                Value::String(addr),
+                            ])))
+                        }
+                        Err(_) => Some(Ok(Value::Int(-1))),
+                    }
+                } else {
+                    Some(Err("tcp_accept requires listener handle".to_string()))
+                }
+            }
             "get_hostname" => Some(Ok(Value::String("localhost".to_string()))),
+            // FFI functions
+            "ffi_open" => {
+                if let Some(arg) = args.first() {
+                    let path = arg.as_string();
+                    match crate::ffi::ffi_open(&path) {
+                        Ok(handle) => Some(Ok(Value::Int(handle as i64))),
+                        Err(e) => Some(Err(e)),
+                    }
+                } else {
+                    Some(Err("ffi_open() requires a path argument".to_string()))
+                }
+            }
+            "ffi_get_symbol" => {
+                if args.len() >= 2 {
+                    let lib_handle = args[0].as_int() as usize;
+                    let name = args[1].as_string();
+                    match crate::ffi::ffi_get_symbol(lib_handle, &name) {
+                        Ok(symbol) => Some(Ok(Value::Int(symbol as i64))),
+                        Err(e) => Some(Err(e)),
+                    }
+                } else {
+                    Some(Err(
+                        "ffi_get_symbol() requires library handle and symbol name".to_string(),
+                    ))
+                }
+            }
+            "ffi_malloc" => {
+                let size = args.first().map(|v| v.as_int()).unwrap_or(1024) as usize;
+                let ptr = crate::ffi::ffi_malloc(size);
+                Some(Ok(Value::Int(ptr as i64)))
+            }
+            "ffi_free" => {
+                if let Some(arg) = args.first() {
+                    let ptr = arg.as_int() as usize;
+                    crate::ffi::ffi_free(ptr);
+                    Some(Ok(Value::Null))
+                } else {
+                    Some(Err("ffi_free() requires a pointer argument".to_string()))
+                }
+            }
+            // GC functions
+            "gc_collect" => {
+                let freed = crate::gc::gc_collect();
+                Some(Ok(Value::Int(freed as i64)))
+            }
+            "gc_stats" => {
+                let stats = crate::gc::gc_stats();
+                Some(Ok(Value::Array(vec![
+                    Value::Int(stats.live_objects as i64),
+                    Value::Int(stats.total_allocated as i64),
+                    Value::Int(stats.total_freed as i64),
+                ])))
+            }
+            // Time functions
+            "time" => {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64;
+                Some(Ok(Value::Int(now)))
+            }
+            "time_millis" => {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as i64;
+                Some(Ok(Value::Int(now)))
+            }
+            // Environment functions
+            "env_get" => {
+                if let Some(arg) = args.first() {
+                    let key = arg.as_string();
+                    match std::env::var(&key) {
+                        Ok(val) => Some(Ok(Value::String(val))),
+                        Err(_) => Some(Ok(Value::Null)),
+                    }
+                } else {
+                    Some(Err("env_get() requires a key argument".to_string()))
+                }
+            }
+            "env_set" => {
+                if args.len() >= 2 {
+                    let key = args[0].as_string();
+                    let val = args[1].as_string();
+                    std::env::set_var(&key, &val);
+                    Some(Ok(Value::Null))
+                } else {
+                    Some(Err("env_set() requires key and value arguments".to_string()))
+                }
+            }
+            // Command execution
+            "exec" => {
+                if let Some(arg) = args.first() {
+                    let cmd = arg.as_string();
+                    match std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(&cmd)
+                        .output()
+                    {
+                        Ok(output) => {
+                            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                            Some(Ok(Value::String(stdout)))
+                        }
+                        Err(e) => Some(Err(format!("Command failed: {}", e))),
+                    }
+                } else {
+                    Some(Err("exec() requires a command argument".to_string()))
+                }
+            }
+            // String utilities
+            "strlen" => {
+                if let Some(arg) = args.first() {
+                    let s = arg.as_string();
+                    Some(Ok(Value::Int(s.len() as i64)))
+                } else {
+                    Some(Err("strlen() requires a string argument".to_string()))
+                }
+            }
+            "substring" => {
+                if args.len() >= 3 {
+                    let s = args[0].as_string();
+                    let start = args[1].as_int() as usize;
+                    let end = args[2].as_int() as usize;
+                    let result = s.chars().skip(start).take(end - start).collect::<String>();
+                    Some(Ok(Value::String(result)))
+                } else {
+                    Some(Err(
+                        "substring() requires string, start, and end arguments".to_string()
+                    ))
+                }
+            }
+            // Array utilities
+            "len" => {
+                if let Some(arg) = args.first() {
+                    match arg {
+                        Value::Array(arr) => Some(Ok(Value::Int(arr.len() as i64))),
+                        Value::String(s) => Some(Ok(Value::Int(s.len() as i64))),
+                        _ => Some(Err("len() requires an array or string argument".to_string())),
+                    }
+                } else {
+                    Some(Err("len() requires an argument".to_string()))
+                }
+            }
+            "push" => {
+                if args.len() >= 2 {
+                    match &args[0] {
+                        Value::Array(arr) => {
+                            let mut new_arr = arr.clone();
+                            new_arr.push(args[1].clone());
+                            Some(Ok(Value::Array(new_arr)))
+                        }
+                        _ => Some(Err("push() requires an array as first argument".to_string())),
+                    }
+                } else {
+                    Some(Err(
+                        "push() requires array and element arguments".to_string()
+                    ))
+                }
+            }
             _ => None,
         }
     }

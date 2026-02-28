@@ -1,0 +1,52 @@
+// =============================================================================
+// Garbage Collection Demo
+// =============================================================================
+// Demonstrates Knull's automatic memory management
+
+fn main() {
+    println("=== KNULL GARBAGE COLLECTION DEMO ===")
+    println("")
+    
+    println("Knull includes an automatic garbage collector!")
+    println("")
+    
+    // Show GC stats before
+    println("GC Stats (initial):")
+    let stats1 = gc_stats()
+    println("  Live objects:   " + stats1[0])
+    println("  Total allocated: " + stats1[1])
+    println("  Total freed:     " + stats1[2])
+    println("")
+    
+    // Allocate some memory by creating arrays
+    println("Allocating data...")
+    let data1 = [1, 2, 3, 4, 5]
+    let data2 = [10, 20, 30, 40, 50]
+    let data3 = [100, 200, 300, 400, 500]
+    println("  Created 3 arrays")
+    println("")
+    
+    // Trigger GC
+    println("Running garbage collection...")
+    let freed = gc_collect()
+    println("  Freed " + freed + " objects")
+    println("")
+    
+    // Show GC stats after
+    println("GC Stats (after collection):")
+    let stats2 = gc_stats()
+    println("  Live objects:   " + stats2[0])
+    println("  Total allocated: " + stats2[1])
+    println("  Total freed:     " + stats2[2])
+    println("")
+    
+    println("GC Features:")
+    println("  ✓ Automatic memory management")
+    println("  ✓ Mark-and-sweep algorithm")
+    println("  ✓ Generational collection")
+    println("  ✓ Memory pooling for fast allocation")
+    println("  ✓ Arena allocators for bulk operations")
+    println("")
+    
+    println("=== GC DEMO COMPLETE ===")
+}

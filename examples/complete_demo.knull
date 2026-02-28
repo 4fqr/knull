@@ -1,0 +1,157 @@
+// =============================================================================
+// KNULL COMPLETE FEATURE DEMO
+// =============================================================================
+// This demonstrates all Knull features in one program
+
+fn main() {
+    println("╔══════════════════════════════════════════════════════════════╗")
+    println("║           KNULL - THE GOD PROGRAMMING LANGUAGE               ║")
+    println("║                  Complete Feature Demo                       ║")
+    println("╚══════════════════════════════════════════════════════════════╝")
+    println("")
+    
+    // ===== SECTION 1: Basic Language Features =====
+    println("▶ BASIC LANGUAGE FEATURES")
+    println("─────────────────────────────────────────────────────────────")
+    
+    let x = 42
+    let y = 3.14
+    let name = "Knull"
+    let flag = true
+    
+    println("  Variables: x=" + x + ", y=" + y + ", name=" + name)
+    println("  Boolean: " + flag)
+    println("")
+    
+    // ===== SECTION 2: Control Flow =====
+    println("▶ CONTROL FLOW")
+    println("─────────────────────────────────────────────────────────────")
+    
+    if x > 40 {
+        println("  If statement works!")
+    }
+    
+    let i = 0
+    while i < 3 {
+        println("  Loop iteration: " + i)
+        i = i + 1
+    }
+    println("")
+    
+    // ===== SECTION 3: Arrays =====
+    println("▶ ARRAYS & COLLECTIONS")
+    println("─────────────────────────────────────────────────────────────")
+    
+    let arr = [1, 2, 3, 4, 5]
+    println("  Array: " + arr)
+    println("  Length: " + len(arr))
+    let arr2 = push(arr, 6)
+    println("  After push: " + arr2)
+    println("")
+    
+    // ===== SECTION 4: Functions =====
+    println("▶ FUNCTIONS")
+    println("─────────────────────────────────────────────────────────────")
+    
+    let result = add(10, 20)
+    println("  add(10, 20) = " + result)
+    println("")
+    
+    // ===== SECTION 5: File I/O =====
+    println("▶ FILE I/O")
+    println("─────────────────────────────────────────────────────────────")
+    
+    file_write("/tmp/knull_test.txt", "Hello from Knull!")
+    let content = file_read("/tmp/knull_test.txt")
+    println("  File content: " + content)
+    println("  File exists: " + file_exists("/tmp/knull_test.txt"))
+    file_remove("/tmp/knull_test.txt")
+    println("")
+    
+    // ===== SECTION 6: Networking =====
+    println("▶ NETWORKING")
+    println("─────────────────────────────────────────────────────────────")
+    println("  Hostname: " + get_hostname())
+    println("  TCP functions available: tcp_connect, tcp_listen, tcp_send")
+    println("  TCP functions available: tcp_recv, tcp_close, tcp_accept")
+    println("")
+    
+    // ===== SECTION 7: Threading =====
+    println("▶ THREADING")
+    println("─────────────────────────────────────────────────────────────")
+    println("  Thread functions available: spawn, sleep, thread_id")
+    println("  Spawning a thread...")
+    spawn("println('    Hello from thread!')")
+    sleep(100)
+    println("")
+    
+    // ===== SECTION 8: Time =====
+    println("▶ TIME & DATE")
+    println("─────────────────────────────────────────────────────────────")
+    println("  Unix timestamp: " + time())
+    println("  Milliseconds: " + time_millis())
+    println("")
+    
+    // ===== SECTION 9: Environment =====
+    println("▶ ENVIRONMENT")
+    println("─────────────────────────────────────────────────────────────")
+    let home = env_get("HOME")
+    println("  HOME: " + home)
+    println("  PATH exists: " + (env_get("PATH") != null))
+    println("")
+    
+    // ===== SECTION 10: FFI =====
+    println("▶ FOREIGN FUNCTION INTERFACE")
+    println("─────────────────────────────────────────────────────────────")
+    let ptr = ffi_malloc(256)
+    println("  Allocated C memory at: " + ptr)
+    ffi_free(ptr)
+    println("  Freed C memory")
+    println("")
+    
+    // ===== SECTION 11: Garbage Collection =====
+    println("▶ GARBAGE COLLECTION")
+    println("─────────────────────────────────────────────────────────────")
+    let stats = gc_stats()
+    println("  Live objects: " + stats[0])
+    println("  Total allocated: " + stats[1])
+    println("  Running GC...")
+    gc_collect()
+    println("")
+    
+    // ===== SECTION 12: String Utilities =====
+    println("▶ STRING UTILITIES")
+    println("─────────────────────────────────────────────────────────────")
+    let text = "Hello, Knull!"
+    println("  Text: " + text)
+    println("  Length: " + strlen(text))
+    println("  Substring(0,5): " + substring(text, 0, 5))
+    println("")
+    
+    // ===== FINAL SUMMARY =====
+    println("╔══════════════════════════════════════════════════════════════╗")
+    println("║                     FEATURE SUMMARY                          ║")
+    println("╠══════════════════════════════════════════════════════════════╣")
+    println("║  ✓ Variables & Types (Int, Float, String, Bool, Array)      ║")
+    println("║  ✓ Control Flow (if, while)                                  ║")
+    println("║  ✓ Functions & Recursion                                     ║")
+    println("║  ✓ File I/O (read, write, append, exists, remove)           ║")
+    println("║  ✓ Directory Operations (mkdir, dir_list)                   ║")
+    println("║  ✓ Networking (TCP client/server)                           ║")
+    println("║  ✓ Threading (spawn, sleep)                                 ║")
+    println("║  ✓ Time Functions (time, time_millis)                       ║")
+    println("║  ✓ Environment Variables                                     ║")
+    println("║  ✓ Command Execution (exec)                                 ║")
+    println("║  ✓ String Utilities (strlen, substring)                     ║")
+    println("║  ✓ Array Utilities (len, push)                              ║")
+    println("║  ✓ FFI (C library loading, malloc/free)                     ║")
+    println("║  ✓ Garbage Collection                                        ║")
+    println("║  ✓ Native Binary Compilation                                 ║")
+    println("╚══════════════════════════════════════════════════════════════╝")
+    println("")
+    println("Knull: The complete systems programming language!")
+}
+
+fn add(a, b) {
+    return a + b
+}

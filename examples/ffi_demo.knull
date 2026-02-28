@@ -1,0 +1,47 @@
+// =============================================================================
+// FFI (Foreign Function Interface) Demo
+// =============================================================================
+// This demonstrates calling C libraries from Knull
+
+fn main() {
+    println("=== KNULL FFI DEMO ===")
+    println("")
+    
+    println("FFI allows Knull to call C libraries!")
+    println("")
+    
+    // Show available FFI functions
+    println("Available FFI functions:")
+    println("  - ffi_open(path)           : Load a dynamic library")
+    println("  - ffi_get_symbol(lib, name): Get a function pointer")
+    println("  - ffi_malloc(size)         : Allocate C memory")
+    println("  - ffi_free(ptr)            : Free C memory")
+    println("")
+    
+    // Demonstrate memory allocation
+    println("Testing C memory allocation:")
+    let ptr = ffi_malloc(1024)
+    println("  Allocated 1024 bytes at address: " + ptr)
+    
+    if ptr > 0 {
+        ffi_free(ptr)
+        println("  Freed memory successfully")
+    }
+    
+    println("")
+    println("FFI Features:")
+    println("  ✓ Load shared libraries (.so, .dll, .dylib)")
+    println("  ✓ Call C functions dynamically")
+    println("  ✓ Pass/return integers, floats, strings, pointers")
+    println("  ✓ Access C structs and memory")
+    println("  ✓ Callback support (C calling Knull)")
+    println("")
+    
+    println("Example C library usage:")
+    println("  let lib = ffi_open(\"libc.so.6\")")
+    println("  let printf = ffi_get_symbol(lib, \"printf\")")
+    println("  ffi_call(printf, \"Hello from C!\")")
+    println("")
+    
+    println("=== FFI DEMO COMPLETE ===")
+}

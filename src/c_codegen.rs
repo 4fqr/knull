@@ -233,6 +233,7 @@ impl CCodeGen {
                         Ok("0".to_string())
                     }
                     Literal::Bool(b) => Ok(if *b { "1" } else { "0" }.to_string()),
+                    Literal::Null => Ok("NULL".to_string()),
                 }
             }
             ASTNode::Identifier(name) => Ok(name.clone()),

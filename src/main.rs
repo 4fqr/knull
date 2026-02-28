@@ -7,6 +7,8 @@ mod ast;
 mod c_codegen;
 mod cli;
 mod compiler;
+mod ffi;
+mod gc;
 mod interpreter;
 mod lexer;
 mod ownership;

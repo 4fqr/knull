@@ -1,0 +1,51 @@
+// =============================================================================
+// TCP Echo Server/Client Example
+// =============================================================================
+
+fn main() {
+    println("=== KNULL TCP NETWORKING ===")
+    println("")
+    
+    // Show available networking functions
+    println("Available networking functions:")
+    println("  - tcp_connect(addr)     : Connect to a TCP server")
+    println("  - tcp_send(handle, data): Send data over TCP")
+    println("  - tcp_recv(handle, size): Receive data from TCP")
+    println("  - tcp_close(handle)     : Close TCP connection")
+    println("  - tcp_listen(addr)      : Start listening on address")
+    println("  - tcp_accept(handle)    : Accept incoming connection")
+    println("  - get_hostname()        : Get system hostname")
+    println("")
+    
+    // Get hostname
+    let hostname = get_hostname()
+    println("Hostname: " + hostname)
+    println("")
+    
+    // Test connecting to a well-known service (if available)
+    println("Testing TCP connection to localhost:8080...")
+    let handle = tcp_connect("127.0.0.1:8080")
+    
+    if handle >= 0 {
+        println("Connected! Handle: " + handle)
+        
+        // Send HTTP request
+        let request = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+        let sent = tcp_send(handle, request)
+        println("Sent " + sent + " bytes")
+        
+        // Receive response
+        let response = tcp_recv(handle, 1024)
+        println("Received: " + response)
+        
+        // Close connection
+        tcp_close(handle)
+        println("Connection closed")
+    } else {
+        println("Could not connect (expected - no server running)")
+        println("This is normal if no server is listening on port 8080")
+    }
+    
+    println("")
+    println("=== NETWORKING TEST COMPLETE ===")
+}

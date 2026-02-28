@@ -32,6 +32,7 @@ pub enum TokenKind {
     Never,
     True,
     False,
+    Null,
     Plus,
     Minus,
     Star,
@@ -102,6 +103,7 @@ impl TokenKind {
             "never" => Some(TokenKind::Never),
             "true" => Some(TokenKind::True),
             "false" => Some(TokenKind::False),
+            "null" => Some(TokenKind::Null),
             _ => None,
         }
     }

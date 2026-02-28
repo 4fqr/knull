@@ -14,6 +14,7 @@ pub enum Type {
     String,
     Bool,
     Void,
+    Null,
     Unknown,
 }
 
@@ -168,6 +169,7 @@ impl TypeChecker {
                 Literal::Float(_) => Ok(Type::Float),
                 Literal::String(_) => Ok(Type::String),
                 Literal::Bool(_) => Ok(Type::Bool),
+                Literal::Null => Ok(Type::Null),
             },
             ASTNode::Array(_) => Ok(Type::Unknown),
             ASTNode::Index { obj: _, index: _ } => Ok(Type::Unknown),
