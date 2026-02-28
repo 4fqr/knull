@@ -1,0 +1,86 @@
+// =============================================================================
+// KNULL RUNTIME BRIDGE MODULE
+// =============================================================================
+// Bridge to Rust runtime implementations for system operations
+// These extern functions are implemented in the Rust runtime
+
+// -----------------------------------------------------------------------------
+// FILE OPERATIONS
+// -----------------------------------------------------------------------------
+
+extern "C" fn runtime_file_read(path: *i8) -> *i8
+extern "C" fn runtime_file_write(path: *i8, content: *i8) -> i32
+extern "C" fn runtime_file_append(path: *i8, content: *i8) -> i32
+extern "C" fn runtime_file_exists(path: *i8) -> bool
+extern "C" fn runtime_file_size(path: *i8) -> i64
+extern "C" fn runtime_file_delete(path: *i8) -> bool
+extern "C" fn runtime_file_copy(src: *i8, dst: *i8) -> bool
+extern "C" fn runtime_file_move(src: *i8, dst: *i8) -> bool
+extern "C" fn runtime_file_open(path: *i8, flags: i32) -> i32
+extern "C" fn runtime_file_close(fd: i32) -> bool
+extern "C" fn runtime_file_read_fd(fd: i32, buf: *void, len: i64) -> i64
+extern "C" fn runtime_file_write_fd(fd: i32, buf: *void, len: i64) -> i64
+
+// -----------------------------------------------------------------------------
+// TCP SOCKET OPERATIONS
+// -----------------------------------------------------------------------------
+
+extern "C" fn runtime_tcp_connect(addr: *i8, port: i32) -> i32
+extern "C" fn runtime_tcp_send(fd: i32, data: *i8, len: i32) -> i32
+extern "C" fn runtime_tcp_recv(fd: i32, buf: *i8, len: i32) -> i32
+extern "C" fn runtime_tcp_listen(addr: *i8, port: i32) -> i32
+extern "C" fn runtime_tcp_accept(fd: i32) -> i32
+extern "C" fn runtime_tcp_close(fd: i32) -> bool
+extern "C" fn runtime_tcp_set_nonblocking(fd: i32, nonblocking: bool) -> bool
+extern "C" fn runtime_tcp_set_timeout(fd: i32, timeout_ms: i32) -> bool
+extern "C" fn runtime_tcp_get_peer_addr(fd: i32, buf: *i8, len: i32) -> i32
+extern "C" fn runtime_tcp_shutdown(fd: i32, how: i32) -> bool
+
+// -----------------------------------------------------------------------------
+// UDP SOCKET OPERATIONS
+// -----------------------------------------------------------------------------
+
+extern "C" fn runtime_udp_bind(addr: *i8, port: i32) -> i32
+extern "C" fn runtime_udp_send_to(fd: i32, data: *i8, len: i32, addr: *i8, port: i32) -> i32
+extern "C" fn runtime_udp_recv_from(fd: i32, buf: *i8, len: i32, addr: *i8, addr_len: *i32, port: *i32) -> i32
+extern "C" fn runtime_udp_close(fd: i32) -> bool
+
+// -----------------------------------------------------------------------------
+// DIRECTORY OPERATIONS
+// -----------------------------------------------------------------------------
+
+extern "C" fn runtime_dir_create(path: *i8) -> bool
+extern "C" fn runtime_dir_delete(path: *i8) -> bool
+extern "C" fn runtime_dir_exists(path: *i8) -> bool
+extern "C" fn runtime_dir_list(path: *i8, callback: fn(*i8) -> bool) -> i32
+extern "C" fn runtime_dir_current(buf: *i8, len: i32) -> i32
+extern "C" fn runtime_dir_change(path: *i8) -> bool
+
+// -----------------------------------------------------------------------------
+// PROCESS OPERATIONS
+// -----------------------------------------------------------------------------
+
+extern "C" fn runtime_process_spawn(cmd: *i8, args: **i8) -> i32
+extern "C" fn runtime_process_wait(pid: i32) -> i32
+extern "C" fn runtime_process_kill(pid: i32, sig: i32) -> bool
+extern "C" fn runtime_process_exit(code: i32)
+extern "C" fn runtime_process_get_id() -> i32
+extern "C" fn runtime_process_get_env(key: *i8) -> *i8
+extern "C" fn runtime_process_set_env(key: *i8, val: *i8) -> bool
+
+// -----------------------------------------------------------------------------
+// TIME OPERATIONS
+// -----------------------------------------------------------------------------
+
+extern "C" fn runtime_time_now() -> i64
+extern "C" fn runtime_time_sleep(ms: i32)
+extern "C" fn runtime_time_utc() -> i64
+extern "C" fn runtime_time_monotonic() -> i64
+
+// -----------------------------------------------------------------------------
+// MEMORY STATISTICS
+// -----------------------------------------------------------------------------
+
+extern "C" fn runtime_memory_used() -> i64
+extern "C" fn runtime_memory_available() -> i64
+extern "C" fn runtime_memory_gc() -> i64

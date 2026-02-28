@@ -1,0 +1,1105 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - STRING MODULE
+// =============================================================================
+// String manipulation and utility functions
+
+// -----------------------------------------------------------------------------
+// STRING SEARCHING
+// -----------------------------------------------------------------------------
+
+fn strlen(s: *i8) -> i64 {
+    let len: i64 = 0
+    while s[len] != 0 {
+        len = len + 1
+    }
+    return len
+}
+
+fn strcpy(dst: *i8, src: *i8) {
+    let i: i64 = 0
+    while src[i] != 0 {
+        dst[i] = src[i]
+        i = i + 1
+    }
+    dst[i] = 0
+}
+
+fn strncpy(dst: *i8, src: *i8, n: i64) {
+    let i: i64 = 0
+    while i < n && src[i] != 0 {
+        dst[i] = src[i]
+        i = i + 1
+    }
+    while i < n {
+        dst[i] = 0
+        i = i + 1
+    }
+}
+
+fn strcat(dst: *i8, src: *i8) {
+    let dst_len = strlen(dst)
+    strcpy(dst + dst_len, src)
+}
+
+fn strncat(dst: *i8, src: *i8, n: i64) {
+    let dst_len = strlen(dst)
+    let i: i64 = 0
+    while i < n && src[i] != 0 {
+        dst[dst_len + i] = src[i]
+        i = i + 1
+    }
+    dst[dst_len + i] = 0
+}
+
+fn strcmp(a: *i8, b: *i8) -> i32 {
+    let i: i64 = 0
+    while a[i] != 0 && b[i] != 0 {
+        if a[i] != b[i] {
+            return a[i] - b[i]
+        }
+        i = i + 1
+    }
+    return a[i] - b[i]
+}
+
+fn strncmp(a: *i8, b: *i8, n: i64) -> i32 {
+    let i: i64 = 0
+    while i < n && a[i] != 0 && b[i] != 0 {
+        if a[i] != b[i] {
+            return a[i] - b[i]
+        }
+        i = i + 1
+    }
+    if i == n {
+        return 0
+    }
+    return a[i] - b[i]
+}
+
+fn strchr(s: *i8, c: i8) -> *i8 {
+    let i: i64 = 0
+    while s[i] != 0 {
+        if s[i] == c {
+            return &s[i]
+        }
+        i = i + 1
+    }
+    return 0 as *i8
+}
+
+fn strrchr(s: *i8, c: i8) -> *i8 {
+    let len = strlen(s)
+    let i = len - 1
+    while i >= 0 {
+        if s[i] == c {
+            return &s[i]
+        }
+        i = i - 1
+    }
+    return 0 as *i8
+}
+
+fn strstr(haystack: *i8, needle: *i8) -> *i8 {
+    let needle_len = strlen(needle)
+    if needle_len == 0 {
+        return haystack
+    }
+    
+    let i: i64 = 0
+    while haystack[i] != 0 {
+        if strncmp(&haystack[i], needle, needle_len) == 0 {
+            return &haystack[i]
+        }
+        i = i + 1
+    }
+    return 0 as *i8
+}
+
+fn strnstr(haystack: *i8, needle: *i8, len: i64) -> *i8 {
+    let needle_len = strlen(needle)
+    if needle_len == 0 {
+        return haystack
+    }
+    
+    let i: i64 = 0
+    while i < len && haystack[i] != 0 {
+        if i + needle_len <= len && strncmp(&haystack[i], needle, needle_len) == 0 {
+            return &haystack[i]
+        }
+        i = i + 1
+    }
+    return 0 as *i8
+}
+
+// -----------------------------------------------------------------------------
+// STRING SPLITTING
+// -----------------------------------------------------------------------------
+
+struct StringVec {
+    data: **i8,
+    len: i64,
+    capacity: i64,
+}
+
+fn string_vec_new() -> StringVec {
+    let capacity: i64 = 8
+    return StringVec {
+        data: alloc(capacity * 8) as **i8,
+        len: 0,
+        capacity: capacity,
+    }
+}
+
+fn string_vec_push(sv: *StringVec, s: *i8) {
+    if sv.len >= sv.capacity {
+        sv.capacity = sv.capacity * 2
+        let new_data = alloc(sv.capacity * 8) as **i8
+        memcpy(new_data, sv.data, sv.len * 8)
+        sv.data = new_data
+    }
+    sv.data[sv.len] = strdup(s)
+    sv.len = sv.len + 1
+}
+
+fn string_vec_free(sv: *StringVec) {
+    let i: i64 = 0
+    while i < sv.len {
+        free(sv.data[i])
+        i = i + 1
+    }
+    free(sv.data)
+    sv.len = 0
+    sv.capacity = 0
+}
+
+fn split(s: *i8, delim: *i8) -> StringVec {
+    let result = string_vec_new()
+    let delim_len = strlen(delim)
+    
+    if delim_len == 0 {
+        // Empty delimiter - split into individual characters
+        let i: i64 = 0
+        while s[i] != 0 {
+            let token: i8[2]
+            token[0] = s[i]
+            token[1] = 0
+            string_vec_push(&result, &token)
+            i = i + 1
+        }
+        return result
+    }
+    
+    let start: i64 = 0
+    let i: i64 = 0
+    
+    while s[i] != 0 {
+        if strncmp(&s[i], delim, delim_len) == 0 {
+            // Found delimiter, copy token
+            let token_len = i - start
+            let token = alloc(token_len + 1) as *i8
+            memcpy(token, &s[start], token_len)
+            token[token_len] = 0
+            string_vec_push(&result, token)
+            free(token)
+            
+            start = i + delim_len
+            i = start
+        } else {
+            i = i + 1
+        }
+    }
+    
+    // Add final token
+    let token_len = i - start
+    let token = alloc(token_len + 1) as *i8
+    memcpy(token, &s[start], token_len)
+    token[token_len] = 0
+    string_vec_push(&result, token)
+    free(token)
+    
+    return result
+}
+
+fn split_char(s: *i8, delim: i8) -> StringVec {
+    let result = string_vec_new()
+    let start: i64 = 0
+    let i: i64 = 0
+    
+    while s[i] != 0 {
+        if s[i] == delim {
+            let token_len = i - start
+            let token = alloc(token_len + 1) as *i8
+            memcpy(token, &s[start], token_len)
+            token[token_len] = 0
+            string_vec_push(&result, token)
+            free(token)
+            
+            start = i + 1
+        }
+        i = i + 1
+    }
+    
+    // Add final token
+    let token_len = i - start
+    let token = alloc(token_len + 1) as *i8
+    memcpy(token, &s[start], token_len)
+    token[token_len] = 0
+    string_vec_push(&result, token)
+    free(token)
+    
+    return result
+}
+
+fn split_lines(s: *i8) -> StringVec {
+    return split_char(s, '\n')
+}
+
+fn split_whitespace(s: *i8) -> StringVec {
+    let result = string_vec_new()
+    let len = strlen(s)
+    let i: i64 = 0
+    
+    while i < len {
+        // Skip whitespace
+        while i < len && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+            i = i + 1
+        }
+        
+        if i >= len {
+            break
+        }
+        
+        // Find end of token
+        let start = i
+        while i < len && !(s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+            i = i + 1
+        }
+        
+        let token_len = i - start
+        let token = alloc(token_len + 1) as *i8
+        memcpy(token, &s[start], token_len)
+        token[token_len] = 0
+        string_vec_push(&result, token)
+        free(token)
+    }
+    
+    return result
+}
+
+// -----------------------------------------------------------------------------
+// STRING REPLACEMENT
+// -----------------------------------------------------------------------------
+
+fn replace(s: *i8, old: *i8, new: *i8) -> *i8 {
+    let old_len = strlen(old)
+    let new_len = strlen(new)
+    let s_len = strlen(s)
+    
+    if old_len == 0 {
+        return strdup(s)
+    }
+    
+    // Count occurrences
+    let count: i64 = 0
+    let p = s
+    while (p = strstr(p, old)) != 0 as *i8 {
+        count = count + 1
+        p = p + old_len
+    }
+    
+    if count == 0 {
+        return strdup(s)
+    }
+    
+    // Allocate result
+    let result_len = s_len + count * (new_len - old_len)
+    let result = alloc(result_len + 1) as *i8
+    
+    // Build result
+    let dst = result
+    let src = s
+    let found: *i8 = 0 as *i8
+    
+    while (found = strstr(src, old)) != 0 as *i8 {
+        let prefix_len = found - src
+        memcpy(dst, src, prefix_len)
+        dst = dst + prefix_len
+        memcpy(dst, new, new_len)
+        dst = dst + new_len
+        src = found + old_len
+    }
+    
+    // Copy remainder
+    strcpy(dst, src)
+    
+    return result
+}
+
+fn replace_first(s: *i8, old: *i8, new: *i8) -> *i8 {
+    let old_len = strlen(old)
+    let new_len = strlen(new)
+    
+    let found = strstr(s, old)
+    if found == 0 as *i8 {
+        return strdup(s)
+    }
+    
+    let prefix_len = found - s
+    let suffix_len = strlen(found + old_len)
+    
+    let result = alloc(prefix_len + new_len + suffix_len + 1) as *i8
+    memcpy(result, s, prefix_len)
+    memcpy(result + prefix_len, new, new_len)
+    strcpy(result + prefix_len + new_len, found + old_len)
+    
+    return result
+}
+
+fn replace_char(s: *i8, old: i8, new: i8) -> *i8 {
+    let result = strdup(s)
+    let i: i64 = 0
+    while result[i] != 0 {
+        if result[i] == old {
+            result[i] = new
+        }
+        i = i + 1
+    }
+    return result
+}
+
+// -----------------------------------------------------------------------------
+// STRING TRIMMING
+// -----------------------------------------------------------------------------
+
+fn is_space(c: i8) -> bool {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v'
+}
+
+fn trim(s: *i8) -> *i8 {
+    let start: i64 = 0
+    let len = strlen(s)
+    
+    // Skip leading whitespace
+    while start < len && is_space(s[start]) {
+        start = start + 1
+    }
+    
+    // Skip trailing whitespace
+    let end = len - 1
+    while end > start && is_space(s[end]) {
+        end = end - 1
+    }
+    
+    let result_len = end - start + 1
+    let result = alloc(result_len + 1) as *i8
+    memcpy(result, &s[start], result_len)
+    result[result_len] = 0
+    
+    return result
+}
+
+fn trim_left(s: *i8) -> *i8 {
+    let start: i64 = 0
+    let len = strlen(s)
+    
+    while start < len && is_space(s[start]) {
+        start = start + 1
+    }
+    
+    return strdup(&s[start])
+}
+
+fn trim_right(s: *i8) -> *i8 {
+    let len = strlen(s)
+    let end = len - 1
+    
+    while end >= 0 && is_space(s[end]) {
+        end = end - 1
+    }
+    
+    let result_len = end + 1
+    let result = alloc(result_len + 1) as *i8
+    memcpy(result, s, result_len)
+    result[result_len] = 0
+    
+    return result
+}
+
+fn trim_chars(s: *i8, chars: *i8) -> *i8 {
+    let start: i64 = 0
+    let len = strlen(s)
+    let chars_len = strlen(chars)
+    
+    // Skip leading chars
+    while start < len {
+        let found = false
+        let i: i64 = 0
+        while i < chars_len {
+            if s[start] == chars[i] {
+                found = true
+                break
+            }
+            i = i + 1
+        }
+        if !found {
+            break
+        }
+        start = start + 1
+    }
+    
+    // Skip trailing chars
+    let end = len - 1
+    while end > start {
+        let found = false
+        let i: i64 = 0
+        while i < chars_len {
+            if s[end] == chars[i] {
+                found = true
+                break
+            }
+            i = i + 1
+        }
+        if !found {
+            break
+        }
+        end = end - 1
+    }
+    
+    let result_len = end - start + 1
+    let result = alloc(result_len + 1) as *i8
+    memcpy(result, &s[start], result_len)
+    result[result_len] = 0
+    
+    return result
+}
+
+// -----------------------------------------------------------------------------
+// CASE CONVERSION
+// -----------------------------------------------------------------------------
+
+fn to_upper(s: *i8) -> *i8 {
+    let len = strlen(s)
+    let result = alloc(len + 1) as *i8
+    
+    let i: i64 = 0
+    while i < len {
+        let c = s[i]
+        if c >= 'a' && c <= 'z' {
+            c = c - 32  // 'a' - 'A' = 32
+        }
+        result[i] = c
+        i = i + 1
+    }
+    result[len] = 0
+    
+    return result
+}
+
+fn to_lower(s: *i8) -> *i8 {
+    let len = strlen(s)
+    let result = alloc(len + 1) as *i8
+    
+    let i: i64 = 0
+    while i < len {
+        let c = s[i]
+        if c >= 'A' && c <= 'Z' {
+            c = c + 32  // 'a' - 'A' = 32
+        }
+        result[i] = c
+        i = i + 1
+    }
+    result[len] = 0
+    
+    return result
+}
+
+fn to_upper_inplace(s: *i8) {
+    let i: i64 = 0
+    while s[i] != 0 {
+        let c = s[i]
+        if c >= 'a' && c <= 'z' {
+            s[i] = c - 32
+        }
+        i = i + 1
+    }
+}
+
+fn to_lower_inplace(s: *i8) {
+    let i: i64 = 0
+    while s[i] != 0 {
+        let c = s[i]
+        if c >= 'A' && c <= 'Z' {
+            s[i] = c + 32
+        }
+        i = i + 1
+    }
+}
+
+// -----------------------------------------------------------------------------
+// STRING PREDICATES
+// -----------------------------------------------------------------------------
+
+fn contains(s: *i8, substr: *i8) -> bool {
+    return strstr(s, substr) != 0 as *i8
+}
+
+fn contains_char(s: *i8, c: i8) -> bool {
+    return strchr(s, c) != 0 as *i8
+}
+
+fn starts_with(s: *i8, prefix: *i8) -> bool {
+    let prefix_len = strlen(prefix)
+    return strncmp(s, prefix, prefix_len) == 0
+}
+
+fn starts_with_char(s: *i8, c: i8) -> bool {
+    return s[0] == c
+}
+
+fn ends_with(s: *i8, suffix: *i8) -> bool {
+    let s_len = strlen(s)
+    let suffix_len = strlen(suffix)
+    
+    if suffix_len > s_len {
+        return false
+    }
+    
+    return strcmp(&s[s_len - suffix_len], suffix) == 0
+}
+
+fn ends_with_char(s: *i8, c: i8) -> bool {
+    let len = strlen(s)
+    if len == 0 {
+        return false
+    }
+    return s[len - 1] == c
+}
+
+fn is_empty(s: *i8) -> bool {
+    return s[0] == 0
+}
+
+fn is_blank(s: *i8) -> bool {
+    let i: i64 = 0
+    while s[i] != 0 {
+        if !is_space(s[i]) {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+fn equals_ignore_case(a: *i8, b: *i8) -> bool {
+    let i: i64 = 0
+    while a[i] != 0 && b[i] != 0 {
+        let ca = a[i]
+        let cb = b[i]
+        
+        // Convert to lowercase
+        if ca >= 'A' && ca <= 'Z' {
+            ca = ca + 32
+        }
+        if cb >= 'A' && cb <= 'Z' {
+            cb = cb + 32
+        }
+        
+        if ca != cb {
+            return false
+        }
+        i = i + 1
+    }
+    return a[i] == b[i]
+}
+
+// -----------------------------------------------------------------------------
+// STRING EXTRACTION
+// -----------------------------------------------------------------------------
+
+fn substring(s: *i8, start: i64, len: i64) -> *i8 {
+    let s_len = strlen(s)
+    
+    if start < 0 {
+        start = 0
+    }
+    if start > s_len {
+        start = s_len
+    }
+    if len < 0 || start + len > s_len {
+        len = s_len - start
+    }
+    
+    let result = alloc(len + 1) as *i8
+    memcpy(result, &s[start], len)
+    result[len] = 0
+    
+    return result
+}
+
+fn left(s: *i8, n: i64) -> *i8 {
+    return substring(s, 0, n)
+}
+
+fn right(s: *i8, n: i64) -> *i8 {
+    let s_len = strlen(s)
+    if n > s_len {
+        n = s_len
+    }
+    return substring(s, s_len - n, n)
+}
+
+fn slice(s: *i8, start: i64, end: i64) -> *i8 {
+    if end < start {
+        end = start
+    }
+    return substring(s, start, end - start)
+}
+
+// -----------------------------------------------------------------------------
+// STRING REPETITION AND PADDING
+// -----------------------------------------------------------------------------
+
+fn repeat(s: *i8, n: i64) -> *i8 {
+    let s_len = strlen(s)
+    let result_len = s_len * n
+    let result = alloc(result_len + 1) as *i8
+    
+    let i: i64 = 0
+    while i < n {
+        memcpy(&result[i * s_len], s, s_len)
+        i = i + 1
+    }
+    result[result_len] = 0
+    
+    return result
+}
+
+fn repeat_char(c: i8, n: i64) -> *i8 {
+    let result = alloc(n + 1) as *i8
+    let i: i64 = 0
+    while i < n {
+        result[i] = c
+        i = i + 1
+    }
+    result[n] = 0
+    return result
+}
+
+fn pad_left(s: *i8, width: i64, pad: i8) -> *i8 {
+    let s_len = strlen(s)
+    if s_len >= width {
+        return strdup(s)
+    }
+    
+    let pad_len = width - s_len
+    let result = alloc(width + 1) as *i8
+    
+    let i: i64 = 0
+    while i < pad_len {
+        result[i] = pad
+        i = i + 1
+    }
+    memcpy(&result[pad_len], s, s_len)
+    result[width] = 0
+    
+    return result
+}
+
+fn pad_right(s: *i8, width: i64, pad: i8) -> *i8 {
+    let s_len = strlen(s)
+    if s_len >= width {
+        return strdup(s)
+    }
+    
+    let result = alloc(width + 1) as *i8
+    memcpy(result, s, s_len)
+    
+    let i: i64 = s_len
+    while i < width {
+        result[i] = pad
+        i = i + 1
+    }
+    result[width] = 0
+    
+    return result
+}
+
+fn center(s: *i8, width: i64, pad: i8) -> *i8 {
+    let s_len = strlen(s)
+    if s_len >= width {
+        return strdup(s)
+    }
+    
+    let total_pad = width - s_len
+    let left_pad = total_pad / 2
+    let right_pad = total_pad - left_pad
+    
+    let result = alloc(width + 1) as *i8
+    
+    let i: i64 = 0
+    while i < left_pad {
+        result[i] = pad
+        i = i + 1
+    }
+    memcpy(&result[left_pad], s, s_len)
+    i = left_pad + s_len
+    while i < width {
+        result[i] = pad
+        i = i + 1
+    }
+    result[width] = 0
+    
+    return result
+}
+
+// -----------------------------------------------------------------------------
+// STRING JOINING
+// -----------------------------------------------------------------------------
+
+fn join(parts: *StringVec, separator: *i8) -> *i8 {
+    if parts.len == 0 {
+        return strdup("")
+    }
+    
+    let sep_len = strlen(separator)
+    let total_len: i64 = 0
+    
+    // Calculate total length
+    let i: i64 = 0
+    while i < parts.len {
+        total_len = total_len + strlen(parts.data[i])
+        if i < parts.len - 1 {
+            total_len = total_len + sep_len
+        }
+        i = i + 1
+    }
+    
+    let result = alloc(total_len + 1) as *i8
+    let pos: i64 = 0
+    
+    i = 0
+    while i < parts.len {
+        let part_len = strlen(parts.data[i])
+        memcpy(&result[pos], parts.data[i], part_len)
+        pos = pos + part_len
+        
+        if i < parts.len - 1 {
+            memcpy(&result[pos], separator, sep_len)
+            pos = pos + sep_len
+        }
+        i = i + 1
+    }
+    result[total_len] = 0
+    
+    return result
+}
+
+fn join_cstr(parts: **i8, count: i64, separator: *i8) -> *i8 {
+    if count == 0 {
+        return strdup("")
+    }
+    
+    let sep_len = strlen(separator)
+    let total_len: i64 = 0
+    
+    let i: i64 = 0
+    while i < count {
+        total_len = total_len + strlen(parts[i])
+        if i < count - 1 {
+            total_len = total_len + sep_len
+        }
+        i = i + 1
+    }
+    
+    let result = alloc(total_len + 1) as *i8
+    let pos: i64 = 0
+    
+    i = 0
+    while i < count {
+        let part_len = strlen(parts[i])
+        memcpy(&result[pos], parts[i], part_len)
+        pos = pos + part_len
+        
+        if i < count - 1 {
+            memcpy(&result[pos], separator, sep_len)
+            pos = pos + sep_len
+        }
+        i = i + 1
+    }
+    result[total_len] = 0
+    
+    return result
+}
+
+// -----------------------------------------------------------------------------
+// STRING REVERSE
+// -----------------------------------------------------------------------------
+
+fn reverse(s: *i8) -> *i8 {
+    let len = strlen(s)
+    let result = alloc(len + 1) as *i8
+    
+    let i: i64 = 0
+    while i < len {
+        result[i] = s[len - 1 - i]
+        i = i + 1
+    }
+    result[len] = 0
+    
+    return result
+}
+
+fn reverse_inplace(s: *i8) {
+    let len = strlen(s)
+    let i: i64 = 0
+    let j = len - 1
+    
+    while i < j {
+        let tmp = s[i]
+        s[i] = s[j]
+        s[j] = tmp
+        i = i + 1
+        j = j - 1
+    }
+}
+
+// -----------------------------------------------------------------------------
+// COUNTING
+// -----------------------------------------------------------------------------
+
+fn count(s: *i8, substr: *i8) -> i64 {
+    let substr_len = strlen(substr)
+    if substr_len == 0 {
+        return 0
+    }
+    
+    let count: i64 = 0
+    let p = s
+    while (p = strstr(p, substr)) != 0 as *i8 {
+        count = count + 1
+        p = p + substr_len
+    }
+    return count
+}
+
+fn count_char(s: *i8, c: i8) -> i64 {
+    let count: i64 = 0
+    let i: i64 = 0
+    while s[i] != 0 {
+        if s[i] == c {
+            count = count + 1
+        }
+        i = i + 1
+    }
+    return count
+}
+
+// -----------------------------------------------------------------------------
+// UTILITY
+// -----------------------------------------------------------------------------
+
+fn strdup(s: *i8) -> *i8 {
+    let len = strlen(s)
+    let result = alloc(len + 1) as *i8
+    memcpy(result, s, len + 1)
+    return result
+}
+
+fn strndup(s: *i8, n: i64) -> *i8 {
+    let s_len = strlen(s)
+    if n > s_len {
+        n = s_len
+    }
+    let result = alloc(n + 1) as *i8
+    memcpy(result, s, n)
+    result[n] = 0
+    return result
+}
+
+fn memcpy(dst: *void, src: *void, n: i64) {
+    let d = dst as *i8
+    let s = src as *i8
+    let i: i64 = 0
+    while i < n {
+        d[i] = s[i]
+        i = i + 1
+    }
+}
+
+fn memset(s: *void, c: i8, n: i64) {
+    let p = s as *i8
+    let i: i64 = 0
+    while i < n {
+        p[i] = c
+        i = i + 1
+    }
+}
+
+fn memcmp(a: *void, b: *void, n: i64) -> i32 {
+    let pa = a as *i8
+    let pb = b as *i8
+    let i: i64 = 0
+    while i < n {
+        if pa[i] != pb[i] {
+            return pa[i] - pb[i]
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+// -----------------------------------------------------------------------------
+// FORMATTING
+// -----------------------------------------------------------------------------
+
+fn atoi(s: *i8) -> i32 {
+    let result: i32 = 0
+    let sign: i32 = 1
+    let i: i64 = 0
+    
+    // Skip whitespace
+    while is_space(s[i]) {
+        i = i + 1
+    }
+    
+    // Handle sign
+    if s[i] == '-' {
+        sign = -1
+        i = i + 1
+    } else if s[i] == '+' {
+        i = i + 1
+    }
+    
+    // Parse digits
+    while s[i] >= '0' && s[i] <= '9' {
+        result = result * 10 + (s[i] - '0') as i32
+        i = i + 1
+    }
+    
+    return result * sign
+}
+
+fn atol(s: *i8) -> i64 {
+    let result: i64 = 0
+    let sign: i64 = 1
+    let i: i64 = 0
+    
+    while is_space(s[i]) {
+        i = i + 1
+    }
+    
+    if s[i] == '-' {
+        sign = -1
+        i = i + 1
+    } else if s[i] == '+' {
+        i = i + 1
+    }
+    
+    while s[i] >= '0' && s[i] <= '9' {
+        result = result * 10 + (s[i] - '0') as i64
+        i = i + 1
+    }
+    
+    return result * sign
+}
+
+fn atof(s: *i8) -> f64 {
+    let result: f64 = 0.0
+    let sign: f64 = 1.0
+    let i: i64 = 0
+    
+    while is_space(s[i]) {
+        i = i + 1
+    }
+    
+    if s[i] == '-' {
+        sign = -1.0
+        i = i + 1
+    } else if s[i] == '+' {
+        i = i + 1
+    }
+    
+    // Integer part
+    while s[i] >= '0' && s[i] <= '9' {
+        result = result * 10.0 + (s[i] - '0') as f64
+        i = i + 1
+    }
+    
+    // Decimal part
+    if s[i] == '.' {
+        i = i + 1
+        let factor: f64 = 0.1
+        while s[i] >= '0' && s[i] <= '9' {
+            result = result + (s[i] - '0') as f64 * factor
+            factor = factor * 0.1
+            i = i + 1
+        }
+    }
+    
+    return result * sign
+}
+
+fn itoa(n: i32, buf: *i8) {
+    if n == 0 {
+        buf[0] = '0'
+        buf[1] = 0
+        return
+    }
+    
+    let sign = n < 0
+    let mut = n
+    if sign {
+        mut = -mut
+    }
+    
+    let i: i64 = 0
+    while mut > 0 {
+        buf[i] = ('0' as i32 + (mut % 10)) as i8
+        mut = mut / 10
+        i = i + 1
+    }
+    
+    if sign {
+        buf[i] = '-'
+        i = i + 1
+    }
+    
+    buf[i] = 0
+    reverse_inplace(buf)
+}
+
+fn ltoa(n: i64, buf: *i8) {
+    if n == 0 {
+        buf[0] = '0'
+        buf[1] = 0
+        return
+    }
+    
+    let sign = n < 0
+    let mut = n
+    if sign {
+        mut = -mut
+    }
+    
+    let i: i64 = 0
+    while mut > 0 {
+        buf[i] = ('0' as i64 + (mut % 10)) as i8
+        mut = mut / 10
+        i = i + 1
+    }
+    
+    if sign {
+        buf[i] = '-'
+        i = i + 1
+    }
+    
+    buf[i] = 0
+    reverse_inplace(buf)
+}
+
+fn sprintf(buf: *i8, fmt: *i8, ...) -> i32 {
+    // Simplified sprintf - just copy format for now
+    // Full implementation would parse format string
+    strcpy(buf, fmt)
+    return strlen(buf) as i32
+}

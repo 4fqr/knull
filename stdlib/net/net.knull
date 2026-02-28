@@ -1,7 +1,9 @@
 // =============================================================================
-// KNULL STANDARD LIBRARY - NET MODULE
+// KNULL STANDARD LIBRARY - NET MODULE (Runtime Bridge Version)
 // =============================================================================
-// Network programming: TCP, UDP, HTTP, and more
+// Network programming: TCP, UDP, HTTP using Rust runtime bridge
+
+use runtime
 
 // -----------------------------------------------------------------------------
 // SOCKET TYPES
@@ -17,6 +19,10 @@ const SOCK_RAW: i32 = 3
 const IPPROTO_TCP: i32 = 6
 const IPPROTO_UDP: i32 = 17
 
+const SHUT_RD: i32 = 0
+const SHUT_WR: i32 = 1
+const SHUT_RDWR: i32 = 2
+
 // -----------------------------------------------------------------------------
 // TCP SOCKET
 // -----------------------------------------------------------------------------
@@ -29,42 +35,46 @@ struct TcpStream {
 struct TcpListener {
     fd: i32,
     bound: bool,
+    port: i32,
 }
 
-fn tcp_connect(addr: *i8, port: i32) -> TcpStream {
-    // Create socket
-    // fd = syscall(SYS_SOCKET, AF_INET, SOCK_STREAM, 0)
-    
-    // Parse address and connect
-    // syscall(SYS_CONNECT, fd, sockaddr, len)
-    
+fn tcp_connect(address: *i8, port: i32) -> TcpStream {
+    let fd = runtime_tcp_connect(address, port)
     return TcpStream {
-        fd: -1,
-        connected: false,
+        fd: fd,
+        connected: fd >= 0,
     }
 }
 
 fn tcp_connect_str(addr_str: *i8) -> TcpStream {
-    // Parse "host:port" format
     let colon = strchr(addr_str, ':')
-    // ...parse host and port
-    return tcp_connect(addr_str, 80)
+    if colon == 0 as *i8 {
+        return tcp_connect(addr_str, 80)
+    }
+    
+    let host: i8[256]
+    let port_str: i8[16]
+    
+    let host_len = colon - addr_str
+    memcpy(&host, addr_str, host_len)
+    host[host_len] = 0
+    
+    let port = atoi(colon + 1)
+    return tcp_connect(&host, port)
 }
 
 fn tcp_read(stream: *TcpStream, buf: *void, len: i64) -> i64 {
     if !stream.connected {
         return -1
     }
-    // return syscall(SYS_READ, stream.fd, buf, len)
-    return 0
+    return runtime_tcp_recv(stream.fd, buf as *i8, len as i32) as i64
 }
 
 fn tcp_write(stream: *TcpStream, buf: *void, len: i64) -> i64 {
     if !stream.connected {
         return -1
     }
-    // return syscall(SYS_WRITE, stream.fd, buf, len)
-    return 0
+    return runtime_tcp_send(stream.fd, buf as *i8, len as i32) as i64
 }
 
 fn tcp_write_str(stream: *TcpStream, s: *i8) -> i64 {
@@ -73,30 +83,42 @@ fn tcp_write_str(stream: *TcpStream, s: *i8) -> i64 {
 
 fn tcp_close(stream: *TcpStream) {
     if stream.fd >= 0 {
-        // syscall(SYS_CLOSE, stream.fd)
+        runtime_tcp_close(stream.fd)
         stream.fd = -1
         stream.connected = false
     }
 }
 
+fn tcp_shutdown(stream: *TcpStream, how: i32) -> bool {
+    return runtime_tcp_shutdown(stream.fd, how)
+}
+
+fn tcp_set_nonblocking(stream: *TcpStream, nonblocking: bool) -> bool {
+    return runtime_tcp_set_nonblocking(stream.fd, nonblocking)
+}
+
+fn tcp_set_timeout(stream: *TcpStream, timeout_ms: i32) -> bool {
+    return runtime_tcp_set_timeout(stream.fd, timeout_ms)
+}
+
+fn tcp_get_peer_addr(stream: *TcpStream, buf: *i8, len: i32) -> i32 {
+    return runtime_tcp_get_peer_addr(stream.fd, buf, len)
+}
+
 fn tcp_listen(bind_addr: *i8, port: i32) -> TcpListener {
-    // Create socket
-    // Bind
-    // Listen
-    
+    let fd = runtime_tcp_listen(bind_addr, port)
     return TcpListener {
-        fd: -1,
-        bound: false,
+        fd: fd,
+        bound: fd >= 0,
+        port: port,
     }
 }
 
 fn tcp_accept(listener: *TcpListener) -> TcpStream {
-    // Accept connection
-    // return syscall(SYS_ACCEPT, listener.fd, addr, len)
-    
+    let fd = runtime_tcp_accept(listener.fd)
     return TcpStream {
-        fd: -1,
-        connected: true,
+        fd: fd,
+        connected: fd >= 0,
     }
 }
 
@@ -107,30 +129,40 @@ fn tcp_accept(listener: *TcpListener) -> TcpStream {
 struct UdpSocket {
     fd: i32,
     bound: bool,
+    addr: *i8,
+    port: i32,
 }
 
 fn udp_bind(addr: *i8, port: i32) -> UdpSocket {
-    // Create UDP socket and bind
+    let fd = runtime_udp_bind(addr, port)
     return UdpSocket {
-        fd: -1,
-        bound: false,
+        fd: fd,
+        bound: fd >= 0,
+        addr: addr,
+        port: port,
     }
 }
 
 fn udp_send_to(sock: *UdpSocket, buf: *void, len: i64, addr: *i8, port: i32) -> i64 {
-    // syscall(SYS_SENDTO, sock.fd, buf, len, 0, addr, addrlen)
-    return 0
+    if !sock.bound {
+        return -1
+    }
+    return runtime_udp_send_to(sock.fd, buf as *i8, len as i32, addr, port) as i64
 }
 
 fn udp_recv_from(sock: *UdpSocket, buf: *void, len: i64, addr: *i8, port: *i32) -> i64 {
-    // syscall(SYS_RECVFROM, sock.fd, buf, len, 0, addr, addrlen)
-    return 0
+    if !sock.bound {
+        return -1
+    }
+    let addr_len: i32 = 256
+    return runtime_udp_recv_from(sock.fd, buf as *i8, len as i32, addr, &addr_len, port) as i64
 }
 
 fn udp_close(sock: *UdpSocket) {
     if sock.fd >= 0 {
-        // syscall(SYS_CLOSE, sock.fd)
+        runtime_udp_close(sock.fd)
         sock.fd = -1
+        sock.bound = false
     }
 }
 
@@ -141,38 +173,119 @@ fn udp_close(sock: *UdpSocket) {
 struct HttpRequest {
     method: *i8,
     url: *i8,
-    headers: *Map<i64, i64>,  // Simplified
-    body: *i8,
-}
-
-struct HttpResponse {
-    status: i32,
-    headers: *Map<i64, i64>,
+    headers: *i8,
     body: *i8,
     body_len: i64,
 }
 
-fn http_get(url: *i8) -> HttpResponse {
-    // Parse URL
-    // Connect to host
-    // Send GET request
-    // Read response
-    
-    return HttpResponse {
-        status: 200,
-        headers: 0 as *Map<i64, i64>,
-        body: "",
+struct HttpResponse {
+    status: i32,
+    status_text: *i8,
+    headers: *i8,
+    body: *i8,
+    body_len: i64,
+}
+
+fn http_request_new(method: *i8, url: *i8) -> HttpRequest {
+    return HttpRequest {
+        method: method,
+        url: url,
+        headers: 0 as *i8,
+        body: 0 as *i8,
         body_len: 0,
     }
 }
 
+fn http_request_add_header(req: *HttpRequest, key: *i8, val: *i8) {
+    // Append header to headers buffer
+}
+
+fn http_get(url: *i8) -> HttpResponse {
+    let req = http_request_new("GET", url)
+    return http_do_request(&req)
+}
+
 fn http_post(url: *i8, body: *i8, content_type: *i8) -> HttpResponse {
-    return HttpResponse {
-        status: 200,
-        headers: 0 as *Map<i64, i64>,
-        body: "",
-        body_len: 0,
+    let req = http_request_new("POST", url)
+    req.body = body
+    req.body_len = strlen(body)
+    http_request_add_header(&req, "Content-Type", content_type)
+    return http_do_request(&req)
+}
+
+fn http_do_request(req: *HttpRequest) -> HttpResponse {
+    let url = url_parse(req.url)
+    
+    let port = url.port
+    if port == 0 {
+        if strcmp(url.scheme, "https") == 0 {
+            port = 443
+        } else {
+            port = 80
+        }
     }
+    
+    let stream = tcp_connect(url.host, port)
+    if !stream.connected {
+        return HttpResponse {
+            status: -1,
+            status_text: "Connection failed",
+            headers: 0 as *i8,
+            body: 0 as *i8,
+            body_len: 0,
+        }
+    }
+    
+    // Build HTTP request
+    let request_buf: i8[4096]
+    sprintf(&request_buf, "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
+            req.method, url.path, url.host)
+    
+    tcp_write_str(&stream, &request_buf)
+    
+    // Read response
+    let response_buf: i8[8192]
+    let total = 0
+    let n = 0
+    while (n = tcp_read(&stream, &response_buf[total], 8192 - total - 1)) > 0 {
+        total = total + n
+    }
+    response_buf[total] = 0
+    
+    tcp_close(&stream)
+    
+    // Parse status line
+    let resp = http_parse_response(&response_buf, total)
+    return resp
+}
+
+fn http_parse_response(buf: *i8, len: i64) -> HttpResponse {
+    let resp: HttpResponse
+    resp.status = 0
+    resp.status_text = ""
+    resp.headers = 0 as *i8
+    resp.body = 0 as *i8
+    resp.body_len = 0
+    
+    // Simple parsing - find first space for HTTP version, then status code
+    let p = buf
+    while *p != ' ' && *p != 0 {
+        p = p + 1
+    }
+    if *p == ' ' {
+        p = p + 1
+        resp.status = atoi(p)
+    }
+    
+    // Find body (after double CRLF)
+    let body_start = strstr(buf, "\r\n\r\n")
+    if body_start != 0 as *i8 {
+        body_start = body_start + 4
+        resp.body = body_start
+        resp.body_len = len - (body_start - buf)
+    }
+    
+    return resp
 }
 
 // -----------------------------------------------------------------------------
@@ -195,37 +308,59 @@ fn http_server_run(server: *HttpServer, handler: HttpHandler) {
     while true {
         let stream = tcp_accept(&server.listener)
         
-        // Read request
-        let req_buf: i8[4096]
-        let n = tcp_read(&stream, &req_buf, 4096)
-        
-        if n > 0 {
-            // Parse request
-            let req = http_parse_request(&req_buf, n)
+        if stream.connected {
+            let req_buf: i8[4096]
+            let n = tcp_read(&stream, &req_buf, 4096)
             
-            // Call handler
-            let resp = handler(&req)
+            if n > 0 {
+                req_buf[n] = 0
+                let req = http_parse_request(&req_buf, n)
+                let resp = handler(&req)
+                http_send_response(&stream, &resp)
+            }
             
-            // Send response
-            http_send_response(&stream, &resp)
+            tcp_close(&stream)
         }
-        
-        tcp_close(&stream)
     }
 }
 
 fn http_parse_request(buf: *i8, len: i64) -> HttpRequest {
-    // Parse HTTP request
-    return HttpRequest {
-        method: "GET",
-        url: "/",
-        headers: 0 as *Map<i64, i64>,
-        body: "",
+    let req: HttpRequest
+    
+    // Parse method (first word)
+    let space = strchr(buf, ' ')
+    if space != 0 as *i8 {
+        let method_len = space - buf
+        let method: i8[16]
+        memcpy(&method, buf, method_len)
+        method[method_len] = 0
+        req.method = strdup(&method)
+        
+        // Parse URL (second word)
+        let url_start = space + 1
+        let url_end = strchr(url_start, ' ')
+        if url_end != 0 as *i8 {
+            let url_len = url_end - url_start
+            let url: i8[1024]
+            memcpy(&url, url_start, url_len)
+            url[url_len] = 0
+            req.url = strdup(&url)
+        }
     }
+    
+    return req
 }
 
 fn http_send_response(stream: *TcpStream, resp: *HttpResponse) {
-    // Send HTTP response
+    let header: i8[1024]
+    sprintf(&header, "HTTP/1.1 %d %s\r\nContent-Length: %ld\r\nConnection: close\r\n\r\n",
+            resp.status, resp.status_text, resp.body_len)
+    
+    tcp_write_str(stream, &header)
+    
+    if resp.body_len > 0 {
+        tcp_write(stream, resp.body, resp.body_len)
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -233,50 +368,91 @@ fn http_send_response(stream: *TcpStream, resp: *HttpResponse) {
 // -----------------------------------------------------------------------------
 
 struct Url {
-    scheme: *i8,
-    host: *i8,
+    scheme: i8[16],
+    host: i8[256],
     port: i32,
-    path: *i8,
-    query: *i8,
+    path: i8[1024],
+    query: i8[1024],
 }
 
 fn url_parse(url_str: *i8) -> Url {
     let url: Url
+    url.port = 0
+    url.path[0] = '/'
+    url.path[1] = 0
+    url.query[0] = 0
     
     // Find scheme
-    let colon = strchr(url_str, ':')
+    let colon = strstr(url_str, "://")
     if colon != 0 as *i8 {
-        url.scheme = substr(url_str, 0, colon - url_str)
+        let scheme_len = colon - url_str
+        memcpy(&url.scheme, url_str, scheme_len)
+        url.scheme[scheme_len] = 0
+        colon = colon + 3
     } else {
-        url.scheme = "http"
+        strcpy(&url.scheme, "http")
+        colon = url_str
     }
     
     // Find host and port
-    // ...
-    url.host = "localhost"
-    url.port = 80
-    url.path = "/"
-    url.query = ""
+    let slash = strchr(colon, '/')
+    let query = strchr(colon, '?')
+    
+    let port_colon = strchr(colon, ':')
+    if port_colon != 0 as *i8 && (slash == 0 as *i8 || port_colon < slash) {
+        // Port specified
+        let host_len = port_colon - colon
+        memcpy(&url.host, colon, host_len)
+        url.host[host_len] = 0
+        url.port = atoi(port_colon + 1)
+    } else {
+        let host_len = 0
+        if slash != 0 as *i8 {
+            host_len = slash - colon
+        } else if query != 0 as *i8 {
+            host_len = query - colon
+        } else {
+            host_len = strlen(colon)
+        }
+        memcpy(&url.host, colon, host_len)
+        url.host[host_len] = 0
+    }
+    
+    // Extract path
+    if slash != 0 as *i8 {
+        let path_end = query
+        if path_end == 0 as *i8 {
+            path_end = colon + strlen(colon)
+        }
+        let path_len = path_end - slash
+        memcpy(&url.path, slash, path_len)
+        url.path[path_len] = 0
+    }
+    
+    // Extract query
+    if query != 0 as *i8 {
+        strcpy(&url.query, query + 1)
+    }
     
     return url
 }
 
 fn url_encode(s: *i8, out: *i8) {
-    // URL-encode string
     let i = 0
     let j = 0
     while s[i] != 0 {
         let c = s[i]
-        if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+        if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~' {
             out[j] = c
             j = j + 1
         } else if c == ' ' {
             out[j] = '+'
             j = j + 1
         } else {
-            // Percent encoding
+            // Percent encoding: %XX
             out[j] = '%'
-            // Add hex digits
+            out[j + 1] = "0123456789ABCDEF"[(c >> 4) & 0xF]
+            out[j + 2] = "0123456789ABCDEF"[c & 0xF]
             j = j + 3
         }
         i = i + 1
@@ -285,5 +461,37 @@ fn url_encode(s: *i8, out: *i8) {
 }
 
 fn url_decode(s: *i8, out: *i8) {
-    // URL-decode string
+    let i = 0
+    let j = 0
+    while s[i] != 0 {
+        let c = s[i]
+        if c == '+' {
+            out[j] = ' '
+            j = j + 1
+        } else if c == '%' && s[i + 1] != 0 && s[i + 2] != 0 {
+            let hi = hex_char_to_int(s[i + 1])
+            let lo = hex_char_to_int(s[i + 2])
+            out[j] = (hi << 4) | lo
+            j = j + 1
+            i = i + 2
+        } else {
+            out[j] = c
+            j = j + 1
+        }
+        i = i + 1
+    }
+    out[j] = 0
+}
+
+fn hex_char_to_int(c: i8) -> i8 {
+    if c >= '0' && c <= '9' {
+        return c - '0'
+    }
+    if c >= 'A' && c <= 'F' {
+        return c - 'A' + 10
+    }
+    if c >= 'a' && c <= 'f' {
+        return c - 'a' + 10
+    }
+    return 0
 }

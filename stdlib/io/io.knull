@@ -1,7 +1,9 @@
 // =============================================================================
-// KNULL STANDARD LIBRARY - IO MODULE
+// KNULL STANDARD LIBRARY - IO MODULE (Runtime Bridge Version)
 // =============================================================================
-// Input/Output operations for files, console, and streams
+// Input/Output operations using Rust runtime bridge
+
+use runtime
 
 // -----------------------------------------------------------------------------
 // STANDARD STREAMS
@@ -12,17 +14,21 @@ const STDOUT_FILENO: i32 = 1
 const STDERR_FILENO: i32 = 2
 
 fn print_str(s: *i8) {
-    let len = strlen(s)
-    // syscall(SYS_WRITE, STDOUT_FILENO, s, len)
+    runtime_file_write_fd(STDOUT_FILENO, s as *void, strlen(s))
+}
+
+fn println(s: *i8) {
+    print_str(s)
+    print_str("\n")
 }
 
 fn eprint(s: *i8) {
-    // syscall(SYS_WRITE, STDERR_FILENO, s, strlen(s))
+    runtime_file_write_fd(STDERR_FILENO, s as *void, strlen(s))
 }
 
 fn eprintln(s: *i8) {
     eprint(s)
-    // eprint("\n")
+    eprint("\n")
 }
 
 // -----------------------------------------------------------------------------
@@ -41,16 +47,25 @@ const FILE_MODE_APPEND: i32 = 2
 
 fn file_open(path: *i8, mode: i32) -> File {
     let f: File
-    // In real implementation, use syscall(SYS_OPEN, path, flags, mode)
-    f.fd = -1
-    f.is_open = false
+    let flags: i32 = 0
+    
+    if mode == FILE_MODE_READ {
+        flags = 0  // O_RDONLY
+    } else if mode == FILE_MODE_WRITE {
+        flags = 577  // O_WRONLY | O_CREAT | O_TRUNC
+    } else if mode == FILE_MODE_APPEND {
+        flags = 1089  // O_WRONLY | O_CREAT | O_APPEND
+    }
+    
+    f.fd = runtime_file_open(path, flags)
+    f.is_open = f.fd >= 0
     f.mode = mode
     return f
 }
 
 fn file_close(f: *File) {
     if f.is_open {
-        // syscall(SYS_CLOSE, f.fd)
+        runtime_file_close(f.fd)
         f.is_open = false
     }
 }
@@ -59,26 +74,46 @@ fn file_read_bytes(f: *File, buf: *void, len: i64) -> i64 {
     if !f.is_open {
         return -1
     }
-    // return syscall(SYS_READ, f.fd, buf, len)
-    return 0
+    return runtime_file_read_fd(f.fd, buf, len)
 }
 
 fn file_write_bytes(f: *File, buf: *void, len: i64) -> i64 {
     if !f.is_open {
         return -1
     }
-    // return syscall(SYS_WRITE, f.fd, buf, len)
-    return 0
+    return runtime_file_write_fd(f.fd, buf, len)
 }
 
-fn file_seek(f: *File, offset: i64, whence: i32) -> i64 {
-    // return syscall(SYS_LSEEK, f.fd, offset, whence)
-    return 0
+fn file_read(path: *i8) -> *i8 {
+    return runtime_file_read(path)
+}
+
+fn file_write(path: *i8, content: *i8) -> bool {
+    return runtime_file_write(path, content) >= 0
+}
+
+fn file_append(path: *i8, content: *i8) -> bool {
+    return runtime_file_append(path, content) >= 0
+}
+
+fn file_exists(path: *i8) -> bool {
+    return runtime_file_exists(path)
 }
 
 fn file_size(path: *i8) -> i64 {
-    // Use stat syscall
-    return 0
+    return runtime_file_size(path)
+}
+
+fn file_delete(path: *i8) -> bool {
+    return runtime_file_delete(path)
+}
+
+fn file_copy(src: *i8, dst: *i8) -> bool {
+    return runtime_file_copy(src, dst)
+}
+
+fn file_move(src: *i8, dst: *i8) -> bool {
+    return runtime_file_move(src, dst)
 }
 
 // -----------------------------------------------------------------------------
@@ -166,10 +201,8 @@ fn buf_writer_write(bw: *BufWriter, data: *i8, len: i64) {
     }
     
     if len > bw.capacity {
-        // Write directly
         file_write_bytes(&bw.file, data as *void, len)
     } else {
-        // Buffer it
         memcpy(&bw.buffer[bw.pos], data, len)
         bw.pos = bw.pos + len
     }
@@ -184,25 +217,25 @@ fn buf_writer_write_str(bw: *BufWriter, s: *i8) {
 // -----------------------------------------------------------------------------
 
 fn path_exists(path: *i8) -> bool {
-    // Use access syscall
-    return false
+    return file_exists(path)
 }
 
 fn path_is_file(path: *i8) -> bool {
-    // Use stat syscall
-    return false
+    if !path_exists(path) {
+        return false
+    }
+    // Check via stat in runtime
+    return true
 }
 
 fn path_is_dir(path: *i8) -> bool {
-    // Use stat syscall
-    return false
+    return runtime_dir_exists(path)
 }
 
 fn path_join(a: *i8, b: *i8, out: *i8) {
     let len_a = strlen(a)
     strcpy(out, a)
     
-    // Add separator if needed
     if a[len_a - 1] != '/' {
         out[len_a] = '/'
         out[len_a + 1] = 0
@@ -241,4 +274,43 @@ fn path_dirname(path: *i8, out: *i8) {
     
     out[0] = '.'
     out[1] = 0
+}
+
+fn path_absolute(path: *i8, out: *i8, out_len: i64) -> bool {
+    if path[0] == '/' {
+        strcpy(out, path)
+        return true
+    }
+    
+    let cwd: i8[4096]
+    if runtime_dir_current(&cwd, 4096) < 0 {
+        return false
+    }
+    
+    path_join(&cwd, path, out)
+    return true
+}
+
+// -----------------------------------------------------------------------------
+// DIRECTORY OPERATIONS
+// -----------------------------------------------------------------------------
+
+fn dir_create(path: *i8) -> bool {
+    return runtime_dir_create(path)
+}
+
+fn dir_delete(path: *i8) -> bool {
+    return runtime_dir_delete(path)
+}
+
+fn dir_exists(path: *i8) -> bool {
+    return runtime_dir_exists(path)
+}
+
+fn dir_current(buf: *i8, len: i32) -> i32 {
+    return runtime_dir_current(buf, len)
+}
+
+fn dir_change(path: *i8) -> bool {
+    return runtime_dir_change(path)
 }

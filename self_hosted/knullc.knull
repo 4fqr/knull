@@ -112,6 +112,37 @@ const AST_STRUCT_DEF: i32 = 17
 const AST_IMPL: i32 = 18
 const AST_SYSCALL: i32 = 19
 const AST_ASM: i32 = 20
+const AST_DEREF: i32 = 21  // For pointer dereference assignment target
+
+// =============================================================================
+// OPERATOR CONSTANTS
+// =============================================================================
+
+const OP_ADD: i32 = 1
+const OP_SUB: i32 = 2
+const OP_MUL: i32 = 3
+const OP_DIV: i32 = 4
+const OP_MOD: i32 = 5
+const OP_AND: i32 = 6
+const OP_OR: i32 = 7
+const OP_EQ: i32 = 8
+const OP_NE: i32 = 9
+const OP_LT: i32 = 10
+const OP_GT: i32 = 11
+const OP_LE: i32 = 12
+const OP_GE: i32 = 13
+const OP_BITAND: i32 = 14
+const OP_BITOR: i32 = 15
+const OP_BITXOR: i32 = 16
+const OP_SHL: i32 = 17
+const OP_SHR: i32 = 18
+
+const OP_NEG: i32 = 1
+const OP_NOT: i32 = 2
+const OP_BITNOT: i32 = 3
+const OP_DEREF: i32 = 4
+const OP_REF: i32 = 5
+const OP_MUT_REF: i32 = 6
 
 // =============================================================================
 // TYPE SYSTEM
@@ -849,9 +880,12 @@ fn parser_parse_fn(parser: *Parser) -> *Node {
     
     let node = alloc(sizeof(Node)) as *Node
     node.kind = AST_FN
+    node.type_id = ret_type
     node.line = start_tok.line
     node.col = start_tok.col
-    // Store data in node fields
+    // data1 = name (i8 pointer)
+    // data2 = body (Node pointer)
+    // data3 = params (Node pointer)
     
     return node
 }
@@ -1689,22 +1723,567 @@ fn parser_error(parser: *Parser, msg: *i8) {
 // TYPE SYSTEM
 // =============================================================================
 
+// =============================================================================
+// TYPE SYSTEM IMPLEMENTATION
+// =============================================================================
+
+// Type checker state
+struct TypeChecker {
+    error_count: i32,
+    mode: i32,  // 0=novice, 1=expert, 2=god
+    scope_level: i32,
+    symbols: *TypeSymbol,
+}
+
+struct TypeSymbol {
+    name: *i8,
+    type_id: i32,
+    scope_level: i32,
+    is_mut: bool,
+    next: *TypeSymbol,
+}
+
 fn type_check(ast: *Node, mode: i32) -> i32 {
-    // Initialize type table
-    // Traverse AST and assign types
-    // Check for type errors
-    return 0  // Success
+    let checker = alloc(sizeof(TypeChecker)) as *TypeChecker
+    checker.error_count = 0
+    checker.mode = mode
+    checker.scope_level = 0
+    checker.symbols = 0 as *TypeSymbol
+    
+    // Traverse AST and check types
+    type_check_node(checker, ast)
+    
+    return checker.error_count
+}
+
+fn type_check_node(checker: *TypeChecker, node: *Node) -> i32 {
+    if node == 0 as *Node {
+        return TYPE_VOID
+    }
+    
+    if node.kind == AST_PROGRAM {
+        // Check all items
+        // (In full implementation, traverse program items)
+        return TYPE_VOID
+    } else if node.kind == AST_FN {
+        // Enter new scope for function
+        type_check_scope_enter(checker)
+        
+        // Check function body
+        // (Body stored in data2)
+        if node.data2 != 0 as *void {
+            type_check_node(checker, node.data2 as *Node)
+        }
+        
+        type_check_scope_exit(checker)
+        return TYPE_VOID
+    } else if node.kind == AST_LET {
+        // Check initializer
+        let init_type = type_check_node(checker, node.data1 as *Node)
+        
+        // Check that declared type matches initializer type
+        let declared_type = node.type_id
+        if declared_type != TYPE_INFER && declared_type != init_type {
+            if !types_compatible(declared_type, init_type) {
+                type_error(checker, node, "Type mismatch in variable declaration")
+            }
+        }
+        
+        // Infer type if needed
+        if declared_type == TYPE_INFER {
+            node.type_id = init_type
+        }
+        
+        return TYPE_VOID
+    } else if node.kind == AST_RETURN {
+        // Check return value type
+        if node.data1 != 0 as *void {
+            return type_check_node(checker, node.data1 as *Node)
+        }
+        return TYPE_VOID
+    } else if node.kind == AST_IF {
+        // Check condition is boolean
+        let cond_type = type_check_node(checker, node.data1 as *Node)
+        if cond_type != TYPE_BOOL && checker.mode > 0 {
+            // In expert/god mode, require explicit bool
+            if !is_integral_type(cond_type) {
+                type_error(checker, node, "Condition must be boolean")
+            }
+        }
+        
+        // Check branches
+        type_check_node(checker, node.data2 as *Node)
+        if node.data3 != 0 as *void {
+            type_check_node(checker, node.data3 as *Node)
+        }
+        
+        return TYPE_VOID
+    } else if node.kind == AST_WHILE {
+        // Check condition is boolean
+        let cond_type = type_check_node(checker, node.data1 as *Node)
+        if cond_type != TYPE_BOOL && checker.mode > 0 {
+            if !is_integral_type(cond_type) {
+                type_error(checker, node, "While condition must be boolean")
+            }
+        }
+        
+        // Check body
+        type_check_node(checker, node.data2 as *Node)
+        return TYPE_VOID
+    } else if node.kind == AST_BLOCK {
+        type_check_scope_enter(checker)
+        // Check all statements in block
+        // (In full implementation, traverse block statements)
+        type_check_scope_exit(checker)
+        return TYPE_VOID
+    } else if node.kind == AST_CALL {
+        // Check arguments match function parameters
+        // Return function return type
+        return TYPE_I64  // Default for now
+    } else if node.kind == AST_BINARY {
+        let left_type = type_check_node(checker, node.data1 as *Node)
+        let right_type = type_check_node(checker, node.data2 as *Node)
+        
+        // Check operand types are compatible
+        if !types_compatible(left_type, right_type) {
+            type_error(checker, node, "Type mismatch in binary operation")
+        }
+        
+        // Determine result type
+        let op = node.type_id  // Operator stored in type_id for binary
+        if op == OP_EQ || op == OP_NE || op == OP_LT || op == OP_GT ||
+           op == OP_LE || op == OP_GE || op == OP_AND || op == OP_OR {
+            return TYPE_BOOL
+        }
+        
+        return left_type
+    } else if node.kind == AST_UNARY {
+        let operand_type = type_check_node(checker, node.data1 as *Node)
+        let op = node.type_id
+        
+        if op == OP_NOT {
+            if operand_type != TYPE_BOOL && checker.mode > 0 {
+                type_error(checker, node, "Logical not requires boolean operand")
+            }
+            return TYPE_BOOL
+        } else if op == OP_NEG {
+            if !is_numeric_type(operand_type) {
+                type_error(checker, node, "Negation requires numeric operand")
+            }
+            return operand_type
+        } else if op == OP_DEREF {
+            // Return base type of pointer
+            return TYPE_I64  // Simplified
+        } else if op == OP_REF || op == OP_MUT_REF {
+            return TYPE_PTR
+        }
+        
+        return operand_type
+    } else if node.kind == AST_LITERAL {
+        // Type already set during parsing
+        return node.type_id
+    } else if node.kind == AST_IDENT {
+        // Look up variable type
+        return node.type_id
+    } else if node.kind == AST_ASSIGN {
+        // Check types are compatible
+        let left_type = type_check_node(checker, node.data1 as *Node)
+        let right_type = type_check_node(checker, node.data2 as *Node)
+        
+        if !types_compatible(left_type, right_type) {
+            type_error(checker, node, "Type mismatch in assignment")
+        }
+        
+        return left_type
+    } else if node.kind == AST_SYSCALL {
+        // Syscall returns i64 (result or error)
+        return TYPE_I64
+    } else if node.kind == AST_ASM {
+        // Inline asm - trust the programmer in expert/god mode
+        if checker.mode == 0 {
+            type_warn(checker, node, "Inline assembly in novice mode")
+        }
+        return TYPE_VOID
+    }
+    
+    return TYPE_VOID
+}
+
+fn type_check_scope_enter(checker: *TypeChecker) {
+    checker.scope_level = checker.scope_level + 1
+}
+
+fn type_check_scope_exit(checker: *TypeChecker) {
+    // Remove symbols from this scope
+    let sym = checker.symbols
+    let prev: *TypeSymbol = 0 as *TypeSymbol
+    
+    while sym != 0 as *TypeSymbol {
+        if sym.scope_level == checker.scope_level {
+            if prev == 0 as *TypeSymbol {
+                checker.symbols = sym.next
+            } else {
+                prev.next = sym.next
+            }
+        }
+        prev = sym
+        sym = sym.next
+    }
+    
+    checker.scope_level = checker.scope_level - 1
+}
+
+fn type_error(checker: *TypeChecker, node: *Node, msg: *i8) {
+    print("Type error at line ")
+    print_i32(node.line)
+    print(":")
+    print_i32(node.col)
+    print(": ")
+    println(msg)
+    checker.error_count = checker.error_count + 1
+}
+
+fn type_warn(checker: *TypeChecker, node: *Node, msg: *i8) {
+    print("Warning at line ")
+    print_i32(node.line)
+    print(":")
+    print_i32(node.col)
+    print(": ")
+    println(msg)
+}
+
+fn types_compatible(a: i32, b: i32) -> bool {
+    if a == b {
+        return true
+    }
+    
+    // Allow implicit conversions between integer types
+    if is_integral_type(a) && is_integral_type(b) {
+        return true
+    }
+    
+    // Allow pointer to void pointer
+    if a == TYPE_PTR || b == TYPE_PTR {
+        return true
+    }
+    
+    return false
+}
+
+fn is_integral_type(t: i32) -> bool {
+    return t == TYPE_I8 || t == TYPE_I16 || t == TYPE_I32 || t == TYPE_I64 ||
+           t == TYPE_U8 || t == TYPE_U16 || t == TYPE_U32 || t == TYPE_U64 ||
+           t == TYPE_BOOL || t == TYPE_CHAR
+}
+
+fn is_numeric_type(t: i32) -> bool {
+    return is_integral_type(t) || t == TYPE_F32 || t == TYPE_F64
 }
 
 // =============================================================================
 // OWNERSHIP SYSTEM
 // =============================================================================
 
+// =============================================================================
+// OWNERSHIP SYSTEM IMPLEMENTATION
+// =============================================================================
+
+// Ownership state for a value
+const OWN_OWNED: i32 = 0      // Owns the value, can move
+const OWN_BORROWED: i32 = 1   // Borrowed immutably
+const OWN_MUT_BORROWED: i32 = 2 // Borrowed mutably
+const OWN_MOVED: i32 = 3      // Moved to another owner
+const OWN_DROPPED: i32 = 4    // Already dropped
+
+// Ownership tracking
+struct OwnershipChecker {
+    error_count: i32,
+    vars: *OwnVar,
+    borrows: *Borrow,
+}
+
+struct OwnVar {
+    name: *i8,
+    state: i32,
+    is_mut: bool,
+    scope_depth: i32,
+    next: *OwnVar,
+}
+
+struct Borrow {
+    var_name: *i8,
+    is_mut: bool,
+    scope_depth: i32,
+    next: *Borrow,
+}
+
 fn ownership_check(ast: *Node) -> bool {
-    // Check ownership rules
-    // Track borrows
-    // Ensure no use-after-move
-    return true
+    let checker = alloc(sizeof(OwnershipChecker)) as *OwnershipChecker
+    checker.error_count = 0
+    checker.vars = 0 as *OwnVar
+    checker.borrows = 0 as *Borrow
+    
+    // Check ownership rules by traversing AST
+    ownership_check_node(checker, ast, 0)
+    
+    return checker.error_count == 0
+}
+
+fn ownership_check_node(checker: *OwnershipChecker, node: *Node, scope_depth: i32) {
+    if node == 0 as *Node {
+        return
+    }
+    
+    if node.kind == AST_PROGRAM {
+        // Check all items
+        // (In full implementation, traverse items)
+    } else if node.kind == AST_FN {
+        // New scope for function
+        ownership_enter_scope(checker, scope_depth + 1)
+        
+        // Check function body
+        if node.data2 != 0 as *void {
+            ownership_check_node(checker, node.data2 as *Node, scope_depth + 1)
+        }
+        
+        // Check all variables are properly handled at end of scope
+        ownership_exit_scope(checker, scope_depth + 1)
+    } else if node.kind == AST_LET {
+        // Register new owned variable
+        let var_name = node.data1 as *i8  // Variable name stored in data1
+        //let is_mut = false  // Would extract from node flags
+        
+        ownership_register_var(checker, var_name, scope_depth)
+        
+        // Check initializer
+        if node.data2 != 0 as *void {
+            ownership_check_node(checker, node.data2 as *Node, scope_depth)
+        }
+    } else if node.kind == AST_BLOCK {
+        ownership_enter_scope(checker, scope_depth + 1)
+        
+        // Check all statements in block
+        // (In full implementation, traverse block statements)
+        
+        ownership_exit_scope(checker, scope_depth + 1)
+    } else if node.kind == AST_IF {
+        // Check condition
+        ownership_check_node(checker, node.data1 as *Node, scope_depth)
+        
+        // Check then block
+        ownership_check_node(checker, node.data2 as *Node, scope_depth)
+        
+        // Check else block
+        if node.data3 != 0 as *void {
+            ownership_check_node(checker, node.data3 as *Node, scope_depth)
+        }
+    } else if node.kind == AST_WHILE {
+        // Check condition
+        ownership_check_node(checker, node.data1 as *Node, scope_depth)
+        
+        // Check body
+        ownership_check_node(checker, node.data2 as *Node, scope_depth)
+    } else if node.kind == AST_RETURN {
+        // Moving out of function - check return value ownership
+        if node.data1 != 0 as *void {
+            ownership_check_node(checker, node.data1 as *Node, scope_depth)
+        }
+    } else if node.kind == AST_ASSIGN {
+        // Assignment - move value into variable
+        let left = node.data1 as *Node
+        let right = node.data2 as *Node
+        
+        // Check right side is valid to move
+        ownership_check_node(checker, right, scope_depth)
+        
+        // If right side is a variable, mark it as moved
+        if right.kind == AST_IDENT {
+            let var_name = right.data1 as *i8
+            ownership_move_var(checker, var_name, node)
+        }
+        
+        // Check left side (destination)
+        ownership_check_node(checker, left, scope_depth)
+    } else if node.kind == AST_CALL {
+        // Function call - check all arguments
+        // Function arguments are moved by default
+        // (In full implementation, check each argument)
+    } else if node.kind == AST_IDENT {
+        // Variable usage - check not moved/borrowed
+        let var_name = node.data1 as *i8
+        ownership_check_use(checker, var_name, node)
+    } else if node.kind == AST_BINARY {
+        // Binary operation - check operands
+        ownership_check_node(checker, node.data1 as *Node, scope_depth)
+        ownership_check_node(checker, node.data2 as *Node, scope_depth)
+    } else if node.kind == AST_UNARY {
+        // Unary operation
+        let operand = node.data1 as *Node
+        let op = node.type_id
+        
+        if op == OP_REF {
+            // Immutable borrow
+            if operand.kind == AST_IDENT {
+                let var_name = operand.data1 as *i8
+                ownership_borrow(checker, var_name, false, scope_depth, node)
+            }
+        } else if op == OP_MUT_REF {
+            // Mutable borrow
+            if operand.kind == AST_IDENT {
+                let var_name = operand.data1 as *i8
+                ownership_borrow(checker, var_name, true, scope_depth, node)
+            }
+        } else {
+            ownership_check_node(checker, operand, scope_depth)
+        }
+    }
+}
+
+fn ownership_register_var(checker: *OwnershipChecker, name: *i8, scope_depth: i32) {
+    let var = alloc(sizeof(OwnVar)) as *OwnVar
+    var.name = name
+    var.state = OWN_OWNED
+    var.is_mut = false  // Would extract from declaration
+    var.scope_depth = scope_depth
+    var.next = checker.vars
+    checker.vars = var
+}
+
+fn ownership_move_var(checker: *OwnershipChecker, name: *i8, node: *Node) {
+    let var = ownership_find_var(checker, name)
+    if var == 0 as *OwnVar {
+        ownership_error(checker, node, "Use of undeclared variable")
+        return
+    }
+    
+    if var.state == OWN_MOVED {
+        ownership_error(checker, node, "Use of moved value")
+    } else if var.state == OWN_DROPPED {
+        ownership_error(checker, node, "Use of dropped value")
+    } else if var.state == OWN_MUT_BORROWED {
+        ownership_error(checker, node, "Cannot move while mutably borrowed")
+    } else if var.state == OWN_BORROWED {
+        ownership_error(checker, node, "Cannot move while borrowed")
+    } else {
+        var.state = OWN_MOVED
+    }
+}
+
+fn ownership_check_use(checker: *OwnershipChecker, name: *i8, node: *Node) {
+    let var = ownership_find_var(checker, name)
+    if var == 0 as *OwnVar {
+        // Might be a global or function - ok
+        return
+    }
+    
+    if var.state == OWN_MOVED {
+        ownership_error(checker, node, "Use of moved value")
+    } else if var.state == OWN_DROPPED {
+        ownership_error(checker, node, "Use after drop")
+    }
+    // Use of borrowed values is ok (read-only)
+}
+
+fn ownership_borrow(checker: *OwnershipChecker, name: *i8, is_mut: bool, scope_depth: i32, node: *Node) {
+    let var = ownership_find_var(checker, name)
+    if var == 0 as *OwnVar {
+        ownership_error(checker, node, "Cannot borrow undeclared variable")
+        return
+    }
+    
+    if is_mut {
+        // Mutable borrow requires exclusive access
+        if var.state == OWN_BORROWED {
+            ownership_error(checker, node, "Cannot mutably borrow while immutably borrowed")
+        } else if var.state == OWN_MUT_BORROWED {
+            ownership_error(checker, node, "Cannot mutably borrow while already mutably borrowed")
+        } else if var.state == OWN_MOVED {
+            ownership_error(checker, node, "Cannot borrow moved value")
+        } else {
+            var.state = OWN_MUT_BORROWED
+            ownership_add_borrow(checker, name, true, scope_depth)
+        }
+    } else {
+        // Immutable borrow
+        if var.state == OWN_MUT_BORROWED {
+            ownership_error(checker, node, "Cannot borrow while mutably borrowed")
+        } else if var.state == OWN_MOVED {
+            ownership_error(checker, node, "Cannot borrow moved value")
+        } else {
+            var.state = OWN_BORROWED
+            ownership_add_borrow(checker, name, false, scope_depth)
+        }
+    }
+}
+
+fn ownership_add_borrow(checker: *OwnershipChecker, name: *i8, is_mut: bool, scope_depth: i32) {
+    let borrow = alloc(sizeof(Borrow)) as *Borrow
+    borrow.var_name = name
+    borrow.is_mut = is_mut
+    borrow.scope_depth = scope_depth
+    borrow.next = checker.borrows
+    checker.borrows = borrow
+}
+
+fn ownership_find_var(checker: *OwnershipChecker, name: *i8) -> *OwnVar {
+    let var = checker.vars
+    while var != 0 as *OwnVar {
+        if strcmp(var.name, name) == 0 {
+            return var
+        }
+        var = var.next
+    }
+    return 0 as *OwnVar
+}
+
+fn ownership_enter_scope(checker: *OwnershipChecker, depth: i32) {
+    // Scope tracking happens automatically through depth
+}
+
+fn ownership_exit_scope(checker: *OwnershipChecker, depth: i32) {
+    // Clean up borrows from this scope
+    let borrow = checker.borrows
+    let prev: *Borrow = 0 as *Borrow
+    
+    while borrow != 0 as *Borrow {
+        if borrow.scope_depth == depth {
+            // Release borrow on variable
+            let var = ownership_find_var(checker, borrow.var_name)
+            if var != 0 as *OwnVar {
+                var.state = OWN_OWNED
+            }
+            
+            // Remove from list
+            if prev == 0 as *Borrow {
+                checker.borrows = borrow.next
+            } else {
+                prev.next = borrow.next
+            }
+        } else {
+            prev = borrow
+        }
+        borrow = borrow.next
+    }
+    
+    // Check for variables that need drop at end of scope
+    let var = checker.vars
+    while var != 0 as *OwnVar {
+        if var.scope_depth == depth && var.state == OWN_OWNED {
+            // Variable goes out of scope - implicit drop
+            var.state = OWN_DROPPED
+        }
+        var = var.next
+    }
+}
+
+fn ownership_error(checker: *OwnershipChecker, node: *Node, msg: *i8) {
+    print("Ownership error at line ")
+    print_i32(node.line)
+    print(":")
+    print_i32(node.col)
+    print(": ")
+    println(msg)
+    checker.error_count = checker.error_count + 1
 }
 
 // =============================================================================
@@ -1775,38 +2354,97 @@ fn codegen_node(gen: *CodeGen, node: *Node) {
 }
 
 fn codegen_fn(gen: *CodeGen, node: *Node) {
-    // Emit function label and prologue
-    // Process body
-    // Emit epilogue
+    // Get function name from data1
+    let name = node.data1 as *i8
+    let body = node.data2 as *Node
+    
+    if name == 0 as *i8 {
+        name = "anonymous"
+    }
+    
+    // Emit function label
+    codegen_emit(gen, name)
+    codegen_emit(gen, ":\n")
+    
+    // Function prologue
+    codegen_emit(gen, "    push rbp\n")
+    codegen_emit(gen, "    mov rbp, rsp\n")
+    
+    // Save current stack offset
+    let saved_offset = gen.stack_offset
+    gen.stack_offset = 0
+    
+    // Generate body
+    if body != 0 as *Node {
+        codegen_node(gen, body)
+    }
+    
+    // Function epilogue (return label for explicit returns)
+    codegen_emit(gen, ".L")
+    codegen_emit(gen, name)
+    codegen_emit(gen, "_ret:\n")
+    codegen_emit(gen, "    mov rsp, rbp\n")
+    codegen_emit(gen, "    pop rbp\n")
+    codegen_emit(gen, "    ret\n\n")
+    
+    // Restore stack offset
+    gen.stack_offset = saved_offset
 }
 
 fn codegen_let(gen: *CodeGen, node: *Node) {
-    // Allocate stack space
-    // Generate initializer
-    // Store to stack location
+    // Generate initializer (value in rax)
+    let init = node.data1 as *Node
+    if init != 0 as *Node {
+        codegen_node(gen, init)
+    }
+    
+    // Allocate stack space for variable
+    let size: i64 = 8  // Default to 8 bytes for 64-bit values
+    gen.stack_offset = gen.stack_offset + size
+    let offset = gen.stack_offset
+    
+    // Store result on stack
+    codegen_emit(gen, "    mov [rbp-")
+    codegen_emit_i64(gen, offset)
+    codegen_emit(gen, "], rax")
+    codegen_emit(gen, "    ; let variable\n")
+    
+    // Store offset in node for future reference
+    node.data2 = offset as *void
 }
 
 fn codegen_return(gen: *CodeGen, node: *Node) {
     // Generate return value if present
-    codegen_emit(gen, "    mov rax, ")
-    // Value
-    codegen_emit(gen, "\n    leave\n    ret\n")
+    if node.data1 != 0 as *void {
+        codegen_node(gen, node.data1 as *Node)
+    }
+    
+    // Jump to function epilogue
+    codegen_emit(gen, "    jmp .L")
+    codegen_emit(gen, gen.current_fn)
+    codegen_emit(gen, "_ret\n")
 }
 
 fn codegen_if(gen: *CodeGen, node: *Node) {
     let else_label = codegen_new_label(gen)
     let end_label = codegen_new_label(gen)
     
-    // Generate condition
-    codegen_emit(gen, "    ; if condition\n")
+    let cond = node.data1 as *Node
+    let then_block = node.data2 as *Node
+    let else_block = node.data3 as *Node
     
-    codegen_emit(gen, "    cmp rax, 0\n")
-    codegen_emit(gen, "    je ")
+    // Generate condition
+    codegen_node(gen, cond)
+    
+    codegen_emit(gen, "    test rax, rax\n")
+    codegen_emit(gen, "    jz ")
     codegen_emit(gen, else_label)
     codegen_emit(gen, "\n")
     
     // Then block
-    codegen_emit(gen, "    ; then block\n")
+    if then_block != 0 as *Node {
+        codegen_node(gen, then_block)
+    }
     
     codegen_emit(gen, "    jmp ")
     codegen_emit(gen, end_label)
@@ -1815,6 +2453,10 @@ fn codegen_if(gen: *CodeGen, node: *Node) {
     // Else block
     codegen_emit(gen, else_label)
     codegen_emit(gen, ":\n")
+    
+    if else_block != 0 as *Node {
+        codegen_node(gen, else_block)
+    }
     
     // End
     codegen_emit(gen, end_label)
@@ -1825,16 +2467,23 @@ fn codegen_while(gen: *CodeGen, node: *Node) {
     let start_label = codegen_new_label(gen)
     let end_label = codegen_new_label(gen)
     
+    let cond = node.data1 as *Node
+    let body = node.data2 as *Node
+    
     codegen_emit(gen, start_label)
     codegen_emit(gen, ":\n")
     
     // Condition
-    codegen_emit(gen, "    cmp rax, 0\n")
-    codegen_emit(gen, "    je ")
+    codegen_node(gen, cond)
+    codegen_emit(gen, "    test rax, rax\n")
+    codegen_emit(gen, "    jz ")
     codegen_emit(gen, end_label)
     codegen_emit(gen, "\n")
     
     // Body
+    if body != 0 as *Node {
+        codegen_node(gen, body)
+    }
     
     codegen_emit(gen, "    jmp ")
     codegen_emit(gen, start_label)
@@ -1846,54 +2495,378 @@ fn codegen_while(gen: *CodeGen, node: *Node) {
 
 fn codegen_block(gen: *CodeGen, node: *Node) {
     // Process all statements in block
+    // Block statements stored as linked list in data1
+    let stmt = node.data1 as *Node
+    while stmt != 0 as *Node {
+        codegen_node(gen, stmt)
+        // Move to next statement (would use data3 for next pointer)
+        stmt = stmt.data3 as *Node
+    }
 }
 
 fn codegen_call(gen: *CodeGen, node: *Node) {
-    // Generate arguments (right to left for x86_64)
+    // System V AMD64 ABI:
+    // Arguments passed in: RDI, RSI, RDX, RCX, R8, R9
+    // Additional arguments on stack (right to left)
+    
+    let callee = node.data1 as *Node  // Function being called
+    let args = node.data2 as *Node     // Linked list of arguments
+    
+    // Count arguments
+    let arg_count: i32 = 0
+    let current = args
+    while current != 0 as *Node {
+        arg_count = arg_count + 1
+        current = current.data3 as *Node
+    }
+    
+    // Generate arguments (evaluate and push to stack, then pop to registers)
+    // For simplicity, we push all args to stack first, then pop to registers
+    let i: i32 = 0
+    current = args
+    while current != 0 as *Node && i < 6 {
+        codegen_node(gen, current)
+        codegen_emit(gen, "    push rax\n")
+        current = current.data3 as *Node
+        i = i + 1
+    }
+    
+    // Pop arguments into registers (in reverse order)
+    // R9, R8, RCX, RDX, RSI, RDI
+    if arg_count >= 6 {
+        codegen_emit(gen, "    pop r9\n")
+    }
+    if arg_count >= 5 {
+        codegen_emit(gen, "    pop r8\n")
+    }
+    if arg_count >= 4 {
+        codegen_emit(gen, "    pop rcx\n")
+    }
+    if arg_count >= 3 {
+        codegen_emit(gen, "    pop rdx\n")
+    }
+    if arg_count >= 2 {
+        codegen_emit(gen, "    pop rsi\n")
+    }
+    if arg_count >= 1 {
+        codegen_emit(gen, "    pop rdi\n")
+    }
+    
+    // Get function name
+    let fn_name: *i8 = 0 as *i8
+    if callee.kind == AST_IDENT {
+        fn_name = callee.data1 as *i8
+    } else {
+        fn_name = "unknown"
+    }
+    
     // Call function
     codegen_emit(gen, "    call ")
-    // Function name
+    codegen_emit(gen, fn_name)
     codegen_emit(gen, "\n")
 }
 
 fn codegen_binary(gen: *CodeGen, node: *Node) {
+    // Get operator from type_id
+    let op = node.type_id
+    
+    // Generate right operand first (it will be in rax)
+    codegen_node(gen, node.data2 as *Node)
+    
+    // Save to temporary register/stack
+    codegen_emit(gen, "    push rax\n")
+    
     // Generate left operand
-    // Generate right operand
+    codegen_node(gen, node.data1 as *Node)
+    
+    // Left in rax, right on stack
+    codegen_emit(gen, "    pop rcx\n")
+    
     // Apply operator
+    if op == OP_ADD {
+        codegen_emit(gen, "    add rax, rcx\n")
+    } else if op == OP_SUB {
+        codegen_emit(gen, "    sub rax, rcx\n")
+    } else if op == OP_MUL {
+        codegen_emit(gen, "    imul rax, rcx\n")
+    } else if op == OP_DIV {
+        codegen_emit(gen, "    cqo\n")       // Sign extend rax into rdx:rax
+        codegen_emit(gen, "    idiv rcx\n") // rax = rdx:rax / rcx
+    } else if op == OP_MOD {
+        codegen_emit(gen, "    cqo\n")
+        codegen_emit(gen, "    idiv rcx\n")
+        codegen_emit(gen, "    mov rax, rdx\n") // Remainder in rdx
+    } else if op == OP_BITAND || op == OP_AND {
+        codegen_emit(gen, "    and rax, rcx\n")
+    } else if op == OP_BITOR || op == OP_OR {
+        codegen_emit(gen, "    or rax, rcx\n")
+    } else if op == OP_BITXOR {
+        codegen_emit(gen, "    xor rax, rcx\n")
+    } else if op == OP_SHL {
+        codegen_emit(gen, "    shl rax, cl\n")
+    } else if op == OP_SHR {
+        codegen_emit(gen, "    sar rax, cl\n")
+    } else if op == OP_EQ {
+        codegen_emit(gen, "    cmp rax, rcx\n")
+        codegen_emit(gen, "    sete al\n")
+        codegen_emit(gen, "    movzx rax, al\n")
+    } else if op == OP_NE {
+        codegen_emit(gen, "    cmp rax, rcx\n")
+        codegen_emit(gen, "    setne al\n")
+        codegen_emit(gen, "    movzx rax, al\n")
+    } else if op == OP_LT {
+        codegen_emit(gen, "    cmp rax, rcx\n")
+        codegen_emit(gen, "    setl al\n")
+        codegen_emit(gen, "    movzx rax, al\n")
+    } else if op == OP_GT {
+        codegen_emit(gen, "    cmp rax, rcx\n")
+        codegen_emit(gen, "    setg al\n")
+        codegen_emit(gen, "    movzx rax, al\n")
+    } else if op == OP_LE {
+        codegen_emit(gen, "    cmp rax, rcx\n")
+        codegen_emit(gen, "    setle al\n")
+        codegen_emit(gen, "    movzx rax, al\n")
+    } else if op == OP_GE {
+        codegen_emit(gen, "    cmp rax, rcx\n")
+        codegen_emit(gen, "    setge al\n")
+        codegen_emit(gen, "    movzx rax, al\n")
+    } else {
+        codegen_emit(gen, "    ; unknown binary operator\n")
+    }
 }
 
 fn codegen_unary(gen: *CodeGen, node: *Node) {
+    let op = node.type_id
+    let operand = node.data1 as *Node
+    
     // Generate operand
+    codegen_node(gen, operand)
+    
     // Apply operator
+    if op == OP_NEG {
+        codegen_emit(gen, "    neg rax\n")
+    } else if op == OP_NOT {
+        // Logical not: rax = !rax (0 becomes 1, non-zero becomes 0)
+        codegen_emit(gen, "    test rax, rax\n")
+        codegen_emit(gen, "    sete al\n")
+        codegen_emit(gen, "    movzx rax, al\n")
+    } else if op == OP_BITNOT {
+        codegen_emit(gen, "    not rax\n")
+    } else if op == OP_DEREF {
+        // Load value from address
+        codegen_emit(gen, "    mov rax, [rax]\n")
+    } else if op == OP_REF {
+        // Get address of variable
+        // This requires special handling in the parser
+        codegen_emit(gen, "    ; reference operator\n")
+    } else if op == OP_MUT_REF {
+        codegen_emit(gen, "    ; mutable reference operator\n")
+    }
 }
 
 fn codegen_literal(gen: *CodeGen, node: *Node) {
-    if node.type_id == TYPE_I64 || node.type_id == TYPE_I32 {
+    // Literal value stored in node.data1 as i64, or data2 for string pointer
+    if node.type_id == TYPE_I64 || node.type_id == TYPE_I32 || node.type_id == TYPE_I16 || node.type_id == TYPE_I8 {
+        let value = node.data1 as i64
         codegen_emit(gen, "    mov rax, ")
-        // Integer value
+        codegen_emit_i64(gen, value)
+        codegen_emit(gen, "\n")
+    } else if node.type_id == TYPE_BOOL {
+        let value = node.data1 as i64
+        codegen_emit(gen, "    mov rax, ")
+        codegen_emit_i64(gen, value)
+        codegen_emit(gen, "\n")
+    } else if node.type_id == TYPE_CHAR {
+        let value = node.data1 as i64
+        codegen_emit(gen, "    mov rax, ")
+        codegen_emit_i64(gen, value)
         codegen_emit(gen, "\n")
     } else if node.type_id == TYPE_STRING {
-        // Load string address
+        // String literal - load address of string constant
+        let str_ptr = node.data2 as *i8
+        if str_ptr != 0 as *i8 {
+            // Create unique label for string
+            let label = codegen_new_string_label(gen)
+            
+            // Emit string in data section
+            let data_section = alloc(1024) as *i8
+            let old_output = gen.output
+            let old_pos = gen.output_pos
+            
+            // Switch to data section (simplified - in real impl, track separately)
+            codegen_emit(gen, "section .data\n")
+            codegen_emit(gen, label)
+            codegen_emit(gen, ": db \"")
+            codegen_emit(gen, str_ptr)
+            codegen_emit(gen, "\", 0\n")
+            codegen_emit(gen, "section .text\n")
+            
+            // Load address of string
+            codegen_emit(gen, "    mov rax, ")
+            codegen_emit(gen, label)
+            codegen_emit(gen, "\n")
+        }
+    } else if node.type_id == TYPE_U64 || node.type_id == TYPE_U32 || 
+              node.type_id == TYPE_U16 || node.type_id == TYPE_U8 {
+        let value = node.data1 as i64
+        codegen_emit(gen, "    mov rax, ")
+        codegen_emit_i64(gen, value)
+        codegen_emit(gen, "\n")
+    } else if node.type_id == TYPE_F64 || node.type_id == TYPE_F32 {
+        // Float literals - load into xmm register
+        // For now, use integer representation
+        codegen_emit(gen, "    ; float literal (simplified)\n")
     }
 }
 
 fn codegen_ident(gen: *CodeGen, node: *Node) {
-    // Load variable value
+    // Load variable value from stack
+    // Variable name stored in data1, offset in data2
+    let name = node.data1 as *i8
+    let offset = node.data2 as i64
+    
+    if name != 0 as *i8 {
+        if offset > 0 {
+            // Local variable at stack offset
+            codegen_emit(gen, "    mov rax, [rbp-")
+            codegen_emit_i64(gen, offset)
+            codegen_emit(gen, "]")
+            codegen_emit(gen, "    ; load ")
+            codegen_emit(gen, name)
+            codegen_emit(gen, "\n")
+        } else {
+            // Global variable or function
+            codegen_emit(gen, "    mov rax, [")
+            codegen_emit(gen, name)
+            codegen_emit(gen, "]\n")
+        }
+    }
 }
 
 fn codegen_assign(gen: *CodeGen, node: *Node) {
-    // Generate right-hand side
-    // Store to left-hand side
+    // Generate right-hand side (value in rax)
+    codegen_node(gen, node.data2 as *Node)
+    
+    // Save value to stack temporarily
+    codegen_emit(gen, "    push rax\n")
+    
+    // Generate left-hand side (destination address)
+    let left = node.data1 as *Node
+    
+    if left.kind == AST_IDENT {
+        // Simple variable assignment
+        let offset = left.data2 as i64
+        let name = left.data1 as *i8
+        
+        // Pop value back into rax
+        codegen_emit(gen, "    pop rax\n")
+        
+        if offset > 0 {
+            // Local variable
+            codegen_emit(gen, "    mov [rbp-")
+            codegen_emit_i64(gen, offset)
+            codegen_emit(gen, "], rax")
+            codegen_emit(gen, "    ; assign to ")
+            codegen_emit(gen, name)
+            codegen_emit(gen, "\n")
+        } else {
+            // Global variable
+            codegen_emit(gen, "    mov [")
+            codegen_emit(gen, name)
+            codegen_emit(gen, "], rax\n")
+        }
+    } else if left.kind == AST_FIELD {
+        // Field assignment: obj.field = value
+        // Calculate object address + field offset
+        codegen_emit(gen, "    ; field assignment\n")
+        // (Simplified - would generate object address calculation)
+    } else if left.kind == AST_INDEX {
+        // Array assignment: arr[idx] = value
+        // Calculate base + index * size
+        codegen_emit(gen, "    ; index assignment\n")
+        // (Simplified - would generate index calculation)
+    } else if left.kind == AST_DEREF {
+        // Pointer assignment: *ptr = value
+        // Generate pointer address
+        codegen_emit(gen, "    pop rcx\n")  // Value in rcx
+        codegen_node(gen, left.data1 as *Node)  // Pointer in rax
+        codegen_emit(gen, "    mov [rax], rcx\n")
+    } else {
+        // Unknown assignment target - pop and continue
+        codegen_emit(gen, "    pop rax\n")
+    }
 }
 
 fn codegen_syscall(gen: *CodeGen, node: *Node) {
-    // Generate syscall number in rax
-    // Generate arguments in rdi, rsi, rdx, r10, r8, r9
+    // x86_64 syscall calling convention:
+    // rax = syscall number
+    // rdi, rsi, rdx, r10, r8, r9 = args 1-6
+    // rcx and r11 are clobbered
+    
+    // Generate arguments first (in reverse order, saving to stack)
+    let arg_nodes = node.data2 as *Node  // Linked list of argument nodes
+    let arg_count: i32 = 0
+    
+    // Count and collect arguments
+    let args: [i32; 6]  // Space for up to 6 args
+    let current = arg_nodes
+    while current != 0 as *Node && arg_count < 6 {
+        args[arg_count] = current as i32
+        arg_count = arg_count + 1
+        current = current.data3 as *Node
+    }
+    
+    // Generate syscall number
+    codegen_node(gen, node.data1 as *Node)
+    codegen_emit(gen, "    push rax\n")  // Save syscall number
+    
+    // Generate arguments (in order)
+    // System V x86_64 syscall registers
+    let i: i32 = 0
+    while i < arg_count {
+        let arg_node = args[i] as *Node
+        codegen_node(gen, arg_node)
+        
+        // Move to appropriate register
+        if i == 0 {
+            codegen_emit(gen, "    mov rdi, rax\n")
+        } else if i == 1 {
+            codegen_emit(gen, "    mov rsi, rax\n")
+        } else if i == 2 {
+            codegen_emit(gen, "    mov rdx, rax\n")
+        } else if i == 3 {
+            codegen_emit(gen, "    mov r10, rax\n")
+        } else if i == 4 {
+            codegen_emit(gen, "    mov r8, rax\n")
+        } else if i == 5 {
+            codegen_emit(gen, "    mov r9, rax\n")
+        }
+        
+        i = i + 1
+    }
+    
+    // Restore syscall number to rax
+    codegen_emit(gen, "    pop rax\n")
+    
+    // Emit syscall instruction
     codegen_emit(gen, "    syscall\n")
 }
 
 fn codegen_asm(gen: *CodeGen, node: *Node) {
-    // Emit inline assembly
+    // Emit inline assembly template
+    let template = node.data1 as *i8
+    
+    codegen_emit(gen, "    ; inline asm begin\n")
+    
+    // Emit the assembly template directly
+    // In a full implementation, we would parse and substitute operands
+    if template != 0 as *i8 {
+        codegen_emit(gen, "    ")
+        codegen_emit(gen, template)
+        codegen_emit(gen, "\n")
+    }
+    
+    codegen_emit(gen, "    ; inline asm end\n")
 }
 
 fn codegen_emit(gen: *CodeGen, text: *i8) {
@@ -1903,15 +2876,161 @@ fn codegen_emit(gen: *CodeGen, text: *i8) {
 }
 
 fn codegen_new_label(gen: *CodeGen) -> *i8 {
-    // Generate unique label
-    return ".L0"
+    // Generate unique label: .L<n>
+    gen.label_count = gen.label_count + 1
+    let label = alloc(16) as *i8
+    
+    // Format: .L<n>
+    label[0] = '.'
+    label[1] = 'L'
+    
+    let n = gen.label_count
+    let pos: i32 = 2
+    
+    // Convert number to string
+    if n >= 1000 {
+        label[pos] = '0' + (n / 1000) as i8
+        pos = pos + 1
+    }
+    if n >= 100 {
+        label[pos] = '0' + ((n / 100) % 10) as i8
+        pos = pos + 1
+    }
+    if n >= 10 {
+        label[pos] = '0' + ((n / 10) % 10) as i8
+        pos = pos + 1
+    }
+    label[pos] = '0' + (n % 10) as i8
+    pos = pos + 1
+    label[pos] = 0
+    
+    return label
+}
+
+fn codegen_new_string_label(gen: *CodeGen) -> *i8 {
+    // Generate unique string label: .str.<n>
+    gen.label_count = gen.label_count + 1
+    let label = alloc(20) as *i8
+    
+    label[0] = '.'
+    label[1] = 's'
+    label[2] = 't'
+    label[3] = 'r'
+    label[4] = '.'
+    
+    let n = gen.label_count
+    let pos: i32 = 5
+    
+    if n >= 1000 {
+        label[pos] = '0' + (n / 1000) as i8
+        pos = pos + 1
+    }
+    if n >= 100 {
+        label[pos] = '0' + ((n / 100) % 10) as i8
+        pos = pos + 1
+    }
+    if n >= 10 {
+        label[pos] = '0' + ((n / 10) % 10) as i8
+        pos = pos + 1
+    }
+    label[pos] = '0' + (n % 10) as i8
+    pos = pos + 1
+    label[pos] = 0
+    
+    return label
+}
+
+fn codegen_emit_i64(gen: *CodeGen, val: i64) {
+    // Convert i64 to string and emit
+    if val == 0 {
+        codegen_emit(gen, "0")
+        return
+    }
+    
+    let buf: [i8; 32]
+    let pos: i32 = 0
+    let negative = false
+    let n = val
+    
+    if n < 0 {
+        negative = true
+        n = -n
+    }
+    
+    // Convert to string (reversed)
+    while n > 0 {
+        buf[pos] = '0' + (n % 10) as i8
+        pos = pos + 1
+        n = n / 10
+    }
+    
+    if negative {
+        codegen_emit(gen, "-")
+    }
+    
+    // Emit in reverse order
+    while pos > 0 {
+        pos = pos - 1
+        let c: [i8; 2]
+        c[0] = buf[pos]
+        c[1] = 0
+        codegen_emit(gen, c as *i8)
+    }
 }
 
 fn codegen_emit_runtime(gen: *CodeGen) {
     // Emit runtime library functions
-    // - Memory allocation
-    // - String operations
-    // - IO operations
+    codegen_emit(gen, "\n; === Runtime Library ===\n")
+    
+    // print function
+    codegen_emit(gen, "print:\n")
+    codegen_emit(gen, "    push rbp\n")
+    codegen_emit(gen, "    mov rbp, rsp\n")
+    codegen_emit(gen, "    mov rax, 1\n")        // sys_write
+    codegen_emit(gen, "    mov rdi, 1\n")        // stdout
+    codegen_emit(gen, "    mov rsi, [rbp+16]\n")  // string ptr
+    codegen_emit(gen, "    mov rdx, [rbp+24]\n")  // length
+    codegen_emit(gen, "    syscall\n")
+    codegen_emit(gen, "    mov rsp, rbp\n")
+    codegen_emit(gen, "    pop rbp\n")
+    codegen_emit(gen, "    ret\n\n")
+    
+    // println function
+    codegen_emit(gen, "println:\n")
+    codegen_emit(gen, "    push rbp\n")
+    codegen_emit(gen, "    mov rbp, rsp\n")
+    codegen_emit(gen, "    mov rax, 1\n")        // sys_write
+    codegen_emit(gen, "    mov rdi, 1\n")        // stdout
+    codegen_emit(gen, "    mov rsi, [rbp+16]\n")  // string ptr
+    codegen_emit(gen, "    mov rdx, [rbp+24]\n")  // length
+    codegen_emit(gen, "    syscall\n")
+    codegen_emit(gen, "    ; print newline\n")
+    codegen_emit(gen, "    mov rax, 1\n")
+    codegen_emit(gen, "    mov rdi, 1\n")
+    codegen_emit(gen, "    mov rsi, newline_char\n")
+    codegen_emit(gen, "    mov rdx, 1\n")
+    codegen_emit(gen, "    syscall\n")
+    codegen_emit(gen, "    mov rsp, rbp\n")
+    codegen_emit(gen, "    pop rbp\n")
+    codegen_emit(gen, "    ret\n\n")
+    
+    // exit function
+    codegen_emit(gen, "exit:\n")
+    codegen_emit(gen, "    mov rax, 60\n")      // sys_exit
+    codegen_emit(gen, "    mov rdi, [rsp+8]\n")   // exit code
+    codegen_emit(gen, "    syscall\n\n")
+    
+    // Entry point
+    codegen_emit(gen, "_start:\n")
+    codegen_emit(gen, "    xor rbp, rbp\n")
+    codegen_emit(gen, "    call main\n")
+    codegen_emit(gen, "    mov rdi, rax\n")       // return value as exit code
+    codegen_emit(gen, "    mov rax, 60\n")       // sys_exit
+    codegen_emit(gen, "    syscall\n\n")
+    
+    // Data section for runtime
+    codegen_emit(gen, "section .data\n")
+    codegen_emit(gen, "newline_char: db 10\n")    // \n
 }
 
 // =============================================================================
@@ -2008,32 +3127,94 @@ fn parse_char(s: *i8) -> i64 {
 }
 
 fn alloc(size: i64) -> *void {
-    // Memory allocation - would use runtime allocator
-    return 0 as *void
+    // Simple bump allocator using static buffer
+    // In a real implementation, this would use mmap or heap allocation
+    static let buffer: [i8; 1048576]  // 1MB static buffer
+    static let pos: i64 = 0
+    
+    // Align to 8 bytes
+    let aligned_size = (size + 7) & ~7
+    
+    if pos + aligned_size > 1048576 {
+        // Out of memory - wrap around (simplified behavior)
+        pos = 0
+    }
+    
+    let result = &buffer[pos]
+    pos = pos + aligned_size
+    
+    // Zero the memory
+    let i: i64 = 0
+    while i < size {
+        result[i] = 0
+        i = i + 1
+    }
+    
+    return result as *void
 }
 
 fn file_read(path: *i8) -> *i8 {
-    // Read file contents
-    return 0 as *i8
+    // Open file using syscall (sys_openat or sys_open)
+    // x86_64: rax=2 (open), rdi=pathname, rsi=flags, rdx=mode
+    // Flags: O_RDONLY = 0
+    
+    // Use inline assembly for syscalls
+    let fd: i64 = 0
+    
+    // Try to open file
+    // For now, return empty content as placeholder
+    // In real implementation: syscall(SYS_open, path, O_RDONLY, 0)
+    
+    // Allocate buffer for file content (max 64KB)
+    let buf = alloc(65536) as *i8
+    
+    // In real implementation:
+    // syscall(SYS_read, fd, buf, 65536)
+    // syscall(SYS_close, fd)
+    
+    // Return empty string for now
+    buf[0] = 0
+    return buf
 }
 
 fn file_write(path: *i8, contents: *i8) -> bool {
-    // Write file contents
+    // Open file for writing (O_WRONLY | O_CREAT | O_TRUNC = 1 | 64 | 512 = 577)
+    // Write contents
+    // Close file
+    
+    // In real implementation:
+    // fd = syscall(SYS_open, path, O_WRONLY|O_CREAT|O_TRUNC, 0644)
+    // syscall(SYS_write, fd, contents, strlen(contents))
+    // syscall(SYS_close, fd)
+    
     return true
 }
 
 fn assemble(asm_code: *i8, target: *i8) -> *i8 {
-    // Invoke assembler
+    // Write assembly to temporary file
+    let asm_file = "/tmp/knull_output.s"
+    file_write(asm_file, asm_code)
+    
+    // Invoke nasm or as
+    // nasm -f elf64 -o output.o /tmp/knull_output.s
+    
     return "output.o"
 }
 
 fn link(obj_file: *i8, output: *i8) -> *i8 {
-    // Invoke linker
+    // Invoke linker (ld or gcc)
+    // ld -o output output.o -dynamic-linker /lib64/ld-linux-x86-64.so.2 -lc
+    
     return output
 }
 
 fn print(s: *i8) {
-    // Print string
+    // Write to stdout using syscall
+    // x86_64: rax=1 (write), rdi=fd (1=stdout), rsi=buf, rdx=count
+    let len = strlen(s)
+    if len > 0 {
+        syscall(1, 1, s as i64, len, 0, 0, 0)  // sys_write(stdout, s, len)
+    }
 }
 
 fn println(s: *i8) {
@@ -2042,11 +3223,63 @@ fn println(s: *i8) {
 }
 
 fn print_i32(n: i32) {
-    // Print integer
+    // Convert integer to string and print
+    let buf: [i8; 16]
+    let i: i32 = 0
+    let negative = false
+    let num = n
+    
+    if num < 0 {
+        negative = true
+        num = -num
+    }
+    
+    if num == 0 {
+        buf[0] = '0'
+        buf[1] = 0
+        print(buf as *i8)
+        return
+    }
+    
+    // Convert digits (in reverse)
+    while num > 0 {
+        buf[i] = '0' + (num % 10) as i8
+        i = i + 1
+        num = num / 10
+    }
+    
+    if negative {
+        buf[i] = '-'
+        i = i + 1
+    }
+    
+    // Reverse and null terminate
+    let j: i32 = 0
+    let k: i32 = i - 1
+    while j < k {
+        let tmp = buf[j]
+        buf[j] = buf[k]
+        buf[k] = tmp
+        j = j + 1
+        k = k - 1
+    }
+    buf[i] = 0
+    
+    print(buf as *i8)
 }
 
 fn print_char(c: i8) {
-    // Print character
+    let buf: [i8; 2]
+    buf[0] = c
+    buf[1] = 0
+    print(buf as *i8)
+}
+
+// Syscall wrapper for x86_64 Linux
+fn syscall(num: i64, arg1: i64, arg2: i64, arg3: i64, arg4: i64, arg5: i64, arg6: i64) -> i64 {
+    // Inline assembly would be used here
+    // For now, return 0 as placeholder
+    return 0
 }
 
 // =============================================================================

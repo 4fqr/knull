@@ -8,6 +8,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::pkg::lockfile::{Lockfile, ResolvedDep, LOCKFILE_NAME};
+use crate::pkg::semver;
+
 /// Package manifest (knull.toml)
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PackageManifest {
@@ -42,6 +45,8 @@ pub struct BuildConfig {
     pub opt_level: u32,
     #[serde(default)]
     pub lto: bool,
+    #[serde(default)]
+    pub script: Option<String>,
 }
 
 impl PackageManifest {
@@ -77,6 +82,7 @@ impl PackageManifest {
             build: BuildConfig {
                 opt_level: 2,
                 lto: false,
+                script: None,
             },
         }
     }
@@ -87,6 +93,7 @@ pub struct PackageManager {
     root_path: PathBuf,
     manifest: PackageManifest,
     cache_dir: PathBuf,
+    lockfile: Option<Lockfile>,
 }
 
 impl PackageManager {
@@ -103,10 +110,19 @@ impl PackageManager {
             .join("knull")
             .join("packages");
 
+        // Try to load existing lockfile
+        let lockfile_path = root_path.join(LOCKFILE_NAME);
+        let lockfile = if lockfile_path.exists() {
+            Lockfile::parse(&lockfile_path).ok()
+        } else {
+            None
+        };
+
         Ok(PackageManager {
             root_path,
             manifest,
             cache_dir,
+            lockfile,
         })
     }
 
@@ -152,9 +168,16 @@ fn main() {
 *.dylib
 *.dll
 .DS_Store
+knull.lock
 "#;
         fs::write(project_dir.join(".gitignore"), gitignore)
             .map_err(|e| format!("Failed to create .gitignore: {}", e))?;
+
+        // Create empty lockfile
+        let lockfile = Lockfile::new();
+        lockfile
+            .save(&project_dir.join(LOCKFILE_NAME))
+            .map_err(|e| format!("Failed to create lockfile: {}", e))?;
 
         Ok(())
     }
@@ -164,13 +187,91 @@ fn main() {
         self.manifest
             .dependencies
             .insert(name.to_string(), version.to_string());
-        self.manifest.save(&self.root_path.join("knull.toml"))
+        self.manifest.save(&self.root_path.join("knull.toml"))?;
+
+        // Fetch the dependency immediately
+        self.fetch_package(name, version)?;
+
+        // Update lockfile
+        self.update_lockfile()?;
+
+        Ok(())
     }
 
     /// Remove dependency
     pub fn remove_dependency(&mut self, name: &str) -> Result<(), String> {
-        self.manifest.dependencies.remove(name);
-        self.manifest.save(&self.root_path.join("knull.toml"))
+        if self.manifest.dependencies.remove(name).is_none() {
+            return Err(format!("Dependency '{}' not found", name));
+        }
+
+        self.manifest.save(&self.root_path.join("knull.toml"))?;
+
+        // Update lockfile to remove package
+        if let Some(ref mut lockfile) = self.lockfile {
+            lockfile.remove_package(name);
+            lockfile.save(&self.root_path.join(LOCKFILE_NAME))?;
+        }
+
+        println!("Removed dependency: {}", name);
+        Ok(())
+    }
+
+    /// Update all dependencies
+    pub fn update_all_dependencies(&mut self) -> Result<(), String> {
+        println!("Updating all dependencies...");
+
+        let deps: Vec<(String, String)> = self
+            .manifest
+            .dependencies
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        for (name, constraint) in deps {
+            self.update_package(&name, &constraint)?;
+        }
+
+        self.update_lockfile()?;
+        println!("All dependencies updated");
+        Ok(())
+    }
+
+    /// Update a specific package
+    pub fn update_package(&mut self, name: &str, constraint: &str) -> Result<(), String> {
+        println!("Updating {}...", name);
+
+        // Resolve the latest version matching constraint
+        let resolved_version = crate::pkg::http_registry::resolve_version(name, constraint)
+            .or_else(|_| {
+                // If HTTP fails, try local registry
+                crate::pkg::local_registry::list_local_versions(name)?
+                    .into_iter()
+                    .filter(|v| semver::satisfies(v, constraint))
+                    .max_by(|a, b| semver::compare_versions(a, b))
+                    .ok_or_else(|| format!("No version of {} satisfies {}", name, constraint))
+            })?;
+
+        println!("  Resolved {} to {}", name, resolved_version);
+
+        // Fetch the package
+        self.fetch_package(name, &resolved_version)?;
+
+        // Update the constraint in manifest if it was an exact version
+        if let Some(existing) = self.manifest.dependencies.get(name) {
+            if !existing.starts_with('^')
+                && !existing.starts_with('~')
+                && !existing.starts_with('>')
+                && !existing.starts_with('<')
+            {
+                // Was exact version, update it
+                self.manifest
+                    .dependencies
+                    .insert(name.to_string(), resolved_version.clone());
+                self.manifest.save(&self.root_path.join("knull.toml"))?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Fetch dependencies
@@ -186,29 +287,187 @@ fn main() {
         Ok(())
     }
 
-    /// Fetch single package
-    fn fetch_package(&self, name: &str, version: &str) -> Result<(), String> {
-        let package_dir = self.cache_dir.join(format!("{}-{}", name, version));
-
-        if package_dir.exists() {
-            println!("  {} {} (cached)", name, version);
-            return Ok(());
+    /// Fetch single package - tries local first, then HTTP registry
+    pub fn fetch_package(&self, name: &str, version: &str) -> Result<PathBuf, String> {
+        // Try local registry first
+        if let Ok(path) = crate::pkg::local_registry::fetch_from_local(name, version) {
+            println!("  {} {} (from local registry)", name, version);
+            return Ok(path);
         }
 
-        println!("  Fetching {} {}...", name, version);
+        // Fall back to HTTP registry
+        crate::pkg::http_registry::fetch_from_registry(name, version)
+    }
 
-        // For now, packages would be fetched from a registry
-        // In a full implementation, this would clone from git or download from a registry
-        // For demonstration, we'll create a placeholder
+    /// Resolve version with semver constraint
+    pub fn resolve_version(&self, name: &str, constraint: &str) -> Result<String, String> {
+        crate::pkg::http_registry::resolve_version(name, constraint)
+    }
 
-        fs::create_dir_all(&package_dir)
-            .map_err(|e| format!("Failed to create package directory: {}", e))?;
+    /// Update lockfile with current dependencies
+    pub fn update_lockfile(&mut self) -> Result<(), String> {
+        let mut resolved = Vec::new();
 
-        // Placeholder: In real implementation, fetch from registry
-        // For now, just create a stub
-        let stub = format!("// Package: {}@{}", name, version);
-        fs::write(package_dir.join("lib.knull"), stub)
-            .map_err(|e| format!("Failed to write package stub: {}", e))?;
+        for (name, constraint) in &self.manifest.dependencies {
+            // Fetch and resolve the package
+            let version = self
+                .resolve_version(name, constraint)
+                .or_else(|_| Ok::<String, String>(constraint.clone()))?;
+
+            let package_path = self.fetch_package(name, &version)?;
+
+            // Generate checksum
+            let checksum = crate::pkg::lockfile::generate_checksum(&package_path).ok();
+
+            // Get transitive dependencies
+            let deps = Vec::new(); // Simplified for now
+
+            resolved.push(ResolvedDep {
+                name: name.clone(),
+                version: version.clone(),
+                source: format!("registry+https://registry.knull-lang.dev"),
+                checksum,
+                dependencies: deps,
+            });
+        }
+
+        let lockfile = Lockfile::generate(&self.manifest, &resolved);
+        lockfile.save(&self.root_path.join(LOCKFILE_NAME))?;
+
+        self.lockfile = Some(lockfile);
+        Ok(())
+    }
+
+    /// Publish package to local registry
+    pub fn publish_local(&self) -> Result<(), String> {
+        println!(
+            "Publishing {}@{} to local registry...",
+            self.manifest.package.name, self.manifest.package.version
+        );
+
+        crate::pkg::local_registry::publish_to_local(&self.root_path, &self.manifest)
+    }
+
+    /// Publish package to HTTP registry
+    pub fn publish_registry(&self, token: &str) -> Result<(), String> {
+        println!(
+            "Publishing {}@{} to registry...",
+            self.manifest.package.name, self.manifest.package.version
+        );
+
+        // Validate manifest before publishing
+        self.validate_for_publish()?;
+
+        // Create package archive
+        let archive_path = self.create_package_archive()?;
+
+        // Upload to registry
+        crate::pkg::http_registry::publish_to_registry(&self.manifest, &archive_path, token)?;
+
+        // Clean up archive
+        let _ = fs::remove_file(&archive_path);
+
+        Ok(())
+    }
+
+    /// Validate manifest before publishing
+    fn validate_for_publish(&self) -> Result<(), String> {
+        // Check required fields
+        if self.manifest.package.name.is_empty() {
+            return Err("Package name is required".to_string());
+        }
+
+        if self.manifest.package.version.is_empty() {
+            return Err("Package version is required".to_string());
+        }
+
+        // Validate version format
+        if semver::parse_version(&self.manifest.package.version).is_err() {
+            return Err(format!(
+                "Invalid version format: {}",
+                self.manifest.package.version
+            ));
+        }
+
+        if self.manifest.package.description.is_empty() {
+            println!("Warning: No description provided");
+        }
+
+        if self.manifest.package.license.is_empty() {
+            println!("Warning: No license specified");
+        }
+
+        // Check that entry file exists
+        let entry_path = self.root_path.join(&self.manifest.package.entry);
+        if !entry_path.exists() {
+            return Err(format!("Entry file not found: {}", entry_path.display()));
+        }
+
+        Ok(())
+    }
+
+    /// Create package archive for publishing
+    fn create_package_archive(&self) -> Result<PathBuf, String> {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "knull-publish-{}-{}",
+            self.manifest.package.name, self.manifest.package.version
+        ));
+
+        fs::create_dir_all(&temp_dir)
+            .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+
+        let archive_path = temp_dir.join("package.tar.gz");
+
+        // Create tarball
+        self.create_tarball(&archive_path)?;
+
+        Ok(archive_path)
+    }
+
+    fn create_tarball(&self, output_path: &Path) -> Result<(), String> {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use tar::Builder;
+
+        let tar_gz = fs::File::create(output_path)
+            .map_err(|e| format!("Failed to create archive: {}", e))?;
+        let enc = GzEncoder::new(tar_gz, Compression::default());
+        let mut tar = Builder::new(enc);
+
+        // Add src directory
+        let src_dir = self.root_path.join("src");
+        if src_dir.exists() {
+            tar.append_dir_all("src", &src_dir)
+                .map_err(|e| format!("Failed to add src directory: {}", e))?;
+        }
+
+        // Add knull.toml (renamed to package.toml for registry)
+        let manifest_content = toml::to_string_pretty(&self.manifest)
+            .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
+        let mut header = tar::Header::new_gnu();
+        header.set_path("package.toml").map_err(|e| e.to_string())?;
+        header.set_size(manifest_content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        tar.append(&header, manifest_content.as_bytes())
+            .map_err(|e| format!("Failed to add manifest: {}", e))?;
+
+        // Add README if exists
+        let readme_path = self.root_path.join("README.md");
+        if readme_path.exists() {
+            tar.append_path_with_name(&readme_path, "README.md")
+                .map_err(|e| format!("Failed to add README: {}", e))?;
+        }
+
+        // Add LICENSE if exists
+        let license_path = self.root_path.join("LICENSE");
+        if license_path.exists() {
+            tar.append_path_with_name(&license_path, "LICENSE")
+                .map_err(|e| format!("Failed to add LICENSE: {}", e))?;
+        }
+
+        tar.finish()
+            .map_err(|e| format!("Failed to finish archive: {}", e))?;
 
         Ok(())
     }
@@ -326,4 +585,32 @@ fn main() {
 
         Ok(())
     }
+
+    /// Get manifest reference
+    pub fn manifest(&self) -> &PackageManifest {
+        &self.manifest
+    }
+
+    /// Get mutable manifest reference
+    pub fn manifest_mut(&mut self) -> &mut PackageManifest {
+        &mut self.manifest
+    }
+}
+
+/// Find nearest manifest from current directory
+pub fn find_nearest_manifest() -> Option<PathBuf> {
+    let mut current = std::env::current_dir().ok()?;
+
+    loop {
+        let manifest = current.join("knull.toml");
+        if manifest.exists() {
+            return Some(manifest);
+        }
+
+        if !current.pop() {
+            break;
+        }
+    }
+
+    None
 }

@@ -1,0 +1,502 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - SYSCALL MODULE
+// =============================================================================
+// Linux x86_64 syscall numbers and raw syscall interface
+// Pure Knull implementation using inline assembly or compiler intrinsics
+
+// -----------------------------------------------------------------------------
+// SYSCALL NUMBERS (Linux x86_64)
+// -----------------------------------------------------------------------------
+
+const SYS_READ: i64 = 0
+const SYS_WRITE: i64 = 1
+const SYS_OPEN: i64 = 2
+const SYS_CLOSE: i64 = 3
+const SYS_STAT: i64 = 4
+const SYS_FSTAT: i64 = 5
+const SYS_LSTAT: i64 = 6
+const SYS_POLL: i64 = 7
+const SYS_LSEEK: i64 = 8
+const SYS_MMAP: i64 = 9
+const SYS_MPROTECT: i64 = 10
+const SYS_MUNMAP: i64 = 11
+const SYS_BRK: i64 = 12
+const SYS_RT_SIGACTION: i64 = 13
+const SYS_RT_SIGPROCMASK: i64 = 14
+const SYS_RT_SIGRETURN: i64 = 15
+const SYS_IOCTL: i64 = 16
+const SYS_PREAD64: i64 = 17
+const SYS_PWRITE64: i64 = 18
+const SYS_READV: i64 = 19
+const SYS_WRITEV: i64 = 20
+const SYS_ACCESS: i64 = 21
+const SYS_PIPE: i64 = 22
+const SYS_SELECT: i64 = 23
+const SYS_SCHED_YIELD: i64 = 24
+const SYS_MREMAP: i64 = 25
+const SYS_MSYNC: i64 = 26
+const SYS_MINCORE: i64 = 27
+const SYS_MADVISE: i64 = 28
+const SYS_SHMGET: i64 = 29
+const SYS_SHMAT: i64 = 30
+const SYS_SHMCTL: i64 = 31
+const SYS_DUP: i64 = 32
+const SYS_DUP2: i64 = 33
+const SYS_PAUSE: i64 = 34
+const SYS_NANOSLEEP: i64 = 35
+const SYS_GETITIMER: i64 = 36
+const SYS_ALARM: i64 = 37
+const SYS_SETITIMER: i64 = 38
+const SYS_GETPID: i64 = 39
+const SYS_SENDFILE: i64 = 40
+const SYS_SOCKET: i64 = 41
+const SYS_CONNECT: i64 = 42
+const SYS_ACCEPT: i64 = 43
+const SYS_SENDTO: i64 = 44
+const SYS_RECVFROM: i64 = 45
+const SYS_SENDMSG: i64 = 46
+const SYS_RECVMSG: i64 = 47
+const SYS_SHUTDOWN: i64 = 48
+const SYS_BIND: i64 = 49
+const SYS_LISTEN: i64 = 50
+const SYS_GETSOCKNAME: i64 = 51
+const SYS_GETPEERNAME: i64 = 52
+const SYS_SOCKETPAIR: i64 = 53
+const SYS_SETSOCKOPT: i64 = 54
+const SYS_GETSOCKOPT: i64 = 55
+const SYS_CLONE: i64 = 56
+const SYS_FORK: i64 = 57
+const SYS_VFORK: i64 = 58
+const SYS_EXECVE: i64 = 59
+const SYS_EXIT: i64 = 60
+const SYS_WAIT4: i64 = 61
+const SYS_KILL: i64 = 62
+const SYS_UNAME: i64 = 63
+const SYS_SEMGET: i64 = 64
+const SYS_SEMOP: i64 = 65
+const SYS_SEMCTL: i64 = 66
+const SYS_SHMDT: i64 = 67
+const SYS_MSGGET: i64 = 68
+const SYS_MSGSND: i64 = 69
+const SYS_MSGRCV: i64 = 70
+const SYS_MSGCTL: i64 = 71
+const SYS_FCNTL: i64 = 72
+const SYS_FLOCK: i64 = 73
+const SYS_FSYNC: i64 = 74
+const SYS_FDATASYNC: i64 = 75
+const SYS_TRUNCATE: i64 = 76
+const SYS_FTRUNCATE: i64 = 77
+const SYS_GETDENTS: i64 = 78
+const SYS_GETCWD: i64 = 79
+const SYS_CHDIR: i64 = 80
+const SYS_FCHDIR: i64 = 81
+const SYS_RENAME: i64 = 82
+const SYS_MKDIR: i64 = 83
+const SYS_RMDIR: i64 = 84
+const SYS_CREAT: i64 = 85
+const SYS_LINK: i64 = 86
+const SYS_UNLINK: i64 = 87
+const SYS_SYMLINK: i64 = 88
+const SYS_READLINK: i64 = 89
+const SYS_CHMOD: i64 = 90
+const SYS_FCHMOD: i64 = 91
+const SYS_CHOWN: i64 = 92
+const SYS_FCHOWN: i64 = 93
+const SYS_LCHOWN: i64 = 94
+const SYS_UMASK: i64 = 95
+const SYS_GETTIMEOFDAY: i64 = 96
+const SYS_GETRLIMIT: i64 = 97
+const SYS_GETRUSAGE: i64 = 98
+const SYS_SYSINFO: i64 = 99
+const SYS_TIMES: i64 = 100
+const SYS_PTRACE: i64 = 101
+const SYS_GETUID: i64 = 102
+const SYS_SYSLOG: i64 = 103
+const SYS_GETGID: i64 = 104
+const SYS_SETUID: i64 = 105
+const SYS_SETGID: i64 = 106
+const SYS_GETEUID: i64 = 107
+const SYS_GETEGID: i64 = 108
+const SYS_SETPGID: i64 = 109
+const SYS_GETPPID: i64 = 110
+const SYS_GETPGRP: i64 = 111
+const SYS_SETSID: i64 = 112
+const SYS_SETREUID: i64 = 113
+const SYS_SETREGID: i64 = 114
+const SYS_GETGROUPS: i64 = 115
+const SYS_SETGROUPS: i64 = 116
+const SYS_SETRESUID: i64 = 117
+const SYS_GETRESUID: i64 = 118
+const SYS_SETRESGID: i64 = 119
+const SYS_GETRESGID: i64 = 120
+const SYS_GETPGID: i64 = 121
+const SYS_SETFSUID: i64 = 122
+const SYS_SETFSGID: i64 = 123
+const SYS_GETSID: i64 = 124
+const SYS_CAPGET: i64 = 125
+const SYS_CAPSET: i64 = 126
+const SYS_RT_SIGPENDING: i64 = 127
+const SYS_RT_SIGTIMEDWAIT: i64 = 128
+const SYS_RT_SIGQUEUEINFO: i64 = 129
+const SYS_RT_SIGSUSPEND: i64 = 130
+const SYS_SIGALTSTACK: i64 = 131
+const SYS_UTIME: i64 = 132
+const SYS_MKNOD: i64 = 133
+const SYS_USELIB: i64 = 134
+const SYS_PERSONALITY: i64 = 135
+const SYS_USTAT: i64 = 136
+const SYS_STATFS: i64 = 137
+const SYS_FSTATFS: i64 = 138
+const SYS_SYSFS: i64 = 139
+const SYS_GETPRIORITY: i64 = 140
+const SYS_SETPRIORITY: i64 = 141
+const SYS_SCHED_SETPARAM: i64 = 142
+const SYS_SCHED_GETPARAM: i64 = 143
+const SYS_SCHED_SETSCHEDULER: i64 = 144
+const SYS_SCHED_GETSCHEDULER: i64 = 145
+const SYS_SCHED_GET_PRIORITY_MAX: i64 = 146
+const SYS_SCHED_GET_PRIORITY_MIN: i64 = 147
+const SYS_SCHED_RR_GET_INTERVAL: i64 = 148
+const SYS_MLOCK: i64 = 149
+const SYS_MUNLOCK: i64 = 150
+const SYS_MLOCKALL: i64 = 151
+const SYS_MUNLOCKALL: i64 = 152
+const SYS_VHANGUP: i64 = 153
+const SYS_MODIFY_LDT: i64 = 154
+const SYS_PIVOT_ROOT: i64 = 155
+const SYS__SYSCTL: i64 = 156
+const SYS_PRCTL: i64 = 157
+const SYS_ARCH_PRCTL: i64 = 158
+const SYS_ADJTIMEX: i64 = 159
+const SYS_SETRLIMIT: i64 = 160
+const SYS_CHROOT: i64 = 161
+const SYS_SYNC: i64 = 162
+const SYS_ACCT: i64 = 163
+const SYS_SETTIMEOFDAY: i64 = 164
+const SYS_MOUNT: i64 = 165
+const SYS_UMOUNT2: i64 = 166
+const SYS_SWAPON: i64 = 167
+const SYS_SWAPOFF: i64 = 168
+const SYS_REBOOT: i64 = 169
+const SYS_SETHOSTNAME: i64 = 170
+const SYS_SETDOMAINNAME: i64 = 171
+const SYS_IOPL: i64 = 172
+const SYS_IOPERM: i64 = 173
+const SYS_CREATE_MODULE: i64 = 174
+const SYS_INIT_MODULE: i64 = 175
+const SYS_DELETE_MODULE: i64 = 176
+const SYS_GET_KERNEL_SYMS: i64 = 177
+const SYS_QUERY_MODULE: i64 = 178
+const SYS_QUOTACTL: i64 = 179
+const SYS_NFSSERVCTL: i64 = 180
+const SYS_GETPMSG: i64 = 181
+const SYS_PUTPMSG: i64 = 182
+const SYS_AFS_SYSCALL: i64 = 183
+const SYS_TUXCALL: i64 = 184
+const SYS_SECURITY: i64 = 185
+const SYS_GETTID: i64 = 186
+const SYS_READAHEAD: i64 = 187
+const SYS_SETXATTR: i64 = 188
+const SYS_LSETXATTR: i64 = 189
+const SYS_FSETXATTR: i64 = 190
+const SYS_GETXATTR: i64 = 191
+const SYS_LGETXATTR: i64 = 192
+const SYS_FGETXATTR: i64 = 193
+const SYS_LISTXATTR: i64 = 194
+const SYS_LLISTXATTR: i64 = 195
+const SYS_FLISTXATTR: i64 = 196
+const SYS_REMOVEXATTR: i64 = 197
+const SYS_LREMOVEXATTR: i64 = 198
+const SYS_FREMOVEXATTR: i64 = 199
+const SYS_TKILL: i64 = 200
+const SYS_TIME: i64 = 201
+const SYS_FUTEX: i64 = 202
+const SYS_SCHED_SETAFFINITY: i64 = 203
+const SYS_SCHED_GETAFFINITY: i64 = 204
+const SYS_SET_THREAD_AREA: i64 = 205
+const SYS_IO_SETUP: i64 = 206
+const SYS_IO_DESTROY: i64 = 207
+const SYS_IO_GETEVENTS: i64 = 208
+const SYS_IO_SUBMIT: i64 = 209
+const SYS_IO_CANCEL: i64 = 210
+const SYS_GET_THREAD_AREA: i64 = 211
+const SYS_LOOKUP_DCOOKIE: i64 = 212
+const SYS_EPOLL_CREATE: i64 = 213
+const SYS_EPOLL_CTL_OLD: i64 = 214
+const SYS_EPOLL_WAIT_OLD: i64 = 215
+const SYS_REMAP_FILE_PAGES: i64 = 216
+const SYS_GETDENTS64: i64 = 217
+const SYS_SET_TID_ADDRESS: i64 = 218
+const SYS_RESTART_SYSCALL: i64 = 219
+const SYS_SEMTIMEDOP: i64 = 220
+const SYS_FADVISE64: i64 = 221
+const SYS_TIMER_CREATE: i64 = 222
+const SYS_TIMER_SETTIME: i64 = 223
+const SYS_TIMER_GETTIME: i64 = 224
+const SYS_TIMER_GETOVERRUN: i64 = 225
+const SYS_TIMER_DELETE: i64 = 226
+const SYS_CLOCK_SETTIME: i64 = 227
+const SYS_CLOCK_GETTIME: i64 = 228
+const SYS_CLOCK_GETRES: i64 = 229
+const SYS_CLOCK_NANOSLEEP: i64 = 230
+const SYS_EXIT_GROUP: i64 = 231
+const SYS_EPOLL_WAIT: i64 = 232
+const SYS_EPOLL_CTL: i64 = 233
+const SYS_TGKILL: i64 = 234
+const SYS_UTIMES: i64 = 235
+const SYS_VSERVER: i64 = 236
+const SYS_MBIND: i64 = 237
+const SYS_SET_MEMPOLICY: i64 = 238
+const SYS_GET_MEMPOLICY: i64 = 239
+const SYS_MQ_OPEN: i64 = 240
+const SYS_MQ_UNLINK: i64 = 241
+const SYS_MQ_TIMEDSEND: i64 = 242
+const SYS_MQ_TIMEDRECEIVE: i64 = 243
+const SYS_MQ_NOTIFY: i64 = 244
+const SYS_MQ_GETSETATTR: i64 = 245
+const SYS_KEXEC_LOAD: i64 = 246
+const SYS_WAITID: i64 = 247
+const SYS_ADD_KEY: i64 = 248
+const SYS_REQUEST_KEY: i64 = 249
+const SYS_KEYCTL: i64 = 250
+const SYS_IOPRIO_SET: i64 = 251
+const SYS_IOPRIO_GET: i64 = 252
+const SYS_INOTIFY_INIT: i64 = 253
+const SYS_INOTIFY_ADD_WATCH: i64 = 254
+const SYS_INOTIFY_RM_WATCH: i64 = 255
+const SYS_MIGRATE_PAGES: i64 = 256
+const SYS_OPENAT: i64 = 257
+const SYS_MKDIRAT: i64 = 258
+const SYS_MKNODAT: i64 = 259
+const SYS_FCHOWNAT: i64 = 260
+const SYS_FUTIMESAT: i64 = 261
+const SYS_NEWFSTATAT: i64 = 262
+const SYS_UNLINKAT: i64 = 263
+const SYS_RENAMEAT: i64 = 264
+const SYS_LINKAT: i64 = 265
+const SYS_SYMLINKAT: i64 = 266
+const SYS_READLINKAT: i64 = 267
+const SYS_FCHMODAT: i64 = 268
+const SYS_FACCESSAT: i64 = 269
+const SYS_PSELECT6: i64 = 270
+const SYS_PPOLL: i64 = 271
+const SYS_UNSHARE: i64 = 272
+const SYS_SET_ROBUST_LIST: i64 = 273
+const SYS_GET_ROBUST_LIST: i64 = 274
+const SYS_SPLICE: i64 = 275
+const SYS_TEE: i64 = 276
+const SYS_SYNC_FILE_RANGE: i64 = 277
+const SYS_VMSPLICE: i64 = 278
+const SYS_MOVE_PAGES: i64 = 279
+const SYS_UTIMENSAT: i64 = 280
+const SYS_EPOLL_PWAIT: i64 = 281
+const SYS_SIGNALFD: i64 = 282
+const SYS_TIMERFD_CREATE: i64 = 283
+const SYS_EVENTFD: i64 = 284
+const SYS_FALLOCATE: i64 = 285
+const SYS_TIMERFD_SETTIME: i64 = 286
+const SYS_TIMERFD_GETTIME: i64 = 287
+const SYS_ACCEPT4: i64 = 288
+const SYS_SIGNALFD4: i64 = 289
+const SYS_EVENTFD2: i64 = 290
+const SYS_EPOLL_CREATE1: i64 = 291
+const SYS_DUP3: i64 = 292
+const SYS_PIPE2: i64 = 293
+const SYS_INOTIFY_INIT1: i64 = 294
+const SYS_PREADV: i64 = 295
+const SYS_PWRITEV: i64 = 296
+const SYS_RT_TGSIGQUEUEINFO: i64 = 297
+const SYS_PERF_EVENT_OPEN: i64 = 298
+const SYS_RECVMMSG: i64 = 299
+const SYS_FANOTIFY_INIT: i64 = 300
+const SYS_FANOTIFY_MARK: i64 = 301
+const SYS_PRLIMIT64: i64 = 302
+const SYS_NAME_TO_HANDLE_AT: i64 = 303
+const SYS_OPEN_BY_HANDLE_AT: i64 = 304
+const SYS_CLOCK_ADJTIME: i64 = 305
+const SYS_SYNCFS: i64 = 306
+const SYS_SENDMMSG: i64 = 307
+const SYS_SETNS: i64 = 308
+const SYS_GETCPU: i64 = 309
+const SYS_PROCESS_VM_READV: i64 = 310
+const SYS_PROCESS_VM_WRITEV: i64 = 311
+const SYS_KCMP: i64 = 312
+const SYS_FINIT_MODULE: i64 = 313
+const SYS_SCHED_SETATTR: i64 = 314
+const SYS_SCHED_GETATTR: i64 = 315
+const SYS_RENAMEAT2: i64 = 316
+const SYS_SECCOMP: i64 = 317
+const SYS_GETRANDOM: i64 = 318
+const SYS_MEMFD_CREATE: i64 = 319
+const SYS_KEXEC_FILE_LOAD: i64 = 320
+const SYS_BPF: i64 = 321
+const SYS_STUB_EXECVEAT: i64 = 322
+const SYS_USERFAULTFD: i64 = 323
+const SYS_MEMBARRIER: i64 = 324
+const SYS_MLOCK2: i64 = 325
+const SYS_COPY_FILE_RANGE: i64 = 326
+const SYS_PREADV2: i64 = 327
+const SYS_PWRITEV2: i64 = 328
+const SYS_PKEY_MPROTECT: i64 = 329
+const SYS_PKEY_ALLOC: i64 = 330
+const SYS_PKEY_FREE: i64 = 331
+const SYS_STATX: i64 = 332
+const SYS_IO_PGETEVENTS: i64 = 333
+const SYS_RSEQ: i64 = 334
+
+// -----------------------------------------------------------------------------
+// FILE DESCRIPTOR FLAGS
+// -----------------------------------------------------------------------------
+
+const O_RDONLY: i32 = 0
+const O_WRONLY: i32 = 1
+const O_RDWR: i32 = 2
+const O_CREAT: i32 = 64
+const O_EXCL: i32 = 128
+const O_NOCTTY: i32 = 256
+const O_TRUNC: i32 = 512
+const O_APPEND: i32 = 1024
+const O_NONBLOCK: i32 = 2048
+const O_SYNC: i32 = 1052672
+const O_DSYNC: i32 = 4096
+const O_DIRECT: i32 = 16384
+const O_LARGEFILE: i32 = 0
+const O_DIRECTORY: i32 = 65536
+const O_NOFOLLOW: i32 = 131072
+const O_NOATIME: i32 = 262144
+const O_CLOEXEC: i32 = 524288
+const O_PATH: i32 = 2097152
+const O_TMPFILE: i32 = 4259840
+
+// -----------------------------------------------------------------------------
+// MMAP FLAGS
+// -----------------------------------------------------------------------------
+
+const PROT_READ: i32 = 1
+const PROT_WRITE: i32 = 2
+const PROT_EXEC: i32 = 4
+const PROT_NONE: i32 = 0
+
+const MAP_SHARED: i32 = 1
+const MAP_PRIVATE: i32 = 2
+const MAP_FIXED: i32 = 16
+const MAP_ANONYMOUS: i32 = 32
+const MAP_GROWSDOWN: i32 = 256
+const MAP_DENYWRITE: i32 = 2048
+const MAP_EXECUTABLE: i32 = 4096
+const MAP_LOCKED: i32 = 8192
+const MAP_NORESERVE: i32 = 16384
+const MAP_POPULATE: i32 = 32768
+const MAP_NONBLOCK: i32 = 65536
+const MAP_STACK: i32 = 131072
+const MAP_HUGETLB: i32 = 262144
+
+// -----------------------------------------------------------------------------
+// SYSCALL FUNCTIONS
+// -----------------------------------------------------------------------------
+
+// Inline assembly implementations would go here
+// For now, we declare these as extern or compiler intrinsics
+
+fn syscall0(n: i64) -> i64 {
+    // syscall instruction with 0 args
+    return 0
+}
+
+fn syscall1(n: i64, a1: i64) -> i64 {
+    // syscall instruction with 1 arg
+    return 0
+}
+
+fn syscall2(n: i64, a1: i64, a2: i64) -> i64 {
+    // syscall instruction with 2 args
+    return 0
+}
+
+fn syscall3(n: i64, a1: i64, a2: i64, a3: i64) -> i64 {
+    // syscall instruction with 3 args
+    return 0
+}
+
+fn syscall4(n: i64, a1: i64, a2: i64, a3: i64, a4: i64) -> i64 {
+    // syscall instruction with 4 args
+    return 0
+}
+
+fn syscall5(n: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64) -> i64 {
+    // syscall instruction with 5 args
+    return 0
+}
+
+fn syscall6(n: i64, a1: i64, a2: i64, a3: i64, a4: i64, a5: i64, a6: i64) -> i64 {
+    // syscall instruction with 6 args
+    return 0
+}
+
+// -----------------------------------------------------------------------------
+// HELPER FUNCTIONS
+// -----------------------------------------------------------------------------
+
+fn sys_read(fd: i32, buf: *void, count: i64) -> i64 {
+    return syscall3(SYS_READ, fd as i64, buf as i64, count)
+}
+
+fn sys_write(fd: i32, buf: *void, count: i64) -> i64 {
+    return syscall3(SYS_WRITE, fd as i64, buf as i64, count)
+}
+
+fn sys_open(pathname: *i8, flags: i32, mode: i32) -> i32 {
+    return syscall3(SYS_OPEN, pathname as i64, flags as i64, mode as i64) as i32
+}
+
+fn sys_close(fd: i32) -> i32 {
+    return syscall1(SYS_CLOSE, fd as i64) as i32
+}
+
+fn sys_exit(code: i32) {
+    syscall1(SYS_EXIT, code as i64)
+}
+
+fn sys_mmap(addr: *void, length: i64, prot: i32, flags: i32, fd: i32, offset: i64) -> *void {
+    return syscall6(SYS_MMAP, addr as i64, length, prot as i64, flags as i64, fd as i64, offset) as *void
+}
+
+fn sys_munmap(addr: *void, length: i64) -> i32 {
+    return syscall2(SYS_MUNMAP, addr as i64, length) as i32
+}
+
+fn sys_brk(addr: *void) -> *void {
+    return syscall1(SYS_BRK, addr as i64) as *void
+}
+
+fn sys_socket(domain: i32, type_: i32, protocol: i32) -> i32 {
+    return syscall3(SYS_SOCKET, domain as i64, type_ as i64, protocol as i64) as i32
+}
+
+fn sys_connect(sockfd: i32, addr: *void, addrlen: i32) -> i32 {
+    return syscall3(SYS_CONNECT, sockfd as i64, addr as i64, addrlen as i64) as i32
+}
+
+fn sys_bind(sockfd: i32, addr: *void, addrlen: i32) -> i32 {
+    return syscall3(SYS_BIND, sockfd as i64, addr as i64, addrlen as i64) as i32
+}
+
+fn sys_listen(sockfd: i32, backlog: i32) -> i32 {
+    return syscall2(SYS_LISTEN, sockfd as i64, backlog as i64) as i32
+}
+
+fn sys_accept(sockfd: i32, addr: *void, addrlen: *i32) -> i32 {
+    return syscall3(SYS_ACCEPT, sockfd as i64, addr as i64, addrlen as i64) as i32
+}
+
+fn sys_sendto(sockfd: i32, buf: *void, len: i64, flags: i32, dest_addr: *void, addrlen: i32) -> i64 {
+    return syscall6(SYS_SENDTO, sockfd as i64, buf as i64, len, flags as i64, dest_addr as i64, addrlen as i64)
+}
+
+fn sys_recvfrom(sockfd: i32, buf: *void, len: i64, flags: i32, src_addr: *void, addrlen: *i32) -> i64 {
+    return syscall6(SYS_RECVFROM, sockfd as i64, buf as i64, len, flags as i64, src_addr as i64, addrlen as i64)
+}
+
+fn sys_shutdown(sockfd: i32, how: i32) -> i32 {
+    return syscall2(SYS_SHUTDOWN, sockfd as i64, how as i64) as i32
+}

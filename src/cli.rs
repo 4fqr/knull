@@ -2,6 +2,7 @@
 //! Professional compiler interface for the Knull programming language
 
 use crate::compiler::CompileOptions;
+use crate::pkg::manager::PackageManager;
 use colored::Colorize;
 use std::fs;
 use std::io::{self, Write};
@@ -220,80 +221,7 @@ pub fn new_project(name: &str) -> Result<(), String> {
         name.bright_cyan().bold()
     );
 
-    let project_dir = PathBuf::from(name);
-    fs::create_dir(&project_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
-
-    // Create src directory
-    let src_dir = project_dir.join("src");
-    fs::create_dir(&src_dir).map_err(|e| format!("Failed to create src directory: {}", e))?;
-
-    // Create main.knull
-    let main_content = r#"// Welcome to Knull
-// Entry point for your application
-
-fn main() {
-    println "Hello, Knull!"
-}
-"#;
-    fs::write(src_dir.join("main.knull"), main_content)
-        .map_err(|e| format!("Failed to create main.knull: {}", e))?;
-
-    // Create knull.toml
-    let toml_content = format!(
-        r#"[package]
-name = "{}"
-version = "0.1.0"
-edition = "2024"
-entry = "src/main.knull"
-authors = ["Your Name <you@example.com>"]
-description = "A Knull project"
-license = "MIT"
-
-[dependencies]
-
-[build]
-opt-level = 3
-lto = true
-"#,
-        name
-    );
-
-    fs::write(project_dir.join("knull.toml"), toml_content)
-        .map_err(|e| format!("Failed to create knull.toml: {}", e))?;
-
-    // Create README.md
-    let readme_content = format!(
-        r#"# {}
-
-A Knull programming language project.
-
-## Building
-
-```bash
-knull build src/main.knull
-```
-
-## Running
-
-```bash
-knull run src/main.knull
-```
-
-## Project Structure
-
-```
-{}/
-├── src/
-│   └── main.knull    # Entry point
-├── knull.toml        # Package manifest
-└── README.md         # This file
-```
-"#,
-        name, name
-    );
-
-    fs::write(project_dir.join("README.md"), readme_content)
-        .map_err(|e| format!("Failed to create README.md: {}", e))?;
+    PackageManager::new_project(name)?;
 
     println!("{} Project created successfully", "✓".green().bold());
     println!();
@@ -315,23 +243,136 @@ pub fn add_dependency(package: &str, version: Option<&str>) -> Result<(), String
         ver.bright_black()
     );
 
-    // Read current knull.toml
-    let toml_content = fs::read_to_string("knull.toml").map_err(|e| {
-        format!(
-            "Failed to read knull.toml: {}. Are you in a Knull project?",
-            e
-        )
-    })?;
+    let current_dir =
+        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
 
-    // Add dependency
-    let dep_line = format!("{} = \"{}\"", package, ver);
-    let new_content =
-        toml_content.replace("[dependencies]", &format!("[dependencies]\n{}", dep_line));
-
-    fs::write("knull.toml", new_content)
-        .map_err(|e| format!("Failed to write knull.toml: {}", e))?;
+    let mut pm = PackageManager::new(current_dir)?;
+    pm.add_dependency(package, ver)?;
 
     println!("{} Added {} to dependencies", "✓".green().bold(), package);
+
+    Ok(())
+}
+
+/// Remove a dependency from the project
+pub fn remove_dependency(package: &str) -> Result<(), String> {
+    println!(
+        "{} Removing dependency: {}",
+        "Removing".bright_yellow(),
+        package.bright_cyan()
+    );
+
+    let current_dir =
+        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
+
+    let mut pm = PackageManager::new(current_dir)?;
+    pm.remove_dependency(package)?;
+
+    println!(
+        "{} Removed {} from dependencies",
+        "✓".green().bold(),
+        package
+    );
+
+    Ok(())
+}
+
+/// Update all dependencies or a specific package
+pub fn update_dependencies(package: Option<&str>) -> Result<(), String> {
+    let current_dir =
+        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
+
+    let mut pm = PackageManager::new(current_dir)?;
+
+    match package {
+        Some(pkg) => {
+            println!(
+                "{} Updating dependency: {}",
+                "Updating".bright_yellow(),
+                pkg.bright_cyan()
+            );
+
+            let constraint = pm
+                .manifest()
+                .dependencies
+                .get(pkg)
+                .cloned()
+                .unwrap_or_else(|| "^1.0".to_string());
+
+            pm.update_package(pkg, &constraint)?;
+            println!("{} Updated {}", "✓".green().bold(), pkg);
+        }
+        None => {
+            pm.update_all_dependencies()?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Publish package to registry
+pub fn publish(local: bool, token: Option<&str>) -> Result<(), String> {
+    let current_dir =
+        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
+
+    let pm = PackageManager::new(current_dir)?;
+
+    if local {
+        println!("{}", "Publishing to local registry...".bright_yellow());
+        pm.publish_local()?;
+    } else {
+        let auth_token = token
+            .map(|s| s.to_string())
+            .or_else(|| std::env::var("KNULL_REGISTRY_TOKEN").ok())
+            .ok_or("Authentication token required. Use --token or set KNULL_REGISTRY_TOKEN")?;
+
+        println!("{}", "Publishing to registry...".bright_yellow());
+        pm.publish_registry(&auth_token)?;
+    }
+
+    Ok(())
+}
+
+/// Fetch dependencies
+pub fn fetch_dependencies() -> Result<(), String> {
+    println!("{}", "Fetching dependencies...".bright_yellow());
+
+    let current_dir =
+        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
+
+    let pm = PackageManager::new(current_dir)?;
+    pm.fetch_dependencies()?;
+
+    println!("{} Dependencies fetched", "✓".green().bold());
+    Ok(())
+}
+
+/// List project dependencies
+pub fn list_dependencies() -> Result<(), String> {
+    let current_dir =
+        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
+
+    let pm = PackageManager::new(current_dir)?;
+
+    println!("{}", "Dependencies:".bright_yellow().bold());
+
+    let deps = pm.manifest().dependencies.clone();
+    if deps.is_empty() {
+        println!("  No dependencies");
+    } else {
+        for (name, version) in deps {
+            println!("  {} {}", name.bright_cyan(), version.bright_black());
+        }
+    }
+
+    // Show dev dependencies
+    let dev_deps = &pm.manifest().dev_dependencies;
+    if !dev_deps.is_empty() {
+        println!("\n{}", "Dev Dependencies:".bright_yellow().bold());
+        for (name, version) in dev_deps {
+            println!("  {} {}", name.bright_cyan(), version.bright_black());
+        }
+    }
 
     Ok(())
 }
@@ -443,23 +484,36 @@ pub fn show_help() {
     println!("  knull <COMMAND> [OPTIONS] [ARGS]");
     println!();
     println!("{}", "COMMANDS:".bright_yellow().bold());
-    println!("  run <file>       Execute a Knull file");
-    println!("  build <file>     Compile to binary");
-    println!("  asm <file>       Generate assembly output");
-    println!("  check <file>     Check syntax and types");
-    println!("  fmt <file>       Format a Knull file");
-    println!("  new <name>       Create a new Knull project");
-    println!("  add <package>    Add a dependency");
-    println!("  test             Run tests");
-    println!("  repl             Start interactive shell");
-    println!("  version          Show version");
-    println!("  help             Show this help");
+    println!("  run <file>              Execute a Knull file");
+    println!("  build <file>            Compile to binary");
+    println!("  asm <file>              Generate assembly output");
+    println!("  check <file>            Check syntax and types");
+    println!("  fmt <file>              Format a Knull file");
+    println!("  new <name>              Create a new Knull project");
+    println!("  add <package> [version] Add a dependency");
+    println!("  remove <package>        Remove a dependency");
+    println!("  update [package]        Update dependencies");
+    println!("  fetch                   Fetch all dependencies");
+    println!("  list                    List dependencies");
+    println!("  publish [options]       Publish package to registry");
+    println!("  test                    Run tests");
+    println!("  repl                    Start interactive shell");
+    println!("  version                 Show version");
+    println!("  help                    Show this help");
+    println!();
+    println!("{}", "PACKAGE OPTIONS:".bright_yellow().bold());
+    println!("  --local                 Publish to local registry");
+    println!("  --token <token>         Registry authentication token");
     println!();
     println!("{}", "EXAMPLES:".bright_yellow().bold());
     println!("  knull run hello.knull");
     println!("  knull build main.knull -o myapp");
-    println!("  knull asm program.knull -o program.s");
     println!("  knull new my-project");
+    println!("  knull add serde ^1.0");
+    println!("  knull remove serde");
+    println!("  knull update");
+    println!("  knull publish --local");
+    println!("  knull publish --token <auth_token>");
     println!();
     println!("For more information: https://knull-lang.dev");
 }

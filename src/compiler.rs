@@ -2,8 +2,7 @@
 //!
 //! Provides compilation interfaces for different backends.
 
-#[cfg(feature = "llvm-backend")]
-pub mod llvm_codegen;
+// llvm_codegen is defined at the crate root level, not as a submodule
 
 #[cfg(feature = "llvm-backend")]
 use inkwell::OptimizationLevel;
@@ -76,9 +75,10 @@ pub fn compile(
     options: CompileOptions,
 ) -> Result<CompilationResult, String> {
     use crate::lexer::Lexer;
+    use crate::llvm_codegen::CompileMode as LLVMCompileMode;
+    use crate::llvm_codegen::LLVMCodeGen;
     use crate::parser::Parser;
     use inkwell::context::Context;
-    use llvm_codegen::LLVMCodeGen;
 
     // Parse the source
     let mut lexer = Lexer::new(source);
@@ -93,13 +93,18 @@ pub fn compile(
     if options.mode != CompileMode::Novice {
         let mut type_checker = crate::type_system::TypeChecker::new();
         type_checker
-            .check(&crate::ast::ASTNode::Program(vec![]))
+            .check(&crate::parser::ASTNode::Program(vec![]))
             .map_err(|e| format!("Type error: {}", e))?;
     }
 
     // Compile with LLVM
     let context = Context::create();
-    let mut codegen = LLVMCodeGen::new(&context, "knull_module", options.mode)?;
+    let llvm_mode = match options.mode {
+        CompileMode::Novice => LLVMCompileMode::Novice,
+        CompileMode::Expert => LLVMCompileMode::Expert,
+        CompileMode::God => LLVMCompileMode::God,
+    };
+    let mut codegen = LLVMCodeGen::new(&context, "knull_module", llvm_mode)?;
 
     // Generate LLVM IR
     codegen.compile(&ast)?;
@@ -149,13 +154,18 @@ pub fn generate_assembly(
     options: CompileOptions,
 ) -> Result<(), String> {
     use crate::lexer::Lexer;
+    use crate::llvm_codegen::{CompileMode as LLVMCompileMode, LLVMCodeGen};
     use crate::parser::Parser;
     use inkwell::context::Context;
     use inkwell::targets::FileType;
-    use llvm_codegen::LLVMCodeGen;
 
     let context = Context::create();
-    let mut codegen = LLVMCodeGen::new(&context, "knull_module", options.mode)?;
+    let llvm_mode = match options.mode {
+        CompileMode::Novice => LLVMCompileMode::Novice,
+        CompileMode::Expert => LLVMCompileMode::Expert,
+        CompileMode::God => LLVMCompileMode::God,
+    };
+    let mut codegen = LLVMCodeGen::new(&context, "knull_module", llvm_mode)?;
 
     // Parse
     let mut lexer = Lexer::new(source);
@@ -170,10 +180,7 @@ pub fn generate_assembly(
     codegen.optimize(options.opt_level);
 
     // Generate assembly
-    let target_machine = &codegen.target_machine;
-    target_machine
-        .write_to_file(codegen.get_module(), FileType::Assembly, output_path)
-        .map_err(|e| format!("Failed to generate assembly: {}", e.to_string()))?;
+    codegen.compile_to_assembly(output_path)?;
 
     Ok(())
 }

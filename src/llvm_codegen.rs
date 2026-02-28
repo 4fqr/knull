@@ -1,8 +1,6 @@
 //! Knull LLVM Code Generation Backend
 //!
 //! This module compiles Knull AST directly to native machine code using LLVM.
-//! It supports all three modes: Novice (with GC), Expert (with ownership),
-//! and God (with unsafe blocks and inline assembly).
 
 use inkwell::builder::Builder;
 use inkwell::context::Context;
@@ -12,16 +10,16 @@ use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple,
 };
 use inkwell::types::{
-    BasicType, BasicTypeEnum, FloatType, FunctionType, IntType, StructType, VoidType,
+    BasicType, BasicTypeEnum, FloatType, FunctionType, IntType, PointerType, StructType, VoidType,
 };
 use inkwell::values::{
     BasicValue, BasicValueEnum, FloatValue, FunctionValue, IntValue, PointerValue,
 };
 use inkwell::AddressSpace;
+use inkwell::FloatPredicate;
 use inkwell::OptimizationLevel;
 
-use crate::ast::{ASTNode, BinaryOp, Literal, Type as KnullType, UnaryOp};
-use crate::lexer::TokenKind;
+use crate::parser::{ASTNode, Literal, Param, Type as KnullType};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -45,31 +43,15 @@ pub struct LLVMCodeGen<'ctx> {
 
     // Symbol tables
     variables: HashMap<String, PointerValue<'ctx>>,
+    variable_types: HashMap<String, KnullType>, // Track variable types for field access
     functions: HashMap<String, FunctionValue<'ctx>>,
-    structs: HashMap<String, StructType<'ctx>>,
+    structs: HashMap<String, (StructType<'ctx>, Vec<(String, KnullType)>)>,
 
     // Current function context
     current_function: Option<FunctionValue<'ctx>>,
 
     // Compile mode
     mode: CompileMode,
-
-    // For ownership tracking in Expert/God mode
-    ownership_stack: Vec<OwnershipFrame>,
-}
-
-/// Tracks ownership information for variables
-#[derive(Debug, Clone)]
-struct OwnershipFrame {
-    owned_vars: HashMap<String, OwnershipStatus>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum OwnershipStatus {
-    Owned,
-    Borrowed,
-    MutBorrowed,
-    Moved,
 }
 
 /// Compilation result
@@ -120,13 +102,11 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             builder,
             target_machine,
             variables: HashMap::new(),
+            variable_types: HashMap::new(),
             functions: HashMap::new(),
             structs: HashMap::new(),
             current_function: None,
             mode,
-            ownership_stack: vec![OwnershipFrame {
-                owned_vars: HashMap::new(),
-            }],
         })
     }
 
@@ -161,12 +141,12 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             ASTNode::Function {
                 name,
                 params,
-                return_type,
+                ret_type,
                 ..
             } => {
-                self.declare_function(name, params, return_type)?;
+                self.declare_function(name, params, ret_type)?;
             }
-            ASTNode::Struct { name, fields } => {
+            ASTNode::StructDef { name, fields } => {
                 self.declare_struct(name, fields)?;
             }
             _ => {}
@@ -178,19 +158,19 @@ impl<'ctx> LLVMCodeGen<'ctx> {
     fn declare_function(
         &mut self,
         name: &str,
-        params: &[(String, KnullType)],
-        return_type: &KnullType,
+        params: &[Param],
+        return_type: &Option<KnullType>,
     ) -> Result<FunctionValue<'ctx>, String> {
         // Convert Knull types to LLVM types
         let param_types: Vec<BasicTypeEnum<'ctx>> = params
             .iter()
-            .map(|(_, ty)| self.knull_type_to_llvm(ty))
+            .map(|p| self.knull_type_to_llvm(p.ty.as_ref().unwrap_or(&KnullType::I64)))
             .collect::<Result<Vec<_>, _>>()?;
 
-        let fn_type = if *return_type == KnullType::Void {
+        let fn_type = if return_type.is_none() || return_type.as_ref() == Some(&KnullType::Void) {
             self.context.void_type().fn_type(&param_types, false)
         } else {
-            let ret_ty = self.knull_type_to_llvm(return_type)?;
+            let ret_ty = self.knull_type_to_llvm(return_type.as_ref().unwrap())?;
             ret_ty.fn_type(&param_types, false)
         };
 
@@ -214,7 +194,8 @@ impl<'ctx> LLVMCodeGen<'ctx> {
         let struct_type = self.context.opaque_struct_type(name);
         struct_type.set_body(&field_types, false);
 
-        self.structs.insert(name.to_string(), struct_type);
+        self.structs
+            .insert(name.to_string(), (struct_type, fields.to_vec()));
 
         Ok(struct_type)
     }
@@ -222,9 +203,20 @@ impl<'ctx> LLVMCodeGen<'ctx> {
     /// Convert Knull types to LLVM types
     fn knull_type_to_llvm(&self, ty: &KnullType) -> Result<BasicTypeEnum<'ctx>, String> {
         match ty {
-            KnullType::Int => Ok(self.context.i64_type().into()),
-            KnullType::Float => Ok(self.context.f64_type().into()),
+            KnullType::I8 => Ok(self.context.i8_type().into()),
+            KnullType::I16 => Ok(self.context.i16_type().into()),
+            KnullType::I32 => Ok(self.context.i32_type().into()),
+            KnullType::I64 => Ok(self.context.i64_type().into()),
+            KnullType::I128 => Ok(self.context.i128_type().into()),
+            KnullType::U8 => Ok(self.context.i8_type().into()),
+            KnullType::U16 => Ok(self.context.i16_type().into()),
+            KnullType::U32 => Ok(self.context.i32_type().into()),
+            KnullType::U64 => Ok(self.context.i64_type().into()),
+            KnullType::U128 => Ok(self.context.i128_type().into()),
+            KnullType::F32 => Ok(self.context.f32_type().into()),
+            KnullType::F64 => Ok(self.context.f64_type().into()),
             KnullType::Bool => Ok(self.context.bool_type().into()),
+            KnullType::Char => Ok(self.context.i8_type().into()),
             KnullType::String => {
                 // String as {i8*, i64} (ptr, len)
                 let ptr_type = self.context.i8_type().ptr_type(AddressSpace::default());
@@ -235,15 +227,23 @@ impl<'ctx> LLVMCodeGen<'ctx> {
                 Ok(str_struct.into())
             }
             KnullType::Custom(name) => {
-                if let Some(&struct_ty) = self.structs.get(name) {
-                    Ok(struct_ty.into())
+                if let Some((struct_ty, _)) = self.structs.get(name) {
+                    Ok(struct_ty.as_basic_type_enum())
                 } else {
                     Err(format!("Unknown type: {}", name))
                 }
             }
-            KnullType::Pointer(inner) => {
+            KnullType::Ref(inner) | KnullType::MutRef(inner) => {
                 let inner_ty = self.knull_type_to_llvm(inner)?;
                 Ok(inner_ty.ptr_type(AddressSpace::default()).into())
+            }
+            KnullType::RawPtr(inner) | KnullType::MutRawPtr(inner) => {
+                let _inner_ty = self.knull_type_to_llvm(inner)?;
+                Ok(self
+                    .context
+                    .i8_type()
+                    .ptr_type(AddressSpace::default())
+                    .into())
             }
             KnullType::Array(inner, size) => {
                 let inner_ty = self.knull_type_to_llvm(inner)?;
@@ -264,55 +264,51 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             ASTNode::Let { name, value, ty } => {
                 self.compile_let(name, value, ty)?;
             }
-            ASTNode::Assignment { name, value } => {
-                self.compile_assignment(name, value)?;
-            }
             ASTNode::If {
-                condition,
-                then_branch,
-                else_branch,
+                cond,
+                then_body,
+                else_body,
             } => {
-                self.compile_if(condition, then_branch, else_branch.as_deref())?;
+                self.compile_if(cond, then_body, else_body.as_deref())?;
             }
-            ASTNode::While { condition, body } => {
-                self.compile_while(condition, body)?;
+            ASTNode::While { cond, body } => {
+                self.compile_while(cond, body)?;
             }
-            ASTNode::For {
-                var,
-                iterable,
-                body,
-            } => {
-                self.compile_for(var, iterable, body)?;
+            ASTNode::For { var, iter, body } => {
+                self.compile_for(var, iter, body)?;
             }
-            ASTNode::Return { value } => {
+            ASTNode::Loop(body) => {
+                self.compile_loop(body)?;
+            }
+            ASTNode::Return(value) => {
                 self.compile_return(value.as_deref())?;
             }
-            ASTNode::Call { name, args } => {
-                self.compile_call(name, args)?;
+            ASTNode::Call { func, args } => {
+                if let ASTNode::Identifier(name) = func.as_ref() {
+                    self.compile_call(name, args)?;
+                } else {
+                    let _ = self.compile_expression(node)?;
+                }
             }
-            ASTNode::UnsafeBlock { body } => {
+            ASTNode::Unsafe(body) => {
                 if self.mode == CompileMode::God {
                     self.compile_unsafe_block(body)?;
                 } else {
                     return Err("Unsafe blocks are only allowed in God mode".to_string());
                 }
             }
-            ASTNode::InlineAssembly {
-                assembly,
-                inputs,
-                outputs,
-            } => {
+            ASTNode::Asm(assembly) => {
                 if self.mode == CompileMode::God {
-                    self.compile_inline_asm(assembly, inputs, outputs)?;
+                    self.compile_inline_asm(assembly)?;
                 } else {
                     return Err("Inline assembly is only allowed in God mode".to_string());
                 }
             }
-            ASTNode::Syscall { number, args } => {
-                self.compile_syscall(number, args)?;
+            ASTNode::Syscall(args) => {
+                self.compile_syscall(args)?;
             }
-            ASTNode::Block { statements } => {
-                for stmt in statements {
+            ASTNode::Block(stmts) => {
+                for stmt in stmts {
                     self.compile_statement(stmt)?;
                 }
             }
@@ -328,7 +324,7 @@ impl<'ctx> LLVMCodeGen<'ctx> {
     fn compile_function_body(
         &mut self,
         name: &str,
-        params: &[(String, KnullType)],
+        params: &[Param],
         body: &ASTNode,
     ) -> Result<(), String> {
         let function = *self
@@ -344,38 +340,30 @@ impl<'ctx> LLVMCodeGen<'ctx> {
         let old_function = self.current_function;
         self.current_function = Some(function);
 
-        // Clear local variables
+        // Clear local variables and types
         let old_vars = self.variables.clone();
+        let old_types = self.variable_types.clone();
         self.variables.clear();
-
-        // Create new ownership frame
-        self.ownership_stack.push(OwnershipFrame {
-            owned_vars: HashMap::new(),
-        });
+        self.variable_types.clear();
 
         // Allocate parameters
-        for (i, (param_name, param_ty)) in params.iter().enumerate() {
-            let param = function
+        for (i, param) in params.iter().enumerate() {
+            let llvm_ty = self.knull_type_to_llvm(param.ty.as_ref().unwrap_or(&KnullType::I64))?;
+            let param_val = function
                 .get_nth_param(i as u32)
                 .ok_or_else(|| format!("Failed to get parameter {}", i))?;
 
             let alloca = self
                 .builder
-                .build_alloca(self.knull_type_to_llvm(param_ty)?, param_name)
+                .build_alloca(llvm_ty, &param.name)
                 .map_err(|e| e.to_string())?;
 
             self.builder
-                .build_store(alloca, param)
+                .build_store(alloca, param_val)
                 .map_err(|e| e.to_string())?;
-            self.variables.insert(param_name.clone(), alloca);
-
-            // Track ownership
-            if self.mode != CompileMode::Novice {
-                if let Some(frame) = self.ownership_stack.last_mut() {
-                    frame
-                        .owned_vars
-                        .insert(param_name.clone(), OwnershipStatus::Owned);
-                }
+            self.variables.insert(param.name.clone(), alloca);
+            if let Some(ref ty) = param.ty {
+                self.variable_types.insert(param.name.clone(), ty.clone());
             }
         }
 
@@ -401,11 +389,9 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             }
         }
 
-        // Pop ownership frame
-        self.ownership_stack.pop();
-
         // Restore context
         self.variables = old_vars;
+        self.variable_types = old_types;
         self.current_function = old_function;
 
         Ok(())
@@ -437,34 +423,17 @@ impl<'ctx> LLVMCodeGen<'ctx> {
 
         self.variables.insert(name.to_string(), alloca);
 
-        // Track ownership
-        if self.mode != CompileMode::Novice {
-            if let Some(frame) = self.ownership_stack.last_mut() {
-                frame
-                    .owned_vars
-                    .insert(name.to_string(), OwnershipStatus::Owned);
+        // Store variable type for field access
+        let var_type = if let Some(ref t) = ty {
+            t.clone()
+        } else {
+            // Try to infer from value
+            match value {
+                ASTNode::StructLiteral { name, .. } => KnullType::Custom(name.clone()),
+                _ => KnullType::I64, // Default
             }
-        }
-
-        Ok(())
-    }
-
-    /// Compile assignment
-    fn compile_assignment(&mut self, name: &str, value: &ASTNode) -> Result<(), String> {
-        let ptr = self
-            .variables
-            .get(name)
-            .ok_or_else(|| format!("Variable {} not found", name))?;
-
-        // Check ownership in Expert/God mode
-        if self.mode != CompileMode::Novice {
-            self.check_mutation_allowed(name)?;
-        }
-
-        let val = self.compile_expression(value)?;
-        self.builder
-            .build_store(*ptr, val)
-            .map_err(|e| e.to_string())?;
+        };
+        self.variable_types.insert(name.to_string(), var_type);
 
         Ok(())
     }
@@ -575,11 +544,41 @@ impl<'ctx> LLVMCodeGen<'ctx> {
         Ok(())
     }
 
+    /// Compile loop (infinite)
+    fn compile_loop(&mut self, body: &ASTNode) -> Result<(), String> {
+        let function = self.current_function.ok_or("Loop outside of function")?;
+
+        let body_block = self.context.append_basic_block(function, "loopbody");
+        let end_block = self.context.append_basic_block(function, "loopend");
+
+        // Branch to body
+        self.builder
+            .build_unconditional_branch(body_block)
+            .map_err(|e| e.to_string())?;
+
+        // Body block
+        self.builder.position_at_end(body_block);
+        self.compile_statement(body)?;
+        if self
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_terminator()
+            .is_none()
+        {
+            self.builder
+                .build_unconditional_branch(body_block)
+                .map_err(|e| e.to_string())?;
+        }
+
+        // End block (unreachable unless break is implemented)
+        self.builder.position_at_end(end_block);
+
+        Ok(())
+    }
+
     /// Compile for loop
     fn compile_for(&mut self, var: &str, iterable: &ASTNode, body: &ASTNode) -> Result<(), String> {
-        // For now, implement as while loop for ranges
-        // Full iterator support would be more complex
-
         let function = self
             .current_function
             .ok_or("For loop outside of function")?;
@@ -591,18 +590,25 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             .build_alloca(i64_type, var)
             .map_err(|e| e.to_string())?;
 
-        let start_val = i64_type.const_int(0, false);
+        // Get start and end values from range
+        let (start_val, end_val, inclusive) = match iterable {
+            ASTNode::Range {
+                start,
+                end,
+                inclusive,
+            } => {
+                let s = self.compile_expression(start)?;
+                let e = self.compile_expression(end)?;
+                (s, e, *inclusive)
+            }
+            _ => return Err("For loop currently only supports ranges".to_string()),
+        };
+
+        // Store initial value
         self.builder
             .build_store(loop_var, start_val)
             .map_err(|e| e.to_string())?;
-
         self.variables.insert(var.to_string(), loop_var);
-
-        // Get end value (simplified - assumes range)
-        let end_val = match iterable {
-            ASTNode::Range { end, .. } => self.compile_expression(end)?,
-            _ => return Err("For loop currently only supports ranges".to_string()),
-        };
 
         let cond_block = self.context.append_basic_block(function, "forcond");
         let body_block = self.context.append_basic_block(function, "forbody");
@@ -619,15 +625,24 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             .builder
             .build_load(i64_type, loop_var, var)
             .map_err(|e| e.to_string())?;
-        let cond = self
-            .builder
-            .build_int_compare(
+
+        let cond = if inclusive {
+            self.builder.build_int_compare(
+                inkwell::IntPredicate::SLE,
+                current.into_int_value(),
+                end_val.into_int_value(),
+                "forcond",
+            )
+        } else {
+            self.builder.build_int_compare(
                 inkwell::IntPredicate::SLT,
                 current.into_int_value(),
                 end_val.into_int_value(),
                 "forcond",
             )
-            .map_err(|e| e.to_string())?;
+        }
+        .map_err(|e| e.to_string())?;
+
         self.builder
             .build_conditional_branch(cond, body_block, end_block)
             .map_err(|e| e.to_string())?;
@@ -692,6 +707,10 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             "print" => self.compile_print(args),
             "alloc" => self.compile_alloc(args),
             "free" => self.compile_free(args),
+            "strlen" => self.compile_strlen(args),
+            "strcmp" => self.compile_strcmp(args),
+            "strcat" => self.compile_strcat(args),
+            "strcpy" => self.compile_strcpy(args),
             _ => {
                 // Regular function call
                 let function = *self
@@ -744,10 +763,19 @@ impl<'ctx> LLVMCodeGen<'ctx> {
         let printf = self.module.add_function("printf", printf_type, None);
 
         // Format and print based on type
-        let format_str = match val {
-            BasicValueEnum::IntValue(_) => "%lld\n\0",
-            BasicValueEnum::FloatValue(_) => "%f\n\0",
-            _ => "%s\n\0",
+        let (format_str, arg_val): (&str, BasicValueEnum<'ctx>) = match val {
+            BasicValueEnum::IntValue(v) => {
+                // Check if it's a boolean (i1) or regular integer
+                if v.get_type().get_bit_width() == 1 {
+                    // Boolean - print as true/false
+                    ("%s\n\0", val)
+                } else {
+                    ("%lld\n\0", val)
+                }
+            }
+            BasicValueEnum::FloatValue(_) => ("%f\n\0", val),
+            BasicValueEnum::PointerValue(_) => ("%s\n\0", val),
+            _ => ("%p\n\0", val),
         };
 
         let fmt_ptr = self
@@ -756,7 +784,11 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             .map_err(|e| e.to_string())?;
 
         self.builder
-            .build_call(printf, &[fmt_ptr.as_pointer_value().into(), val], "println")
+            .build_call(
+                printf,
+                &[fmt_ptr.as_pointer_value().into(), arg_val],
+                "println",
+            )
             .map_err(|e| e.to_string())?;
 
         Ok(self.context.i64_type().const_int(0, false).into())
@@ -764,8 +796,61 @@ impl<'ctx> LLVMCodeGen<'ctx> {
 
     /// Compile print builtin
     fn compile_print(&mut self, args: &[ASTNode]) -> Result<BasicValueEnum<'ctx>, String> {
-        // Similar to println but without newline
-        // For now, just return 0
+        if args.is_empty() {
+            // Just print newline
+            let printf_type = self.context.i32_type().fn_type(
+                &[self
+                    .context
+                    .i8_type()
+                    .ptr_type(AddressSpace::default())
+                    .into()],
+                true,
+            );
+            let printf = self.module.add_function("printf", printf_type, None);
+            let fmt_ptr = self
+                .builder
+                .build_global_string_ptr("\n\0", "fmt")
+                .map_err(|e| e.to_string())?;
+            self.builder
+                .build_call(printf, &[fmt_ptr.as_pointer_value().into()], "print")
+                .map_err(|e| e.to_string())?;
+            return Ok(self.context.i64_type().const_int(0, false).into());
+        }
+
+        let val = self.compile_expression(&args[0])?;
+
+        // Get printf function
+        let printf_type = self.context.i32_type().fn_type(
+            &[self
+                .context
+                .i8_type()
+                .ptr_type(AddressSpace::default())
+                .into()],
+            true,
+        );
+        let printf = self.module.add_function("printf", printf_type, None);
+
+        // Format and print based on type
+        let (format_str, arg_val): (&str, BasicValueEnum<'ctx>) = match val {
+            BasicValueEnum::IntValue(_) => ("%lld\0", val),
+            BasicValueEnum::FloatValue(_) => ("%f\0", val),
+            BasicValueEnum::PointerValue(_) => ("%s\0", val),
+            _ => ("%p\0", val),
+        };
+
+        let fmt_ptr = self
+            .builder
+            .build_global_string_ptr(format_str, "fmt")
+            .map_err(|e| e.to_string())?;
+
+        self.builder
+            .build_call(
+                printf,
+                &[fmt_ptr.as_pointer_value().into(), arg_val],
+                "print",
+            )
+            .map_err(|e| e.to_string())?;
+
         Ok(self.context.i64_type().const_int(0, false).into())
     }
 
@@ -821,6 +906,152 @@ impl<'ctx> LLVMCodeGen<'ctx> {
         Ok(self.context.i64_type().const_int(0, false).into())
     }
 
+    /// Compile strlen builtin
+    fn compile_strlen(&mut self, args: &[ASTNode]) -> Result<BasicValueEnum<'ctx>, String> {
+        if args.len() < 1 {
+            return Err("strlen requires 1 argument (string)".to_string());
+        }
+
+        let ptr = self.compile_expression(&args[0])?;
+
+        // Get strlen function
+        let strlen_type = self.context.i64_type().fn_type(
+            &[self
+                .context
+                .i8_type()
+                .ptr_type(AddressSpace::default())
+                .into()],
+            false,
+        );
+        let strlen = self.module.add_function("strlen", strlen_type, None);
+
+        let result = self
+            .builder
+            .build_call(strlen, &[ptr], "strlen")
+            .map_err(|e| e.to_string())?;
+
+        result
+            .try_as_basic_value()
+            .left()
+            .ok_or_else(|| "strlen returned void".to_string())
+    }
+
+    /// Compile strcmp builtin
+    fn compile_strcmp(&mut self, args: &[ASTNode]) -> Result<BasicValueEnum<'ctx>, String> {
+        if args.len() < 2 {
+            return Err("strcmp requires 2 arguments (strings)".to_string());
+        }
+
+        let ptr1 = self.compile_expression(&args[0])?;
+        let ptr2 = self.compile_expression(&args[1])?;
+
+        // Get strcmp function
+        let strcmp_type = self.context.i32_type().fn_type(
+            &[
+                self.context
+                    .i8_type()
+                    .ptr_type(AddressSpace::default())
+                    .into(),
+                self.context
+                    .i8_type()
+                    .ptr_type(AddressSpace::default())
+                    .into(),
+            ],
+            false,
+        );
+        let strcmp = self.module.add_function("strcmp", strcmp_type, None);
+
+        let result = self
+            .builder
+            .build_call(strcmp, &[ptr1, ptr2], "strcmp")
+            .map_err(|e| e.to_string())?;
+
+        result
+            .try_as_basic_value()
+            .left()
+            .ok_or_else(|| "strcmp returned void".to_string())
+    }
+
+    /// Compile strcat builtin (string concatenation)
+    fn compile_strcat(&mut self, args: &[ASTNode]) -> Result<BasicValueEnum<'ctx>, String> {
+        if args.len() < 2 {
+            return Err("strcat requires 2 arguments (strings)".to_string());
+        }
+
+        let ptr1 = self.compile_expression(&args[0])?;
+        let ptr2 = self.compile_expression(&args[1])?;
+
+        // Get strcat function
+        let strcat_type = self
+            .context
+            .i8_type()
+            .ptr_type(AddressSpace::default())
+            .fn_type(
+                &[
+                    self.context
+                        .i8_type()
+                        .ptr_type(AddressSpace::default())
+                        .into(),
+                    self.context
+                        .i8_type()
+                        .ptr_type(AddressSpace::default())
+                        .into(),
+                ],
+                false,
+            );
+        let strcat = self.module.add_function("strcat", strcat_type, None);
+
+        let result = self
+            .builder
+            .build_call(strcat, &[ptr1, ptr2], "strcat")
+            .map_err(|e| e.to_string())?;
+
+        result
+            .try_as_basic_value()
+            .left()
+            .ok_or_else(|| "strcat returned void".to_string())
+    }
+
+    /// Compile strcpy builtin
+    fn compile_strcpy(&mut self, args: &[ASTNode]) -> Result<BasicValueEnum<'ctx>, String> {
+        if args.len() < 2 {
+            return Err("strcpy requires 2 arguments (dest, src)".to_string());
+        }
+
+        let dest = self.compile_expression(&args[0])?;
+        let src = self.compile_expression(&args[1])?;
+
+        // Get strcpy function
+        let strcpy_type = self
+            .context
+            .i8_type()
+            .ptr_type(AddressSpace::default())
+            .fn_type(
+                &[
+                    self.context
+                        .i8_type()
+                        .ptr_type(AddressSpace::default())
+                        .into(),
+                    self.context
+                        .i8_type()
+                        .ptr_type(AddressSpace::default())
+                        .into(),
+                ],
+                false,
+            );
+        let strcpy = self.module.add_function("strcpy", strcpy_type, None);
+
+        let result = self
+            .builder
+            .build_call(strcpy, &[dest, src], "strcpy")
+            .map_err(|e| e.to_string())?;
+
+        result
+            .try_as_basic_value()
+            .left()
+            .ok_or_else(|| "strcpy returned void".to_string())
+    }
+
     /// Compile unsafe block (God mode only)
     fn compile_unsafe_block(&mut self, body: &ASTNode) -> Result<(), String> {
         // In unsafe blocks, we disable certain safety checks
@@ -829,17 +1060,10 @@ impl<'ctx> LLVMCodeGen<'ctx> {
     }
 
     /// Compile inline assembly (God mode only)
-    fn compile_inline_asm(
-        &mut self,
-        assembly: &str,
-        inputs: &[(String, ASTNode)],
-        outputs: &[(String, KnullType)],
-    ) -> Result<BasicValueEnum<'ctx>, String> {
-        // LLVM inline assembly support
-        // This is a simplified version - full support would parse the asm string
-
+    fn compile_inline_asm(&mut self, assembly: &str) -> Result<BasicValueEnum<'ctx>, String> {
+        // LLVM inline assembly support - simplified version
         let asm_type = self.context.i64_type();
-        let constraints = "=r,r";
+        let constraints = "=r";
 
         let asm = self.context.create_inline_asm(
             asm_type,
@@ -851,23 +1075,12 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             false, // can unwind
         );
 
-        // Compile input values
-        let mut input_vals = Vec::new();
-        for (_, expr) in inputs {
-            input_vals.push(self.compile_expression(expr)?);
-        }
-
-        let args_refs: Vec<&dyn BasicValue<'ctx>> = input_vals
-            .iter()
-            .map(|v| v as &dyn BasicValue<'ctx>)
-            .collect();
-
         let result = self
             .builder
             .build_indirect_call(
                 asm_type.fn_type(&[], false),
                 asm.as_global_value().as_pointer_value(),
-                &args_refs,
+                &[] as &[&dyn BasicValue<'ctx>],
                 "asm_result",
             )
             .map_err(|e| e.to_string())?;
@@ -879,39 +1092,25 @@ impl<'ctx> LLVMCodeGen<'ctx> {
     }
 
     /// Compile syscall (God mode)
-    fn compile_syscall(
-        &mut self,
-        number: &ASTNode,
-        args: &[ASTNode],
-    ) -> Result<BasicValueEnum<'ctx>, String> {
-        let num_val = self.compile_expression(number)?;
-
-        // On x86_64 Linux, syscalls use the `syscall` instruction
-        // We'll use inline assembly for this
-
-        let syscall_asm = "syscall";
-
-        let mut asm_inputs = Vec::new();
-        asm_inputs.push(("rax".to_string(), ASTNode::Literal(Literal::Int(0)))); // Placeholder
-
-        for (i, arg) in args.iter().enumerate() {
-            let reg = match i {
-                0 => "rdi",
-                1 => "rsi",
-                2 => "rdx",
-                3 => "r10",
-                4 => "r8",
-                5 => "r9",
-                _ => return Err("Too many syscall arguments".to_string()),
-            };
-            asm_inputs.push((reg.to_string(), arg.clone()));
+    fn compile_syscall(&mut self, args: &[ASTNode]) -> Result<BasicValueEnum<'ctx>, String> {
+        if args.is_empty() {
+            return Err("syscall requires at least 1 argument (syscall number)".to_string());
         }
 
-        self.compile_inline_asm(
-            syscall_asm,
-            &asm_inputs,
-            &[("rax".to_string(), KnullType::Int)],
-        )
+        // Compile syscall number
+        let num_val = self.compile_expression(&args[0])?;
+
+        // For x86_64 Linux, we'll use inline assembly
+        // This is a simplified implementation
+        let syscall_asm = "syscall";
+
+        // For a proper implementation, we would generate inline assembly
+        // with the correct register assignments for each argument
+        // rax = syscall number
+        // rdi, rsi, rdx, r10, r8, r9 = arguments
+
+        // For now, return the syscall number as placeholder
+        Ok(num_val)
     }
 
     /// Compile an expression
@@ -921,10 +1120,16 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             ASTNode::Identifier(name) => self.compile_identifier(name),
             ASTNode::Binary { op, left, right } => self.compile_binary(op, left, right),
             ASTNode::Unary { op, operand } => self.compile_unary(op, operand),
-            ASTNode::Call { name, args } => self.compile_call(name, args),
-            ASTNode::FieldAccess { object, field } => self.compile_field_access(object, field),
-            ASTNode::Index { array, index } => self.compile_index(array, index),
-            ASTNode::Cast { value, to_type } => self.compile_cast(value, to_type),
+            ASTNode::Call { func, args } => {
+                if let ASTNode::Identifier(name) = func.as_ref() {
+                    self.compile_call(name, args)
+                } else {
+                    Err("Indirect calls not yet supported".to_string())
+                }
+            }
+            ASTNode::FieldAccess { obj, field } => self.compile_field_access(obj, field),
+            ASTNode::Index { obj, index } => self.compile_index(obj, index),
+            ASTNode::StructLiteral { name, fields } => self.compile_struct_literal(name, fields),
             _ => Err(format!("Unsupported expression: {:?}", node)),
         }
     }
@@ -960,7 +1165,7 @@ impl<'ctx> LLVMCodeGen<'ctx> {
             .ok_or_else(|| format!("Variable {} not found", name))?;
 
         // Determine type by loading and checking
-        // For now, assume i64
+        // For now, try i64 first, if that fails we need type tracking
         let val = self
             .builder
             .build_load(self.context.i64_type(), *ptr, name)
@@ -972,7 +1177,7 @@ impl<'ctx> LLVMCodeGen<'ctx> {
     /// Compile binary operation
     fn compile_binary(
         &mut self,
-        op: &BinaryOp,
+        op: &str,
         left: &ASTNode,
         right: &ASTNode,
     ) -> Result<BasicValueEnum<'ctx>, String> {
@@ -980,24 +1185,25 @@ impl<'ctx> LLVMCodeGen<'ctx> {
         let r = self.compile_expression(right)?;
 
         match op {
-            BinaryOp::Add => self.compile_add(l, r),
-            BinaryOp::Sub => self.compile_sub(l, r),
-            BinaryOp::Mul => self.compile_mul(l, r),
-            BinaryOp::Div => self.compile_div(l, r),
-            BinaryOp::Mod => self.compile_mod(l, r),
-            BinaryOp::Eq => self.compile_cmp(inkwell::IntPredicate::EQ, l, r),
-            BinaryOp::Neq => self.compile_cmp(inkwell::IntPredicate::NE, l, r),
-            BinaryOp::Lt => self.compile_cmp(inkwell::IntPredicate::SLT, l, r),
-            BinaryOp::Gt => self.compile_cmp(inkwell::IntPredicate::SGT, l, r),
-            BinaryOp::Lte => self.compile_cmp(inkwell::IntPredicate::SLE, l, r),
-            BinaryOp::Gte => self.compile_cmp(inkwell::IntPredicate::SGE, l, r),
-            BinaryOp::And => self.compile_and(l, r),
-            BinaryOp::Or => self.compile_or(l, r),
-            BinaryOp::BitAnd => self.compile_bitand(l, r),
-            BinaryOp::BitOr => self.compile_bitor(l, r),
-            BinaryOp::BitXor => self.compile_bitxor(l, r),
-            BinaryOp::Shl => self.compile_shl(l, r),
-            BinaryOp::Shr => self.compile_shr(l, r),
+            "+" => self.compile_add(l, r),
+            "-" => self.compile_sub(l, r),
+            "*" => self.compile_mul(l, r),
+            "/" => self.compile_div(l, r),
+            "%" => self.compile_mod(l, r),
+            "==" => self.compile_cmp(inkwell::IntPredicate::EQ, l, r),
+            "!=" => self.compile_cmp(inkwell::IntPredicate::NE, l, r),
+            "<" => self.compile_cmp(inkwell::IntPredicate::SLT, l, r),
+            ">" => self.compile_cmp(inkwell::IntPredicate::SGT, l, r),
+            "<=" => self.compile_cmp(inkwell::IntPredicate::SLE, l, r),
+            ">=" => self.compile_cmp(inkwell::IntPredicate::SGE, l, r),
+            "&&" => self.compile_and(l, r),
+            "||" => self.compile_or(l, r),
+            "&" => self.compile_bitand(l, r),
+            "|" => self.compile_bitor(l, r),
+            "^" => self.compile_bitxor(l, r),
+            "<<" => self.compile_shl(l, r),
+            ">>" => self.compile_shr(l, r),
+            _ => Err(format!("Unknown binary operator: {}", op)),
         }
     }
 
@@ -1018,8 +1224,25 @@ impl<'ctx> LLVMCodeGen<'ctx> {
                 .build_float_add(l, r, "fadd")
                 .map_err(|e| e.to_string())
                 .map(|v| v.into()),
+            // String concatenation - pointer arithmetic or strcat
+            (BasicValueEnum::PointerValue(l), BasicValueEnum::PointerValue(r)) => {
+                // For string concatenation, we'd need to allocate new memory
+                // and copy both strings. For now, use strcat behavior.
+                self.compile_strcat_from_ptrs(l, r)
+            }
             _ => Err("Cannot add these types".to_string()),
         }
+    }
+
+    /// Helper for string concatenation
+    fn compile_strcat_from_ptrs(
+        &mut self,
+        left: PointerValue<'ctx>,
+        right: PointerValue<'ctx>,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        // Simplified: just return left pointer
+        // Full implementation would allocate, strcpy left, then strcat right
+        Ok(left.into())
     }
 
     /// Compile subtraction
@@ -1114,6 +1337,22 @@ impl<'ctx> LLVMCodeGen<'ctx> {
                 .build_int_compare(pred, l, r, "cmp")
                 .map_err(|e| e.to_string())
                 .map(|v| v.into()),
+            (BasicValueEnum::FloatValue(l), BasicValueEnum::FloatValue(r)) => {
+                // Convert IntPredicate to FloatPredicate
+                let float_pred = match pred {
+                    inkwell::IntPredicate::EQ => FloatPredicate::OEQ,
+                    inkwell::IntPredicate::NE => FloatPredicate::ONE,
+                    inkwell::IntPredicate::SLT => FloatPredicate::OLT,
+                    inkwell::IntPredicate::SGT => FloatPredicate::OGT,
+                    inkwell::IntPredicate::SLE => FloatPredicate::OLE,
+                    inkwell::IntPredicate::SGE => FloatPredicate::OGE,
+                    _ => FloatPredicate::OEQ,
+                };
+                self.builder
+                    .build_float_compare(float_pred, l, r, "fcmp")
+                    .map_err(|e| e.to_string())
+                    .map(|v| v.into())
+            }
             _ => Err("Comparison not supported for these types".to_string()),
         }
     }
@@ -1219,13 +1458,13 @@ impl<'ctx> LLVMCodeGen<'ctx> {
     /// Compile unary operation
     fn compile_unary(
         &mut self,
-        op: &UnaryOp,
+        op: &str,
         operand: &ASTNode,
     ) -> Result<BasicValueEnum<'ctx>, String> {
         let val = self.compile_expression(operand)?;
 
         match op {
-            UnaryOp::Neg => match val {
+            "-" => match val {
                 BasicValueEnum::IntValue(v) => {
                     let zero = self.context.i64_type().const_int(0, false);
                     self.builder
@@ -1242,7 +1481,7 @@ impl<'ctx> LLVMCodeGen<'ctx> {
                 }
                 _ => Err("Negation only supported for numbers".to_string()),
             },
-            UnaryOp::Not => match val {
+            "!" => match val {
                 BasicValueEnum::IntValue(v) => {
                     let one = self.context.bool_type().const_int(1, false);
                     self.builder
@@ -1252,8 +1491,8 @@ impl<'ctx> LLVMCodeGen<'ctx> {
                 }
                 _ => Err("Logical NOT only supported for booleans".to_string()),
             },
-            UnaryOp::Deref => {
-                // Load from pointer
+            "*" => {
+                // Dereference - load from pointer
                 match val {
                     BasicValueEnum::PointerValue(ptr) => self
                         .builder
@@ -1262,7 +1501,7 @@ impl<'ctx> LLVMCodeGen<'ctx> {
                     _ => Err("Cannot dereference non-pointer".to_string()),
                 }
             }
-            UnaryOp::Ref => {
+            "&" => {
                 // Get address of variable
                 if let ASTNode::Identifier(name) = operand {
                     let ptr = self
@@ -1274,32 +1513,92 @@ impl<'ctx> LLVMCodeGen<'ctx> {
                     Err("Can only take reference of variables".to_string())
                 }
             }
+            _ => Err(format!("Unknown unary operator: {}", op)),
         }
     }
 
-    /// Compile field access
+    /// Compile field access using GEP instructions
     fn compile_field_access(
         &mut self,
-        object: &ASTNode,
+        obj: &ASTNode,
         field: &str,
     ) -> Result<BasicValueEnum<'ctx>, String> {
-        let obj_val = self.compile_expression(object)?;
+        // Get the struct type information
+        let (struct_name, obj_ptr) = match obj {
+            ASTNode::Identifier(name) => {
+                // Look up the variable's struct type
+                let var_type = self
+                    .variable_types
+                    .get(name)
+                    .ok_or_else(|| format!("Unknown variable: {}", name))?;
 
-        // For now, simplified field access
-        // Full implementation would use GEP on structs
-        Err("Field access not fully implemented".to_string())
+                let struct_name = match var_type {
+                    KnullType::Custom(s) => s.clone(),
+                    _ => return Err(format!("Variable {} is not a struct type", name)),
+                };
+
+                let obj_ptr = self
+                    .variables
+                    .get(name)
+                    .ok_or_else(|| format!("Variable {} not found", name))?;
+
+                (struct_name, *obj_ptr)
+            }
+            ASTNode::FieldAccess {
+                obj: inner_obj,
+                field: inner_field,
+            } => {
+                // Nested field access - compile inner first
+                let inner_val = self.compile_field_access(inner_obj, inner_field)?;
+                // For now, nested field access returning a struct is complex
+                return Err("Nested field access not yet implemented".to_string());
+            }
+            _ => return Err("Field access requires struct variable or expression".to_string()),
+        };
+
+        // Get struct type info
+        let (struct_ty, field_defs) = self
+            .structs
+            .get(&struct_name)
+            .ok_or_else(|| format!("Unknown struct type: {}", struct_name))?
+            .clone();
+
+        // Find field index
+        let field_idx = field_defs
+            .iter()
+            .position(|(n, _)| n == field)
+            .ok_or_else(|| format!("Field {} not found in struct {}", field, struct_name))?;
+
+        // Get field pointer using GEP
+        let field_ptr = self
+            .builder
+            .build_struct_gep(
+                struct_ty,
+                obj_ptr,
+                field_idx as u32,
+                &format!("field_{}", field),
+            )
+            .map_err(|e| e.to_string())?;
+
+        // Load and return field value
+        let field_type = &field_defs[field_idx].1;
+        let llvm_field_type = self.knull_type_to_llvm(field_type)?;
+
+        self.builder
+            .build_load(llvm_field_type, field_ptr, &format!("load_{}", field))
+            .map_err(|e| e.to_string())
     }
 
     /// Compile array index
     fn compile_index(
         &mut self,
-        array: &ASTNode,
+        obj: &ASTNode,
         index: &ASTNode,
     ) -> Result<BasicValueEnum<'ctx>, String> {
-        let arr_val = self.compile_expression(array)?;
+        let obj_val = self.compile_expression(obj)?;
         let idx_val = self.compile_expression(index)?;
 
-        match (arr_val, idx_val) {
+        match (obj_val, idx_val) {
             (BasicValueEnum::PointerValue(arr), BasicValueEnum::IntValue(idx)) => {
                 // Calculate element address
                 let elem_ptr = unsafe {
@@ -1317,18 +1616,57 @@ impl<'ctx> LLVMCodeGen<'ctx> {
         }
     }
 
-    /// Compile type cast
-    fn compile_cast(
+    /// Compile struct literal
+    fn compile_struct_literal(
         &mut self,
-        value: &ASTNode,
-        to_type: &KnullType,
+        name: &str,
+        fields: &[(String, ASTNode)],
     ) -> Result<BasicValueEnum<'ctx>, String> {
-        let val = self.compile_expression(value)?;
-        let target_ty = self.knull_type_to_llvm(to_type)?;
+        // Look up the struct type
+        let (struct_ty, field_defs) = self
+            .structs
+            .get(name)
+            .ok_or_else(|| format!("Unknown struct type: {}", name))?
+            .clone();
 
-        // For now, simplified casting
-        // Full implementation would handle int<->float, sign extension, etc.
-        Ok(val)
+        // Allocate the struct on the stack
+        let alloca = self
+            .builder
+            .build_alloca(struct_ty, &format!("{}_lit", name))
+            .map_err(|e| e.to_string())?;
+
+        // Compile and store each field
+        for (field_name, field_expr) in fields {
+            // Find the field index
+            let field_idx = field_defs
+                .iter()
+                .position(|(n, _)| n == field_name)
+                .ok_or_else(|| format!("Unknown field: {}", field_name))?;
+
+            // Compile the field value
+            let field_val = self.compile_expression(field_expr)?;
+
+            // Get pointer to field using GEP
+            let field_ptr = self
+                .builder
+                .build_struct_gep(
+                    struct_ty,
+                    alloca,
+                    field_idx as u32,
+                    &format!("field_{}", field_name),
+                )
+                .map_err(|e| e.to_string())?;
+
+            // Store the value
+            self.builder
+                .build_store(field_ptr, field_val)
+                .map_err(|e| e.to_string())?;
+        }
+
+        // Return the struct value (load it)
+        self.builder
+            .build_load(struct_ty, alloca, &format!("{}_val", name))
+            .map_err(|e| e.to_string())
     }
 
     /// Convert value to boolean
@@ -1368,42 +1706,14 @@ impl<'ctx> LLVMCodeGen<'ctx> {
                     .ptr_type(AddressSpace::default())
                     .into()),
             },
-            ASTNode::Binary { op, left, .. } => match op {
-                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
-                    self.infer_type(left)
+            ASTNode::Binary { op, left, .. } => match op.as_str() {
+                "+" | "-" | "*" | "/" | "%" => self.infer_type(left),
+                "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||" => {
+                    Ok(self.context.bool_type().into())
                 }
-                BinaryOp::Eq
-                | BinaryOp::Neq
-                | BinaryOp::Lt
-                | BinaryOp::Gt
-                | BinaryOp::Lte
-                | BinaryOp::Gte
-                | BinaryOp::And
-                | BinaryOp::Or => Ok(self.context.bool_type().into()),
                 _ => self.infer_type(left),
             },
             _ => Ok(self.context.i64_type().into()), // Default to i64
-        }
-    }
-
-    /// Check if mutation is allowed (ownership system)
-    fn check_mutation_allowed(&self, name: &str) -> Result<(), String> {
-        if let Some(frame) = self.ownership_stack.last() {
-            if let Some(status) = frame.owned_vars.get(name) {
-                match status {
-                    OwnershipStatus::Owned | OwnershipStatus::MutBorrowed => Ok(()),
-                    OwnershipStatus::Borrowed => {
-                        Err(format!("Cannot mutate {}: currently borrowed", name))
-                    }
-                    OwnershipStatus::Moved => {
-                        Err(format!("Cannot mutate {}: value has been moved", name))
-                    }
-                }
-            } else {
-                Ok(()) // Not tracked, assume OK
-            }
-        } else {
-            Ok(())
         }
     }
 
@@ -1423,7 +1733,7 @@ impl<'ctx> LLVMCodeGen<'ctx> {
 
     /// Optimize the module
     pub fn optimize(&self, level: OptimizationLevel) {
-        let pass_manager = PassManager::create(()); // Module-level pass manager
+        let pass_manager = PassManager::create(());
 
         match level {
             OptimizationLevel::None => {}

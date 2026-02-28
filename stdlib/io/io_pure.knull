@@ -1,0 +1,324 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - IO MODULE (Pure Syscall Version)
+// =============================================================================
+// Input/Output operations using raw Linux syscalls
+// No runtime dependency - pure Knull implementation
+
+use syscall
+
+// -----------------------------------------------------------------------------
+// STANDARD STREAMS
+// -----------------------------------------------------------------------------
+
+const STDIN_FILENO: i32 = 0
+const STDOUT_FILENO: i32 = 1
+const STDERR_FILENO: i32 = 2
+
+fn print_str_pure(s: *i8) {
+    sys_write(STDOUT_FILENO, s, strlen(s))
+}
+
+fn println_pure(s: *i8) {
+    print_str_pure(s)
+    print_str_pure("\n")
+}
+
+fn eprint_pure(s: *i8) {
+    sys_write(STDERR_FILENO, s, strlen(s))
+}
+
+fn eprintln_pure(s: *i8) {
+    eprint_pure(s)
+    eprint_pure("\n")
+}
+
+// -----------------------------------------------------------------------------
+// FILE OPERATIONS (PURE SYSCALL)
+// -----------------------------------------------------------------------------
+
+struct File {
+    fd: i32,
+    is_open: bool,
+    mode: i32,
+}
+
+const FILE_MODE_READ: i32 = 0
+const FILE_MODE_WRITE: i32 = 1
+const FILE_MODE_APPEND: i32 = 2
+
+fn file_open_pure(path: *i8, mode: i32) -> File {
+    let f: File
+    let flags: i32 = 0
+    let perm: i32 = 0o644
+    
+    if mode == FILE_MODE_READ {
+        flags = O_RDONLY
+    } else if mode == FILE_MODE_WRITE {
+        flags = O_WRONLY | O_CREAT | O_TRUNC
+    } else if mode == FILE_MODE_APPEND {
+        flags = O_WRONLY | O_CREAT | O_APPEND
+    }
+    
+    f.fd = sys_open(path, flags, perm)
+    f.is_open = f.fd >= 0
+    f.mode = mode
+    return f
+}
+
+fn file_close_pure(f: *File) {
+    if f.is_open {
+        sys_close(f.fd)
+        f.is_open = false
+    }
+}
+
+fn file_read_bytes_pure(f: *File, buf: *void, len: i64) -> i64 {
+    if !f.is_open {
+        return -1
+    }
+    return sys_read(f.fd, buf, len)
+}
+
+fn file_write_bytes_pure(f: *File, buf: *void, len: i64) -> i64 {
+    if !f.is_open {
+        return -1
+    }
+    return sys_write(f.fd, buf, len)
+}
+
+fn file_read_pure(path: *i8) -> *i8 {
+    let f = file_open_pure(path, FILE_MODE_READ)
+    if !f.is_open {
+        return 0 as *i8
+    }
+    
+    // Get file size
+    let size: i64 = 0
+    // Would use fstat here
+    
+    let buf = alloc(size + 1) as *i8
+    let n = file_read_bytes_pure(&f, buf, size)
+    buf[n] = 0
+    
+    file_close_pure(&f)
+    return buf
+}
+
+fn file_write_pure(path: *i8, content: *i8) -> bool {
+    let f = file_open_pure(path, FILE_MODE_WRITE)
+    if !f.is_open {
+        return false
+    }
+    
+    let len = strlen(content)
+    let written = file_write_bytes_pure(&f, content, len)
+    file_close_pure(&f)
+    
+    return written == len
+}
+
+fn file_append_pure(path: *i8, content: *i8) -> bool {
+    let f = file_open_pure(path, FILE_MODE_APPEND)
+    if !f.is_open {
+        return false
+    }
+    
+    let len = strlen(content)
+    let written = file_write_bytes_pure(&f, content, len)
+    file_close_pure(&f)
+    
+    return written == len
+}
+
+// -----------------------------------------------------------------------------
+// BUFFERED READER (PURE)
+// -----------------------------------------------------------------------------
+
+struct BufReader {
+    file: File,
+    buffer: *i8,
+    capacity: i64,
+    size: i64,
+    pos: i64,
+}
+
+fn buf_reader_new_pure(f: File, capacity: i64) -> BufReader {
+    return BufReader {
+        file: f,
+        buffer: alloc(capacity) as *i8,
+        capacity: capacity,
+        size: 0,
+        pos: 0,
+    }
+}
+
+fn buf_reader_fill_pure(br: *BufReader) -> bool {
+    br.pos = 0
+    br.size = file_read_bytes_pure(&br.file, br.buffer as *void, br.capacity)
+    return br.size > 0
+}
+
+fn buf_reader_read_line_pure(br: *BufReader, line: *i8, max_len: i64) -> i64 {
+    let i = 0
+    while i < max_len - 1 {
+        if br.pos >= br.size {
+            if !buf_reader_fill_pure(br) {
+                break
+            }
+        }
+        
+        let c = br.buffer[br.pos]
+        br.pos = br.pos + 1
+        
+        if c == '\n' {
+            break
+        }
+        
+        line[i] = c
+        i = i + 1
+    }
+    
+    line[i] = 0
+    return i
+}
+
+// -----------------------------------------------------------------------------
+// BUFFERED WRITER (PURE)
+// -----------------------------------------------------------------------------
+
+struct BufWriter {
+    file: File,
+    buffer: *i8,
+    capacity: i64,
+    pos: i64,
+}
+
+fn buf_writer_new_pure(f: File, capacity: i64) -> BufWriter {
+    return BufWriter {
+        file: f,
+        buffer: alloc(capacity) as *i8,
+        capacity: capacity,
+        pos: 0,
+    }
+}
+
+fn buf_writer_flush_pure(bw: *BufWriter) {
+    if bw.pos > 0 {
+        file_write_bytes_pure(&bw.file, bw.buffer as *void, bw.pos)
+        bw.pos = 0
+    }
+}
+
+fn buf_writer_write_pure(bw: *BufWriter, data: *i8, len: i64) {
+    if bw.pos + len > bw.capacity {
+        buf_writer_flush_pure(bw)
+    }
+    
+    if len > bw.capacity {
+        file_write_bytes_pure(&bw.file, data as *void, len)
+    } else {
+        memcpy(&bw.buffer[bw.pos], data, len)
+        bw.pos = bw.pos + len
+    }
+}
+
+fn buf_writer_write_str_pure(bw: *BufWriter, s: *i8) {
+    buf_writer_write_pure(bw, s, strlen(s))
+}
+
+// -----------------------------------------------------------------------------
+// PATH OPERATIONS (PURE)
+// -----------------------------------------------------------------------------
+
+fn path_exists_pure(path: *i8) -> bool {
+    // Would use access syscall
+    return false
+}
+
+fn path_is_file_pure(path: *i8) -> bool {
+    // Would use stat syscall
+    return false
+}
+
+fn path_is_dir_pure(path: *i8) -> bool {
+    // Would use stat syscall
+    return false
+}
+
+fn path_join_pure(a: *i8, b: *i8, out: *i8) {
+    let len_a = strlen(a)
+    strcpy(out, a)
+    
+    if a[len_a - 1] != '/' {
+        out[len_a] = '/'
+        out[len_a + 1] = 0
+        len_a = len_a + 1
+    }
+    
+    strcat(out, b)
+}
+
+fn path_filename_pure(path: *i8) -> *i8 {
+    let len = strlen(path)
+    let i = len - 1
+    
+    while i >= 0 {
+        if path[i] == '/' {
+            return &path[i + 1]
+        }
+        i = i - 1
+    }
+    
+    return path
+}
+
+fn path_dirname_pure(path: *i8, out: *i8) {
+    let len = strlen(path)
+    let i = len - 1
+    
+    while i >= 0 {
+        if path[i] == '/' {
+            memcpy(out, path, i)
+            out[i] = 0
+            return
+        }
+        i = i - 1
+    }
+    
+    out[0] = '.'
+    out[1] = 0
+}
+
+// -----------------------------------------------------------------------------
+// DIRECTORY OPERATIONS (PURE)
+// -----------------------------------------------------------------------------
+
+fn dir_create_pure(path: *i8) -> bool {
+    // Use mkdirat syscall
+    return syscall3(SYS_MKDIRAT, AT_FDCWD as i64, path as i64, 0o755) >= 0
+}
+
+fn dir_delete_pure(path: *i8) -> bool {
+    // Use unlinkat syscall with AT_REMOVEDIR
+    return syscall3(SYS_UNLINKAT, AT_FDCWD as i64, path as i64, 512) >= 0
+}
+
+fn dir_exists_pure(path: *i8) -> bool {
+    // Use fstatat syscall
+    return false
+}
+
+fn dir_current_pure(buf: *i8, len: i64) -> i64 {
+    return sys_getcwd(buf, len)
+}
+
+fn dir_change_pure(path: *i8) -> bool {
+    return syscall1(SYS_CHDIR, path as i64) >= 0
+}
+
+const AT_FDCWD: i32 = -100
+const AT_REMOVEDIR: i32 = 512
+
+fn sys_getcwd(buf: *i8, size: i64) -> i64 {
+    return syscall2(SYS_GETCWD, buf as i64, size)
+}

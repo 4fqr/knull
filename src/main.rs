@@ -16,6 +16,9 @@ mod parser;
 mod pkg;
 mod type_system;
 
+#[cfg(feature = "llvm-backend")]
+mod llvm_codegen;
+
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::path::PathBuf;

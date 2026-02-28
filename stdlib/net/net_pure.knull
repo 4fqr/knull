@@ -1,0 +1,293 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - NET MODULE (Pure Syscall Version)
+// =============================================================================
+// Network programming using raw Linux syscalls
+// No runtime dependency - pure Knull implementation
+
+use syscall
+
+// -----------------------------------------------------------------------------
+// SOCKET TYPES
+// -----------------------------------------------------------------------------
+
+const AF_INET: i32 = 2
+const AF_INET6: i32 = 10
+
+const SOCK_STREAM: i32 = 1
+const SOCK_DGRAM: i32 = 2
+const SOCK_RAW: i32 = 3
+const SOCK_NONBLOCK: i32 = 2048
+const SOCK_CLOEXEC: i32 = 524288
+
+const IPPROTO_TCP: i32 = 6
+const IPPROTO_UDP: i32 = 17
+
+const SHUT_RD: i32 = 0
+const SHUT_WR: i32 = 1
+const SHUT_RDWR: i32 = 2
+
+// -----------------------------------------------------------------------------
+// TCP SOCKET (PURE SYSCALL)
+// -----------------------------------------------------------------------------
+
+struct TcpStream {
+    fd: i32,
+    connected: bool,
+}
+
+struct TcpListener {
+    fd: i32,
+    bound: bool,
+    port: i32,
+}
+
+fn tcp_connect_pure(addr: *i8, port: i32) -> TcpStream {
+    // Create socket
+    let fd = sys_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+    if fd < 0 {
+        return TcpStream { fd: -1, connected: false }
+    }
+    
+    // Build sockaddr_in
+    let sockaddr: i8[16]
+    sockaddr[0] = AF_INET as i8
+    sockaddr[1] = 0
+    // port in network byte order
+    sockaddr[2] = ((port >> 8) & 0xFF) as i8
+    sockaddr[3] = (port & 0xFF) as i8
+    
+    // Convert IP address (simplified - assumes IPv4 string)
+    inet_aton(addr, &sockaddr[4])
+    
+    // sockaddr_in is 16 bytes
+    let ret = sys_connect(fd, &sockaddr as *void, 16)
+    
+    return TcpStream {
+        fd: fd,
+        connected: ret == 0,
+    }
+}
+
+fn tcp_connect_str_pure(addr_str: *i8) -> TcpStream {
+    let colon = strchr(addr_str, ':')
+    if colon == 0 as *i8 {
+        return tcp_connect_pure(addr_str, 80)
+    }
+    
+    let host: i8[256]
+    let host_len = colon - addr_str
+    memcpy(&host, addr_str, host_len)
+    host[host_len] = 0
+    
+    let port = atoi(colon + 1)
+    return tcp_connect_pure(&host, port)
+}
+
+fn tcp_read_pure(stream: *TcpStream, buf: *void, len: i64) -> i64 {
+    if !stream.connected {
+        return -1
+    }
+    return sys_read(stream.fd, buf, len)
+}
+
+fn tcp_write_pure(stream: *TcpStream, buf: *void, len: i64) -> i64 {
+    if !stream.connected {
+        return -1
+    }
+    return sys_write(stream.fd, buf, len)
+}
+
+fn tcp_write_str_pure(stream: *TcpStream, s: *i8) -> i64 {
+    return tcp_write_pure(stream, s, strlen(s))
+}
+
+fn tcp_close_pure(stream: *TcpStream) {
+    if stream.fd >= 0 {
+        sys_close(stream.fd)
+        stream.fd = -1
+        stream.connected = false
+    }
+}
+
+fn tcp_shutdown_pure(stream: *TcpStream, how: i32) -> bool {
+    return sys_shutdown(stream.fd, how) == 0
+}
+
+fn tcp_listen_pure(bind_addr: *i8, port: i32) -> TcpListener {
+    let fd = sys_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+    if fd < 0 {
+        return TcpListener { fd: -1, bound: false, port: 0 }
+    }
+    
+    // Set SO_REUSEADDR
+    let opt: i32 = 1
+    sys_setsockopt(fd, 1, 2, &opt as *void, 4)  // SOL_SOCKET=1, SO_REUSEADDR=2
+    
+    // Build sockaddr_in
+    let sockaddr: i8[16]
+    sockaddr[0] = AF_INET as i8
+    sockaddr[1] = 0
+    sockaddr[2] = ((port >> 8) & 0xFF) as i8
+    sockaddr[3] = (port & 0xFF) as i8
+    inet_aton(bind_addr, &sockaddr[4])
+    
+    let ret = sys_bind(fd, &sockaddr as *void, 16)
+    if ret < 0 {
+        sys_close(fd)
+        return TcpListener { fd: -1, bound: false, port: 0 }
+    }
+    
+    ret = sys_listen(fd, 128)
+    if ret < 0 {
+        sys_close(fd)
+        return TcpListener { fd: -1, bound: false, port: 0 }
+    }
+    
+    return TcpListener {
+        fd: fd,
+        bound: true,
+        port: port,
+    }
+}
+
+fn tcp_accept_pure(listener: *TcpListener) -> TcpStream {
+    let addr: i8[16]
+    let len: i32 = 16
+    let fd = sys_accept(listener.fd, &addr as *void, &len)
+    
+    return TcpStream {
+        fd: fd,
+        connected: fd >= 0,
+    }
+}
+
+// -----------------------------------------------------------------------------
+// UDP SOCKET (PURE SYSCALL)
+// -----------------------------------------------------------------------------
+
+struct UdpSocket {
+    fd: i32,
+    bound: bool,
+    addr: *i8,
+    port: i32,
+}
+
+fn udp_bind_pure(addr: *i8, port: i32) -> UdpSocket {
+    let fd = sys_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+    if fd < 0 {
+        return UdpSocket { fd: -1, bound: false, addr: 0 as *i8, port: 0 }
+    }
+    
+    let sockaddr: i8[16]
+    sockaddr[0] = AF_INET as i8
+    sockaddr[1] = 0
+    sockaddr[2] = ((port >> 8) & 0xFF) as i8
+    sockaddr[3] = (port & 0xFF) as i8
+    inet_aton(addr, &sockaddr[4])
+    
+    let ret = sys_bind(fd, &sockaddr as *void, 16)
+    if ret < 0 {
+        sys_close(fd)
+        return UdpSocket { fd: -1, bound: false, addr: 0 as *i8, port: 0 }
+    }
+    
+    return UdpSocket {
+        fd: fd,
+        bound: true,
+        addr: addr,
+        port: port,
+    }
+}
+
+fn udp_send_to_pure(sock: *UdpSocket, buf: *void, len: i64, addr: *i8, port: i32) -> i64 {
+    if !sock.bound {
+        return -1
+    }
+    
+    let sockaddr: i8[16]
+    sockaddr[0] = AF_INET as i8
+    sockaddr[1] = 0
+    sockaddr[2] = ((port >> 8) & 0xFF) as i8
+    sockaddr[3] = (port & 0xFF) as i8
+    inet_aton(addr, &sockaddr[4])
+    
+    return sys_sendto(sock.fd, buf, len, 0, &sockaddr as *void, 16)
+}
+
+fn udp_recv_from_pure(sock: *UdpSocket, buf: *void, len: i64, addr: *i8, port: *i32) -> i64 {
+    if !sock.bound {
+        return -1
+    }
+    
+    let sockaddr: i8[16]
+    let addr_len: i32 = 16
+    let n = sys_recvfrom(sock.fd, buf, len, 0, &sockaddr as *void, &addr_len)
+    
+    if n > 0 {
+        // Extract port from sockaddr (bytes 2-3)
+        *port = ((sockaddr[2] as i32) << 8) | (sockaddr[3] as i32 & 0xFF)
+        // Extract and format IP address (bytes 4-7)
+        inet_ntoa(&sockaddr[4], addr)
+    }
+    
+    return n
+}
+
+fn udp_close_pure(sock: *UdpSocket) {
+    if sock.fd >= 0 {
+        sys_close(sock.fd)
+        sock.fd = -1
+        sock.bound = false
+    }
+}
+
+// -----------------------------------------------------------------------------
+// SOCKET HELPERS
+// -----------------------------------------------------------------------------
+
+fn sys_setsockopt(sockfd: i32, level: i32, optname: i32, optval: *void, optlen: i32) -> i32 {
+    return syscall5(SYS_SETSOCKOPT, sockfd as i64, level as i64, optname as i64, optval as i64, optlen as i64) as i32
+}
+
+fn inet_aton(cp: *i8, addr: *i8) -> i32 {
+    // Parse IPv4 address string like "192.168.1.1"
+    // Output 4 bytes in network byte order
+    let p = cp
+    let i = 0
+    while i < 4 {
+        let val = atoi(p)
+        addr[i] = val as i8
+        
+        // Find next dot
+        while *p != 0 && *p != '.' {
+            p = p + 1
+        }
+        if *p == '.' {
+            p = p + 1
+        }
+        i = i + 1
+    }
+    return 1
+}
+
+fn inet_ntoa(addr: *i8, out: *i8) {
+    // Convert 4 bytes to dotted decimal string
+    sprintf(out, "%d.%d.%d.%d", 
+            addr[0] as i32 & 0xFF, 
+            addr[1] as i32 & 0xFF, 
+            addr[2] as i32 & 0xFF, 
+            addr[3] as i32 & 0xFF)
+}
+
+// sys_ functions are defined in syscall module
+fn sys_read(fd: i32, buf: *void, count: i64) -> i64 {
+    return syscall3(SYS_READ, fd as i64, buf as i64, count)
+}
+
+fn sys_write(fd: i32, buf: *void, count: i64) -> i64 {
+    return syscall3(SYS_WRITE, fd as i64, buf as i64, count)
+}
+
+fn sys_close(fd: i32) -> i32 {
+    return syscall1(SYS_CLOSE, fd as i64) as i32
+}
