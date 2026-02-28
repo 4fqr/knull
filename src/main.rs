@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 mod ast;
+mod c_codegen;
 mod cli;
 mod compiler;
 mod interpreter;

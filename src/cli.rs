@@ -79,9 +79,14 @@ pub fn build_file(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(
 
     #[cfg(not(feature = "llvm-backend"))]
     {
-        return Err(
-            "LLVM backend not available. Install LLVM and rebuild with --features llvm-backend"
-                .to_string(),
+        // Use C backend as fallback
+        crate::c_codegen::compile_to_binary(&source, out_path.to_str().unwrap())
+            .map_err(|e| format!("Compilation failed: {}", e))?;
+
+        println!(
+            "{} Build successful: {}",
+            "✓".green().bold(),
+            out_path.display()
         );
     }
 

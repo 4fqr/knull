@@ -29,7 +29,7 @@ toml = "0.8"
 regex = "1.10"
 unicode-xid = "0.2"
 tower-lsp = { version = "0.20", optional = true }
-inkwell = { version = "0.2", optional = true, features = ["llvm16-0"] }
+inkwell = { version = "0.5", optional = true, features = ["llvm18-0"] }
 colored = "2.1"
 indicatif = "0.17"
 libc = "0.2"
