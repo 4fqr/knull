@@ -240,6 +240,20 @@ fn eval_expr(runtime: &mut Runtime, expr: &ASTNode) -> Option<Value> {
                     };
                     Some(result)
                 }
+                (Some(Value::String(a)), Some(Value::Bool(b))) => {
+                    let result = match op.as_str() {
+                        "+" => Value::String(a + &b.to_string()),
+                        _ => Value::String(a),
+                    };
+                    Some(result)
+                }
+                (Some(Value::Bool(a)), Some(Value::String(b))) => {
+                    let result = match op.as_str() {
+                        "+" => Value::String(a.to_string() + &b),
+                        _ => Value::String(a.to_string()),
+                    };
+                    Some(result)
+                }
                 _ => None,
             }
         }

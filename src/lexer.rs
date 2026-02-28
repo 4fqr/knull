@@ -292,7 +292,23 @@ impl Lexer {
                 }
                 '!' => {
                     self.advance();
-                    TokenKind::Bang
+                    if self.peek() == Some('=') {
+                        self.advance();
+                        tokens.push(Token {
+                            kind: TokenKind::Neq,
+                            value: "!=".to_string(),
+                            line,
+                            col,
+                        });
+                    } else {
+                        tokens.push(Token {
+                            kind: TokenKind::Bang,
+                            value: "!".to_string(),
+                            line,
+                            col,
+                        });
+                    }
+                    continue;
                 }
                 '?' => {
                     self.advance();
@@ -350,28 +366,61 @@ impl Lexer {
                     self.advance();
                     if self.peek() == Some('=') {
                         self.advance();
-                        TokenKind::EqEq
+                        tokens.push(Token {
+                            kind: TokenKind::EqEq,
+                            value: "==".to_string(),
+                            line,
+                            col,
+                        });
                     } else {
-                        TokenKind::Eq
+                        tokens.push(Token {
+                            kind: TokenKind::Eq,
+                            value: "=".to_string(),
+                            line,
+                            col,
+                        });
                     }
+                    continue;
                 }
                 '<' => {
                     self.advance();
                     if self.peek() == Some('=') {
                         self.advance();
-                        TokenKind::Lte
+                        tokens.push(Token {
+                            kind: TokenKind::Lte,
+                            value: "<=".to_string(),
+                            line,
+                            col,
+                        });
                     } else {
-                        TokenKind::Lt
+                        tokens.push(Token {
+                            kind: TokenKind::Lt,
+                            value: "<".to_string(),
+                            line,
+                            col,
+                        });
                     }
+                    continue;
                 }
                 '>' => {
                     self.advance();
                     if self.peek() == Some('=') {
                         self.advance();
-                        TokenKind::Gte
+                        tokens.push(Token {
+                            kind: TokenKind::Gte,
+                            value: ">=".to_string(),
+                            line,
+                            col,
+                        });
                     } else {
-                        TokenKind::Gt
+                        tokens.push(Token {
+                            kind: TokenKind::Gt,
+                            value: ">".to_string(),
+                            line,
+                            col,
+                        });
                     }
+                    continue;
                 }
                 _ => {
                     self.advance();

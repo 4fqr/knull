@@ -227,21 +227,27 @@ impl Parser {
             TokenKind::For => self.parse_for(),
             _ => {
                 // Check for space-separated function call: "println x" or "print "hello""
+                // Also handle "println "x = " + x" where the argument is a binary expression
                 if self.current().kind == TokenKind::Identifier {
                     let name = self.current().value.clone();
-                    let next_kind = self.peek_next().kind.clone();
+                    let next_idx = self.pos + 1;
 
-                    // If next token is a literal or identifier (and not an operator), it's a function call
-                    if self.is_argument_token(&next_kind) {
-                        self.advance(); // consume function name
-                        let arg = self.parse_expression()?;
-                        if self.current().kind == TokenKind::Semicolon {
-                            self.advance();
+                    if next_idx < self.tokens.len() {
+                        let next_kind = self.tokens[next_idx].kind.clone();
+
+                        // If next token is a literal or identifier, it's potentially a function call
+                        if self.is_argument_token(&next_kind) {
+                            self.advance(); // consume function name
+                                            // Parse the entire expression as the argument (handles binary ops)
+                            let arg = self.parse_expression()?;
+                            if self.current().kind == TokenKind::Semicolon {
+                                self.advance();
+                            }
+                            return Ok(ASTNode::Call {
+                                func: name,
+                                args: vec![arg],
+                            });
                         }
-                        return Ok(ASTNode::Call {
-                            func: name,
-                            args: vec![arg],
-                        });
                     }
                 }
 
@@ -270,6 +276,26 @@ impl Parser {
                 | TokenKind::String
                 | TokenKind::Identifier
                 | TokenKind::LBracket
+        )
+    }
+
+    fn is_operator_token(&self, kind: &TokenKind) -> bool {
+        matches!(
+            kind,
+            TokenKind::Plus
+                | TokenKind::Minus
+                | TokenKind::Star
+                | TokenKind::Slash
+                | TokenKind::Percent
+                | TokenKind::Eq
+                | TokenKind::EqEq
+                | TokenKind::Neq
+                | TokenKind::Lt
+                | TokenKind::Gt
+                | TokenKind::Lte
+                | TokenKind::Gte
+                | TokenKind::Ampersand
+                | TokenKind::Pipe
         )
     }
 
@@ -323,7 +349,7 @@ impl Parser {
 
     fn parse_equality(&mut self) -> Result<ASTNode, String> {
         let mut left = self.parse_comparison()?;
-        while let TokenKind::EqEq | TokenKind::Bang = self.current().kind {
+        while let TokenKind::EqEq | TokenKind::Neq = self.current().kind {
             let op = self.current().value.clone();
             self.advance();
             let right = self.parse_comparison()?;

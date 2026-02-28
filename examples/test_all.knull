@@ -1,0 +1,50 @@
+fn main() {
+    println "=== KNULL COMPREHENSIVE TEST ==="
+    println ""
+    
+    // Test 1: Variables and math
+    println "--- Test 1: Variables ---"
+    let x = 42
+    let y = 8
+    println "x = " + x
+    println "y = " + y
+    println "x + y = " + (x + y)
+    println "x - y = " + (x - y)
+    println "x * y = " + (x * y)
+    println "x / y = " + (x / y)
+    println ""
+    
+    // Test 2: Strings
+    println "--- Test 2: Strings ---"
+    let name = "Knull"
+    println "Hello, " + name + "!"
+    println ""
+    
+    // Test 3: Comparison
+    println "--- Test 3: Comparison ---"
+    println "x == y: " + (x == y)
+    println "x != y: " + (x != y)
+    println "x > y: " + (x > y)
+    println "x < y: " + (x < y)
+    println ""
+    
+    // Test 4: While loop
+    println "--- Test 4: While Loop ---"
+    let i = 1
+    while i <= 5 {
+        println "Iteration: " + i
+        i = i + 1
+    }
+    println ""
+    
+    // Test 5: If/else
+    println "--- Test 5: If/Else ---"
+    if x > y {
+        println "x is greater than y"
+    } else {
+        println "x is not greater than y"
+    }
+    println ""
+    
+    println "=== ALL TESTS PASSED ==="
+}

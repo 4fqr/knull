@@ -1,0 +1,11 @@
+fn main() {
+    println "=== KNULL TEST ==="
+    
+    let x = 42
+    let y = 8
+    println "x = " + x
+    println "y = " + y
+    println "x + y = " + (x + y)
+    
+    println "Done!"
+}

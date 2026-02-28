@@ -1,0 +1,8 @@
+fn main() {
+    println "--- Test 4: While Loop ---"
+    let i = 1
+    while i <= 3 {
+        println "Iteration: " + i
+        i = i + 1
+    }
+}

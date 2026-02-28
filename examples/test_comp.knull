@@ -1,0 +1,9 @@
+fn main() {
+    println "--- Test Comparison ---"
+    let x = 42
+    let y = 8
+    println "x == y: " + (x == y)
+    println "x != y: " + (x != y)
+    println "x > y: " + (x > y)
+    println "x < y: " + (x < y)
+}

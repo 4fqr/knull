@@ -1,0 +1,7 @@
+fn main() {
+    let x = 5
+    let y = 3
+    if x != y {
+        println "not equal"
+    }
+}

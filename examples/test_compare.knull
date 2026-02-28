@@ -1,0 +1,6 @@
+fn main() {
+    println "--- Test 3: Comparison ---"
+    let x = 42
+    let y = 8
+    println "x == y: " + (x == y)
+}
