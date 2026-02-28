@@ -373,6 +373,7 @@ impl Interpreter {
             Literal::Int(i) => Value::Int(*i),
             Literal::Float(f) => Value::Float(*f),
             Literal::String(s) => Value::String(s.clone()),
+            Literal::Bool(b) => Value::Bool(*b),
         }
     }
 
@@ -385,6 +386,9 @@ impl Interpreter {
                 (Value::Int(l), Value::Float(r)) => Ok(Value::Float(*l as f64 + r)),
                 (Value::Float(l), Value::Int(r)) => Ok(Value::Float(l + *r as f64)),
                 (Value::String(l), Value::String(r)) => Ok(Value::String(format!("{}{}", l, r))),
+                // String concatenation with other types - convert to string
+                (Value::String(l), r) => Ok(Value::String(format!("{}{}", l, r.as_string()))),
+                (l, Value::String(r)) => Ok(Value::String(format!("{}{}", l.as_string(), r))),
                 _ => Err("Cannot add incompatible types".to_string()),
             },
             "-" => match (&left, &right) {

@@ -30,6 +30,8 @@ pub enum TokenKind {
     Const,
     Type,
     Never,
+    True,
+    False,
     Plus,
     Minus,
     Star,
@@ -97,6 +99,8 @@ impl TokenKind {
             "const" => Some(TokenKind::Const),
             "type" => Some(TokenKind::Type),
             "never" => Some(TokenKind::Never),
+            "true" => Some(TokenKind::True),
+            "false" => Some(TokenKind::False),
             _ => None,
         }
     }

@@ -167,6 +167,7 @@ impl TypeChecker {
                 Literal::Int(_) => Ok(Type::Int),
                 Literal::Float(_) => Ok(Type::Float),
                 Literal::String(_) => Ok(Type::String),
+                Literal::Bool(_) => Ok(Type::Bool),
             },
             ASTNode::Array(_) => Ok(Type::Unknown),
             ASTNode::Index { obj: _, index: _ } => Ok(Type::Unknown),

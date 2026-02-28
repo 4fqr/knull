@@ -57,6 +57,7 @@ pub enum Literal {
     Int(i64),
     Float(f64),
     String(String),
+    Bool(bool),
 }
 
 pub struct Parser {
@@ -499,6 +500,14 @@ impl Parser {
             TokenKind::String => {
                 self.advance();
                 Ok(ASTNode::Literal(Literal::String(token.value)))
+            }
+            TokenKind::True => {
+                self.advance();
+                Ok(ASTNode::Literal(Literal::Bool(true)))
+            }
+            TokenKind::False => {
+                self.advance();
+                Ok(ASTNode::Literal(Literal::Bool(false)))
             }
             TokenKind::LBracket => {
                 self.advance();
