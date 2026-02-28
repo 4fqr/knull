@@ -87,7 +87,7 @@ fn main() {
 ### Quick Install (Linux / macOS)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/knull-lang/knull/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/knull-lang/knull/master/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
