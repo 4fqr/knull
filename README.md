@@ -676,10 +676,7 @@ cargo clippy
 
 ## Community
 
-- **Discord**: [discord.gg/knull](https://discord.gg/knull)
-- **Forum**: [forum.knull-lang.org](https://forum.knull-lang.org)
-- **Twitter**: [@knull_lang](https://twitter.com/knull_lang)
-- **Mastodon**: [@knull@fosstodon.org](https://fosstodon.org/@knull)
+- **Discord**: [discord.gg/NullSec](https://dsc.gg/nullsec)
 
 ---
 
