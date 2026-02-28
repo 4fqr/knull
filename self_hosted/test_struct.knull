@@ -1,8 +1,0 @@
-struct Args {
-    command: string,
-    input_file: string,
-}
-
-fn main() {
-    println "Hello"
-}

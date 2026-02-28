@@ -1,0 +1,142 @@
+// =============================================================================
+// KNULL TEXT ADVENTURE GAME
+// =============================================================================
+// Classic interactive fiction - explore, find treasure, win!
+
+fn main() {
+    println "=========================================="
+    println "  THE LOST TEMPLE OF KNUL"
+    println "  A Text Adventure"
+    println "=========================================="
+    println ""
+    println "Welcome, brave adventurer!"
+    println "You stand at the entrance of an ancient temple."
+    println "Legends speak of a golden idol hidden within..."
+    println ""
+    
+    // Game state
+    let location = "entrance"
+    let has_key = false
+    let has_idol = false
+    let moves = 0
+    let game_over = false
+    let won = false
+    
+    // Pre-scripted commands for demo
+    println "> look"
+    println "You are at the temple entrance. A dark passage leads north."
+    println "There's a rusty key on the ground."
+    println ""
+    moves = moves + 1
+    
+    println "> take key"
+    println "You picked up the rusty key."
+    has_key = true
+    println ""
+    moves = moves + 1
+    
+    println "> north"
+    location = "hallway"
+    println "You enter a dimly lit hallway."
+    println "Doors lead east and west. A passage continues north."
+    println ""
+    moves = moves + 1
+    
+    println "> west"
+    location = "library"
+    println "You enter a dusty library filled with ancient tomes."
+    println "Among the books, you find a note: 'The golden idol lies beyond the locked door.'"
+    println ""
+    moves = moves + 1
+    
+    println "> east"
+    location = "hallway"
+    println "You return to the hallway."
+    println ""
+    moves = moves + 1
+    
+    println "> north"
+    location = "chamber"
+    println "You find yourself in a grand chamber."
+    println "There's a heavy door to the east. It appears to be locked."
+    println ""
+    moves = moves + 1
+    
+    if has_key {
+        println "> use key"
+        println "The key turns with a satisfying click. The door opens!"
+        println ""
+        moves = moves + 1
+        
+        println "> east"
+        location = "treasure_room"
+        println "You enter the treasure room!"
+        println "Before you stands a pedestal with the GOLDEN IDOL!"
+        println ""
+        moves = moves + 1
+        
+        println "> take idol"
+        has_idol = true
+        println "You carefully lift the golden idol. It glows with ancient power!"
+        println ""
+        moves = moves + 1
+        
+        println "> west"
+        location = "chamber"
+        println "You return to the chamber."
+        println ""
+        moves = moves + 1
+        
+        println "> south"
+        location = "hallway"
+        println "You move through the hallway."
+        println ""
+        moves = moves + 1
+        
+        println "> south"
+        location = "entrance"
+        println "You emerge from the temple, golden idol in hand!"
+        println ""
+        moves = moves + 1
+        
+        won = true
+    }
+    
+    // Game end
+    println "=========================================="
+    println "GAME OVER"
+    println "=========================================="
+    println ""
+    
+    if won {
+        println "🎉 VICTORY! 🎉"
+        println ""
+        println "You successfully retrieved the Golden Idol of Knul!"
+        println "Your name will be remembered in the halls of legend."
+        println ""
+        println "Final Stats:"
+        println "  Moves taken: " + moves
+        println "  Treasure found: GOLDEN IDOL"
+        println "  Secrets discovered: 1"
+        
+        if moves < 15 {
+            println ""
+            println "Rank: MASTER EXPLORER ⭐⭐⭐"
+        } else {
+            if moves < 25 {
+                println ""
+                println "Rank: Seasoned Adventurer ⭐⭐"
+            } else {
+                println ""
+                println "Rank: Novice Explorer ⭐"
+            }
+        }
+    } else {
+        println "You did not find the treasure."
+        println "Better luck next time, adventurer!"
+    }
+    
+    println ""
+    println "Thanks for playing!"
+    println "=========================================="
+}

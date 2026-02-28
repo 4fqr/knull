@@ -1,0 +1,190 @@
+// =============================================================================
+// Mathematical Calculator
+// =============================================================================
+// Demonstrates various mathematical operations and algorithms.
+
+// -----------------------------------------------------------------------------
+// MAIN ENTRY POINT
+// -----------------------------------------------------------------------------
+
+fn main() {
+    print_header()
+    
+    demonstrate_arithmetic()
+    demonstrate_factorial()
+    demonstrate_power()
+    demonstrate_sum_of_squares()
+    demonstrate_square_root()
+    
+    print_footer()
+}
+
+// -----------------------------------------------------------------------------
+// DISPLAY FUNCTIONS
+// -----------------------------------------------------------------------------
+
+fn print_header() {
+    println "=========================================="
+    println "  MATHEMATICAL CALCULATOR"
+    println "=========================================="
+    println ""
+}
+
+fn print_footer() {
+    println "=========================================="
+}
+
+// -----------------------------------------------------------------------------
+// ARITHMETIC DEMONSTRATION
+// -----------------------------------------------------------------------------
+
+fn demonstrate_arithmetic() {
+    println "--- BASIC ARITHMETIC ---"
+    println ""
+    
+    let a = 125
+    let b = 375
+    println "Addition: " + a + " + " + b + " = " + (a + b)
+    
+    let x = 1000
+    let y = 273
+    println "Subtraction: " + x + " - " + y + " = " + (x - y)
+    
+    let m1 = 24
+    let m2 = 18
+    println "Multiplication: " + m1 + " * " + m2 + " = " + (m1 * m2)
+    
+    let d1 = 144
+    let d2 = 12
+    println "Division: " + d1 + " / " + d2 + " = " + (d1 / d2)
+    println "Remainder: " + d1 + " % " + d2 + " = " + (d1 % d2)
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// FACTORIAL
+// -----------------------------------------------------------------------------
+
+fn demonstrate_factorial() {
+    println "--- FACTORIAL ---"
+    println ""
+    
+    let n = 7
+    let result = factorial(n)
+    println n + "! = " + result
+    
+    println ""
+}
+
+fn factorial(n) {
+    if n <= 1 {
+        return 1
+    }
+    
+    let result = 1
+    let i = 2
+    
+    while i <= n {
+        result = result * i
+        i = i + 1
+    }
+    
+    return result
+}
+
+// -----------------------------------------------------------------------------
+// POWER FUNCTION
+// -----------------------------------------------------------------------------
+
+fn demonstrate_power() {
+    println "--- POWER ---"
+    println ""
+    
+    let base = 2
+    let exp = 10
+    let result = power(base, exp)
+    println base + "^" + exp + " = " + result
+    
+    println ""
+}
+
+fn power(base, exp) {
+    if exp == 0 {
+        return 1
+    }
+    
+    let result = 1
+    let i = 0
+    
+    while i < exp {
+        result = result * base
+        i = i + 1
+    }
+    
+    return result
+}
+
+// -----------------------------------------------------------------------------
+// SUM OF SQUARES
+// -----------------------------------------------------------------------------
+
+fn demonstrate_sum_of_squares() {
+    println "--- SUM OF SQUARES ---"
+    println ""
+    
+    let n = 10
+    let sum = sum_of_squares(n)
+    println "Sum of squares from 1 to " + n + ": " + sum
+    
+    println ""
+}
+
+fn sum_of_squares(n) {
+    let sum = 0
+    let i = 1
+    
+    while i <= n {
+        sum = sum + (i * i)
+        i = i + 1
+    }
+    
+    return sum
+}
+
+// -----------------------------------------------------------------------------
+// SQUARE ROOT APPROXIMATION
+// -----------------------------------------------------------------------------
+
+fn demonstrate_square_root() {
+    println "--- SQUARE ROOT ---"
+    println ""
+    
+    let num = 144
+    let sqrt_approx = integer_sqrt(num)
+    println "Square root of " + num + " = " + sqrt_approx
+    println "Verification: " + sqrt_approx + " * " + sqrt_approx + " = " + (sqrt_approx * sqrt_approx)
+    
+    println ""
+}
+
+// Integer square root using Newton's method
+fn integer_sqrt(n) {
+    if n < 0 {
+        return 0
+    }
+    
+    if n == 0 {
+        return 0
+    }
+    
+    let x = n
+    let y = 1
+    
+    while x > y {
+        x = (x + y) / 2
+        y = n / x
+    }
+    
+    return x
+}

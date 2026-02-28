@@ -1,0 +1,409 @@
+// =============================================================================
+// Knull Language Showcase
+// =============================================================================
+// A comprehensive demonstration of Knull syntax and features.
+// This file showcases all working language constructs.
+
+// -----------------------------------------------------------------------------
+// ENTRY POINT
+// -----------------------------------------------------------------------------
+
+fn main() {
+    print_header()
+    demonstrate_variables()
+    demonstrate_arithmetic()
+    demonstrate_strings()
+    demonstrate_comparisons()
+    demonstrate_control_flow()
+    demonstrate_loops()
+    demonstrate_functions()
+    demonstrate_arrays()
+    print_footer()
+}
+
+// -----------------------------------------------------------------------------
+// HEADER AND FOOTER
+// -----------------------------------------------------------------------------
+
+fn print_header() {
+    println "=================================================="
+    println "           KNULL LANGUAGE SHOWCASE"
+    println "=================================================="
+    println ""
+}
+
+fn print_footer() {
+    println ""
+    println "=================================================="
+    println "           END OF SHOWCASE"
+    println "=================================================="
+}
+
+// -----------------------------------------------------------------------------
+// VARIABLES AND TYPES
+// -----------------------------------------------------------------------------
+
+fn demonstrate_variables() {
+    println "--- VARIABLES ---"
+    println ""
+    
+    // Integer variables
+    let integer_value = 42
+    println "Integer: " + integer_value
+    
+    // Floating point
+    let float_value = 3.14159
+    println "Float: " + float_value
+    
+    // Strings
+    let string_value = "Hello, Knull"
+    println "String: " + string_value
+    
+    // Boolean values (represented as integers)
+    let true_value = 1
+    let false_value = 0
+    println "Boolean true: " + true_value
+    println "Boolean false: " + false_value
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// ARITHMETIC OPERATIONS
+// -----------------------------------------------------------------------------
+
+fn demonstrate_arithmetic() {
+    println "--- ARITHMETIC OPERATIONS ---"
+    println ""
+    
+    let a = 17
+    let b = 5
+    
+    // Addition
+    let sum = a + b
+    println a + " + " + b + " = " + sum
+    
+    // Subtraction
+    let difference = a - b
+    println a + " - " + b + " = " + difference
+    
+    // Multiplication
+    let product = a * b
+    println a + " * " + b + " = " + product
+    
+    // Division
+    let quotient = a / b
+    println a + " / " + b + " = " + quotient
+    
+    // Modulo (remainder)
+    let remainder = a % b
+    println a + " % " + b + " = " + remainder
+    
+    // Compound expressions
+    let compound = (a + b) * (a - b)
+    println "(" + a + " + " + b + ") * (" + a + " - " + b + ") = " + compound
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// STRING OPERATIONS
+// -----------------------------------------------------------------------------
+
+fn demonstrate_strings() {
+    println "--- STRING OPERATIONS ---"
+    println ""
+    
+    // String concatenation with other strings
+    let first_name = "Knull"
+    let last_name = "Language"
+    let full_name = first_name + " " + last_name
+    println "Concatenation: " + full_name
+    
+    // String concatenation with integers
+    let version = 1
+    let version_string = "Version " + version
+    println "String + Integer: " + version_string
+    
+    // String concatenation with floats
+    let pi_approx = 3.14
+    let pi_string = "Pi is approximately " + pi_approx
+    println "String + Float: " + pi_string
+    
+    // Multi-part concatenation
+    let x = 10
+    let y = 20
+    let result = "The sum of " + x + " and " + y + " is " + (x + y)
+    println result
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// COMPARISON OPERATORS
+// -----------------------------------------------------------------------------
+
+fn demonstrate_comparisons() {
+    println "--- COMPARISON OPERATORS ---"
+    println ""
+    
+    let p = 15
+    let q = 25
+    
+    // Equality
+    let is_equal = p == q
+    println p + " == " + q + ": " + is_equal
+    
+    // Inequality
+    let is_not_equal = p != q
+    println p + " != " + q + ": " + is_not_equal
+    
+    // Less than
+    let is_less = p < q
+    println p + " < " + q + ": " + is_less
+    
+    // Greater than
+    let is_greater = p > q
+    println p + " > " + q + ": " + is_greater
+    
+    // Less than or equal
+    let is_less_or_equal = p <= q
+    println p + " <= " + q + ": " + is_less_or_equal
+    
+    // Greater than or equal
+    let is_greater_or_equal = p >= q
+    println p + " >= " + q + ": " + is_greater_or_equal
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// CONTROL FLOW
+// -----------------------------------------------------------------------------
+
+fn demonstrate_control_flow() {
+    println "--- CONTROL FLOW ---"
+    println ""
+    
+    // If statement
+    let temperature = 75
+    println "Temperature: " + temperature
+    
+    if temperature > 80 {
+        println "It is hot"
+    }
+    
+    // If-else statement
+    let score = 85
+    println "Score: " + score
+    
+    if score >= 90 {
+        println "Grade: A"
+    } else {
+        if score >= 80 {
+            println "Grade: B"
+        } else {
+            if score >= 70 {
+                println "Grade: C"
+            } else {
+                println "Grade: D or F"
+            }
+        }
+    }
+    
+    // Chained comparisons
+    let value = 50
+    if value >= 0 {
+        if value <= 100 {
+            println "Value is in range [0, 100]"
+        }
+    }
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// LOOPS
+// -----------------------------------------------------------------------------
+
+fn demonstrate_loops() {
+    println "--- LOOPS ---"
+    println ""
+    
+    // While loop - count up
+    println "Counting from 1 to 5:"
+    let i = 1
+    while i <= 5 {
+        print i + " "
+        i = i + 1
+    }
+    println ""
+    
+    // While loop - count down
+    println "Counting down from 5 to 1:"
+    let j = 5
+    while j >= 1 {
+        print j + " "
+        j = j - 1
+    }
+    println ""
+    
+    // While loop with multiple iterations
+    println "Doubling values starting from 1:"
+    let val = 1
+    while val < 100 {
+        print val + " "
+        val = val * 2
+    }
+    println ""
+    
+    // Nested loops example
+    println "Multiplication table (1 to 3):"
+    let row = 1
+    while row <= 3 {
+        let col = 1
+        while col <= 3 {
+            let product = row * col
+            print product + " "
+            col = col + 1
+        }
+        println ""
+        row = row + 1
+    }
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTIONS
+// -----------------------------------------------------------------------------
+
+fn demonstrate_functions() {
+    println "--- FUNCTIONS ---"
+    println ""
+    
+    // Function with no parameters
+    let greeting = get_greeting()
+    println "Greeting: " + greeting
+    
+    // Function with one parameter
+    let doubled = double_value(21)
+    println "Double of 21: " + doubled
+    
+    // Function with multiple parameters
+    let sum_result = add_three_numbers(10, 20, 30)
+    println "Sum of 10, 20, 30: " + sum_result
+    
+    // Function with local variables
+    let factorial_5 = factorial(5)
+    println "Factorial of 5: " + factorial_5
+    
+    // Function returning boolean (as integer)
+    let is_even_result = is_even(42)
+    println "Is 42 even: " + is_even_result
+    
+    let is_odd_result = is_odd(42)
+    println "Is 42 odd: " + is_odd_result
+    
+    // Function calling other functions
+    let max_val = max_of_three(10, 25, 15)
+    println "Maximum of 10, 25, 15: " + max_val
+    
+    println ""
+}
+
+// Function with no parameters
+fn get_greeting() {
+    return "Hello from Knull"
+}
+
+// Function with one parameter
+fn double_value(n) {
+    return n * 2
+}
+
+// Function with multiple parameters
+fn add_three_numbers(a, b, c) {
+    return a + b + c
+}
+
+// Function with local variables
+fn factorial(n) {
+    if n <= 1 {
+        return 1
+    }
+    
+    let result = 1
+    let i = 2
+    
+    while i <= n {
+        result = result * i
+        i = i + 1
+    }
+    
+    return result
+}
+
+// Function returning boolean (as integer)
+fn is_even(n) {
+    if n % 2 == 0 {
+        return 1
+    }
+    return 0
+}
+
+fn is_odd(n) {
+    if n % 2 == 0 {
+        return 0
+    }
+    return 1
+}
+
+// Function calling other functions
+fn max_of_three(a, b, c) {
+    let max_ab = max_of_two(a, b)
+    return max_of_two(max_ab, c)
+}
+
+fn max_of_two(a, b) {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+// -----------------------------------------------------------------------------
+// ARRAYS
+// -----------------------------------------------------------------------------
+
+fn demonstrate_arrays() {
+    println "--- ARRAYS ---"
+    println ""
+    
+    // Array literal
+    let numbers = [10, 20, 30, 40, 50]
+    println "Array created with 5 elements"
+    
+    // Array indexing
+    let first = numbers[0]
+    let third = numbers[2]
+    let last = numbers[4]
+    
+    println "First element: " + first
+    println "Third element: " + third
+    println "Last element: " + last
+    
+    // Array length (simulated with built-in)
+    println "Array elements demonstrated"
+    
+    // Iterating through array
+    println "Array elements:"
+    let i = 0
+    while i < 5 {
+        print numbers[i] + " "
+        i = i + 1
+    }
+    println ""
+    
+    println ""
+}

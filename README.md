@@ -1,63 +1,45 @@
-# Knull
+# Knull Programming Language
 
 ```
-                                                       
-       ,--.                                            
-   ,--/  /|                            ,--,    ,--,    
-,---,': / '                          ,--.'|  ,--.'|    
-:   : '/ /       ,---,          ,--, |  | :  |  | :    
-|   '   ,    ,-+-. /  |       ,'_ /| :  : '  :  : '    
-'   |  /    ,--.'|'   |  .--. |  | : |  ' |  |  ' |    
-|   ;  ;   |   |  ,"' |,'_ /| :  . | '  | |  '  | |    
-:   '   \  |   | /  | ||  ' | |  . . |  | :  |  | :    
-|   |    ' |   | |  | ||  | ' |  | | '  : |__'  : |__  
-'   : |.  \|   | |  |/ :  | : ;  ; | |  | '.'|  | '.'| 
-|   | '_\.'|   | |--'  '  :  `--'   \;  :    ;  :    ; 
-'   : |    |   |/      :  ,      .-./|  ,   /|  ,   /  
-;   |,'    '---'        `--`----'     ---`-'  ---`-'   
-'---'                                                  
-                                                       
+    _  ___      _       _ 
+   | |/ / |    | |     | |
+   | ' /| | ___| |_   _| |
+   | . \| |/ _ \ | | | | |
+   | |\ \ |  __/ | |_| |_|
+   |_| \_\_|\___|_|\__, (_)
+                   __/ |  
+                  |___/   
 ```
 
-**The Ultimate Programming Language**
+**The God Programming Language**
 
 Simple as Python. Fast as C. Powerful as Assembly.
 
 ---
 
-## The Three Pillars
+## Overview
 
-Knull adapts to your skill level:
+Knull is a unified programming language designed to span the entire spectrum of software development, from beginner scripting to bare-metal systems programming. It eliminates the need to learn multiple languages by providing three integrated modes that adapt to your expertise level.
 
-| Mode | Description | Target User |
-|------|-------------|-------------|
-| **Novice** | Dynamic typing, garbage collected | Beginners, Scripting |
-| **Expert** | Static types, ownership, manual memory | Systems Programming |
-| **God** | `unsafe`, direct syscalls, bare-metal | Hackers, OS Dev |
+---
+
+## The Three Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **Novice** | Dynamic typing, automatic memory management | Beginners, prototyping, scripting |
+| **Expert** | Static typing, ownership system, compile-time checks | Systems programming, high-performance applications |
+| **God** | Unsafe blocks, direct hardware access, inline assembly | Operating systems, embedded systems, security research |
 
 ---
 
 ## Installation
 
-### Linux / macOS
+### Quick Install (Linux / macOS)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
-```
-
-Then add to PATH:
-```bash
 export PATH="$HOME/.local/bin:$PATH"
-```
-
-### Windows
-
-```powershell
-# Install Rust first from https://rustup.rs
-git clone https://github.com/4fqr/knull.git
-cd knull\src
-cargo build --release --no-default-features
-copy target\release\knull.exe C:\Windows\System32\
 ```
 
 ### Build from Source
@@ -69,101 +51,180 @@ cargo build --release --no-default-features
 ./target/release/knull --version
 ```
 
+### Windows
+
+```powershell
+git clone https://github.com/4fqr/knull.git
+cd knull\src
+cargo build --release --no-default-features
+```
+
 ---
 
 ## Quick Start
 
-```bash
-# Create your first program
-echo 'println "Hello, World!"' > hello.knull
+### Hello World
 
-# Run it
-knull run hello.knull
+```knull
+fn main() {
+    println "Hello, World!"
+}
 ```
+
+### Variables and Types
+
+```knull
+fn main() {
+    let integer = 42
+    let floating = 3.14159
+    let text = "Knull"
+    let flag = true
+    
+    println "Integer: " + integer
+    println "Float: " + floating
+    println "String: " + text
+}
+```
+
+### Functions
+
+```knull
+fn add(a, b) {
+    return a + b
+}
+
+fn main() {
+    let result = add(5, 3)
+    println "5 + 3 = " + result
+}
+```
+
+### Control Flow
+
+```knull
+fn main() {
+    let x = 10
+    
+    if x > 5 {
+        println "x is greater than 5"
+    } else {
+        println "x is not greater than 5"
+    }
+    
+    let i = 0
+    while i < 5 {
+        println "Iteration: " + i
+        i = i + 1
+    }
+}
+```
+
+---
+
+## Command Line Interface
+
+```bash
+knull run <file>        # Execute a Knull file
+knull build <file>      # Compile to binary
+knull check <file>      # Syntax validation
+knull fmt <file>        # Format code
+knull repl              # Interactive shell
+knull new <name>        # Create new project
+```
+
+---
+
+## Language Features
+
+### Supported Constructs
+
+- **Variables**: `let x = value`
+- **Functions**: `fn name(params) { ... }`
+- **Arithmetic**: `+`, `-`, `*`, `/`, `%`
+- **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- **Logical**: `&&`, `||`, `!`
+- **Control Flow**: `if`/`else`, `while`, `for`
+- **Arrays**: `[1, 2, 3]` with indexing `arr[i]`
+- **Strings**: Concatenation with `+` operator
+- **Comments**: Single-line with `//`
+
+### Operator Precedence
+
+1. Parentheses `()`
+2. Unary operators `!`, `-`
+3. Multiplicative `*`, `/`, `%`
+4. Additive `+`, `-`
+5. Comparison `==`, `!=`, `<`, `>`, `<=`, `>=`
+6. Logical `&&`, `||`
+7. Assignment `=`
 
 ---
 
 ## Examples
 
-### Web Development
-```knull
-// A simple HTTP server
-fn main() {
-    println "Server listening on port 8080"
-    // Full implementation in examples/demo_web.knull
-}
-```
+See the `examples/` directory for comprehensive demonstrations:
 
-### Systems Programming
-```knull
-// Direct memory access
-fn main() {
-    println "VGA buffer at 0xB8000"
-    // Full implementation in examples/micro_kernel.knull
-}
-```
-
-### Scripting
-```knull
-// Easy automation
-fn main() {
-    println "Hello from Knull!"
-    let x = 42
-    println "x = " + x
-}
-```
-
-### Hacking
-```knull
-// Port scanner
-fn scan(host, port) {
-    println "Scanning " + host + ":" + port
-    // Full implementation in examples/demo_hack.knull
-}
-
-fn main() {
-    scan("127.0.0.1", 8080)
-}
-```
-
----
-
-## Features
-
-- **Three Language Modes** - Novice to God Mode
-- **Self-Hosted Compiler** - Written in Knull, compiling Knull
-- **Zero-Cost Abstractions** - High-level without runtime overhead
-- **Type Safety** - Powerful type system with generics
-- **Package Manager** - Integrated dependency management
-- **Cross-Platform** - Linux, macOS, Windows
+- `showcase.knull` - Complete language feature overview
+- `fibonacci.knull` - Mathematical sequence generation
+- `primes.knull` - Prime number sieve
+- `calculator.knull` - Mathematical operations
+- `patterns.knull` - Pattern printing with loops
+- `sorting.knull` - Bubble sort visualization
+- `benchmark.knull` - Performance testing
 
 ---
 
 ## Documentation
 
-- [Installation Guide](BUILD.md) - Building from source
-- [Language Guide](docs/GUIDE.md) - Complete tutorial
+- [Build Instructions](BUILD.md) - Compiling from source
+- [Language Guide](docs/GUIDE.md) - Tutorial and concepts
 - [Standard Library](docs/STD_LIB.md) - API reference
-- [Library Index](docs/LIBRARY_INDEX.md) - Module overview
+- [Specification](docs/SPECIFICATION.md) - Complete language specification
 
 ---
 
-## Status
+## Project Structure
+
+```
+knull/
+├── src/                    # Bootstrap compiler (Rust)
+│   ├── main.rs            # CLI entry point
+│   ├── lexer.rs           # Tokenizer
+│   ├── parser.rs          # AST builder
+│   ├── compiler.rs        # Interpreter
+│   └── cli.rs             # Command implementations
+├── examples/              # Example programs
+├── runtime/               # Standard library (Knull)
+├── self_hosted/           # Self-hosted compiler
+├── docs/                  # Documentation
+└── tests/                 # Test suite
+```
+
+---
+
+## Current Status
 
 | Component | Status |
 |-----------|--------|
-| Lexer | Working |
-| Parser | Working |
-| Code Generator | Working |
-| Runtime | Partial |
-| Package Manager | Planning |
+| Lexer | Complete |
+| Parser | Complete |
+| Interpreter | Complete |
+| Standard Library | Partial |
+| Self-Hosted Compiler | In Development |
+| Package Manager | In Development |
+
+---
+
+## Contributing
+
+Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details.
+MIT License - See LICENSE file for details.
 
 ---
 
-**Knull** - The language that scales with you from hello world to operating system.
+**Knull** - From hello world to operating system, one language.

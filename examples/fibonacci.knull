@@ -1,0 +1,101 @@
+// =============================================================================
+// Fibonacci Sequence Generator
+// =============================================================================
+// Calculates and displays the Fibonacci sequence.
+// Demonstrates loops, function calls, and mathematical operations.
+
+// -----------------------------------------------------------------------------
+// MAIN ENTRY POINT
+// -----------------------------------------------------------------------------
+
+fn main() {
+    print_header()
+    
+    let count = 20
+    println "Calculating first " + count + " Fibonacci numbers:"
+    println ""
+    
+    let i = 0
+    while i < count {
+        let fib = fibonacci(i)
+        print "F(" + i + ") = " + fib
+        
+        // Add spacing for alignment
+        if fib < 10 {
+            print "     "
+        } else {
+            if fib < 100 {
+                print "    "
+            } else {
+                if fib < 1000 {
+                    print "   "
+                } else {
+                    if fib < 10000 {
+                        print "  "
+                    } else {
+                        print " "
+                    }
+                }
+            }
+        }
+        
+        // Calculate and display ratio
+        if i > 1 {
+            let prev = fibonacci(i - 1)
+            if prev > 0 {
+                let ratio = (fib * 10000) / prev
+                let ratio_whole = ratio / 10000
+                let ratio_frac = ratio % 10000
+                print "  (ratio: " + ratio_whole + "." + ratio_frac + ")"
+            }
+        }
+        
+        println ""
+        i = i + 1
+    }
+    
+    println ""
+    println "Note: As n increases, F(n)/F(n-1) approaches"
+    println "the golden ratio (approximately 1.618033988...)"
+}
+
+// -----------------------------------------------------------------------------
+// HEADER
+// -----------------------------------------------------------------------------
+
+fn print_header() {
+    println "=========================================="
+    println "  FIBONACCI SEQUENCE GENERATOR"
+    println "=========================================="
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// FIBONACCI CALCULATION
+// -----------------------------------------------------------------------------
+
+// Calculate the nth Fibonacci number iteratively
+fn fibonacci(n) {
+    // Handle base cases
+    if n <= 0 {
+        return 0
+    }
+    
+    if n == 1 {
+        return 1
+    }
+    
+    // Iterative calculation
+    let a = 0
+    let b = 1
+    let i = 2
+    
+    while i <= n {
+        let temp = a + b
+        a = b
+        b = temp
+        i = i + 1
+    }
+    
+    return b
+}

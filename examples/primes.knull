@@ -1,0 +1,98 @@
+// =============================================================================
+// Prime Number Sieve
+// =============================================================================
+// Finds and displays all prime numbers up to a specified limit.
+// Demonstrates nested loops, mathematical operations, and functions.
+
+// -----------------------------------------------------------------------------
+// MAIN ENTRY POINT
+// -----------------------------------------------------------------------------
+
+fn main() {
+    print_header()
+    
+    let limit = 100
+    println "Finding all prime numbers up to " + limit + ":"
+    println ""
+    
+    let num = 2
+    let count = 0
+    
+    while num <= limit {
+        if is_prime(num) {
+            // Print the prime number
+            print num
+            count = count + 1
+            
+            // Format: 10 primes per line
+            if count % 10 == 0 {
+                println ""
+            } else {
+                // Add spacing for alignment
+                if num < 10 {
+                    print "   "
+                } else {
+                    if num < 100 {
+                        print "  "
+                    } else {
+                        print " "
+                    }
+                }
+            }
+        }
+        num = num + 1
+    }
+    
+    // Ensure final newline if needed
+    if count % 10 != 0 {
+        println ""
+    }
+    
+    println ""
+    println "Total primes found: " + count
+    println "Prime density: " + (count * 100 / limit) + "." + ((count * 1000 / limit) % 10) + "%"
+}
+
+// -----------------------------------------------------------------------------
+// HEADER
+// -----------------------------------------------------------------------------
+
+fn print_header() {
+    println "=========================================="
+    println "  PRIME NUMBER FINDER"
+    println "=========================================="
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// PRIMALITY TEST
+// -----------------------------------------------------------------------------
+
+// Determine if a number is prime
+fn is_prime(n) {
+    // Numbers less than 2 are not prime
+    if n < 2 {
+        return 0
+    }
+    
+    // 2 is the only even prime
+    if n == 2 {
+        return 1
+    }
+    
+    // Even numbers greater than 2 are not prime
+    if n % 2 == 0 {
+        return 0
+    }
+    
+    // Check odd divisors up to square root
+    let i = 3
+    while i * i <= n {
+        if n % i == 0 {
+            return 0
+        }
+        i = i + 2
+    }
+    
+    return 1
+}

@@ -1,0 +1,163 @@
+// =============================================================================
+// Performance Benchmark Suite
+// =============================================================================
+// Tests the performance characteristics of the Knull runtime.
+
+// -----------------------------------------------------------------------------
+// MAIN ENTRY POINT
+// -----------------------------------------------------------------------------
+
+fn main() {
+    print_header()
+    
+    benchmark_integer_arithmetic()
+    benchmark_multiplication()
+    benchmark_function_calls()
+    benchmark_nested_loops()
+    benchmark_factorial()
+    
+    print_footer()
+}
+
+// -----------------------------------------------------------------------------
+// DISPLAY FUNCTIONS
+// -----------------------------------------------------------------------------
+
+fn print_header() {
+    println "=========================================="
+    println "  PERFORMANCE BENCHMARK SUITE"
+    println "=========================================="
+    println ""
+}
+
+fn print_footer() {
+    println ""
+    println "=========================================="
+    println "ALL BENCHMARKS COMPLETED"
+    println "=========================================="
+}
+
+// -----------------------------------------------------------------------------
+// BENCHMARK 1: INTEGER ARITHMETIC
+// -----------------------------------------------------------------------------
+
+fn benchmark_integer_arithmetic() {
+    println "BENCHMARK 1: Integer Arithmetic"
+    println "Operation: Sum of 0 to 9999"
+    
+    let sum = 0
+    let i = 0
+    while i < 10000 {
+        sum = sum + i
+        i = i + 1
+    }
+    
+    println "Result: " + sum
+    println "Status: Complete"
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// BENCHMARK 2: MULTIPLICATION
+// -----------------------------------------------------------------------------
+
+fn benchmark_multiplication() {
+    println "BENCHMARK 2: Multiplication"
+    println "Operation: Powers of 2 (1000 iterations)"
+    
+    let product = 1
+    let i = 0
+    while i < 1000 {
+        product = product * 2
+        if product > 1000000 {
+            product = 1
+        }
+        i = i + 1
+    }
+    
+    println "Result: " + product
+    println "Status: Complete"
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// BENCHMARK 3: FUNCTION CALLS
+// -----------------------------------------------------------------------------
+
+fn benchmark_function_calls() {
+    println "BENCHMARK 3: Function Calls"
+    println "Operation: 1000 function invocations"
+    
+    let result = 0
+    let i = 0
+    while i < 1000 {
+        result = result + compute(i)
+        i = i + 1
+    }
+    
+    println "Result: " + result
+    println "Status: Complete"
+    println ""
+}
+
+fn compute(n) {
+    return (n * 3 + 7) % 100
+}
+
+// -----------------------------------------------------------------------------
+// BENCHMARK 4: NESTED LOOPS
+// -----------------------------------------------------------------------------
+
+fn benchmark_nested_loops() {
+    println "BENCHMARK 4: Nested Loops"
+    println "Operation: 100 x 100 iterations"
+    
+    let count = 0
+    let outer = 0
+    while outer < 100 {
+        let inner = 0
+        while inner < 100 {
+            count = count + 1
+            inner = inner + 1
+        }
+        outer = outer + 1
+    }
+    
+    println "Result: " + count + " iterations"
+    println "Status: Complete"
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// BENCHMARK 5: FACTORIAL CHAIN
+// -----------------------------------------------------------------------------
+
+fn benchmark_factorial() {
+    println "BENCHMARK 5: Factorial Computation"
+    println "Operation: Sum of factorials (1! to 10!)"
+    
+    let fact_sum = 0
+    let i = 1
+    while i <= 10 {
+        fact_sum = fact_sum + factorial(i)
+        i = i + 1
+    }
+    
+    println "Result: " + fact_sum
+    println "Status: Complete"
+    println ""
+}
+
+fn factorial(n) {
+    if n <= 1 {
+        return 1
+    }
+    
+    let result = 1
+    let i = 2
+    while i <= n {
+        result = result * i
+        i = i + 1
+    }
+    return result
+}

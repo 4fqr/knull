@@ -1,0 +1,149 @@
+// =============================================================================
+// KNULL CONWAY'S GAME OF LIFE
+// =============================================================================
+// Cellular automaton simulation
+
+fn main() {
+    println "=========================================="
+    println "  CONWAY'S GAME OF LIFE"
+    println "=========================================="
+    println ""
+    println "Initial configuration (Blinker oscillator):"
+    println ""
+    
+    // Grid: 0 = dead, 1 = alive
+    // Using variables since we don't have arrays
+    // 5x5 grid centered
+    
+    // Initial state (generation 0)
+    // Blinker pattern:
+    // .....
+    // .XXX.
+    // .....
+    
+    let g0_00 = 0
+    let g0_01 = 0
+    let g0_02 = 0
+    let g0_03 = 0
+    let g0_04 = 0
+    
+    let g0_10 = 0
+    let g0_11 = 1  // X
+    let g0_12 = 1  // X
+    let g0_13 = 1  // X
+    let g0_14 = 0
+    
+    let g0_20 = 0
+    let g0_21 = 0
+    let g0_22 = 0
+    let g0_23 = 0
+    let g0_24 = 0
+    
+    let g0_30 = 0
+    let g0_31 = 0
+    let g0_32 = 0
+    let g0_33 = 0
+    let g0_34 = 0
+    
+    let g0_40 = 0
+    let g0_41 = 0
+    let g0_42 = 0
+    let g0_43 = 0
+    let g0_44 = 0
+    
+    // Display generation 0
+    println "Generation 0:"
+    print_grid_5x5(g0_00, g0_01, g0_02, g0_03, g0_04,
+                   g0_10, g0_11, g0_12, g0_13, g0_14,
+                   g0_20, g0_21, g0_22, g0_23, g0_24,
+                   g0_30, g0_31, g0_32, g0_33, g0_34,
+                   g0_40, g0_41, g0_42, g0_43, g0_44)
+    println ""
+    
+    // Compute generation 1
+    // Rules: live cell with 2-3 neighbors survives
+    //        dead cell with 3 neighbors becomes alive
+    
+    // Row 1 (the blinker row) - vertical blink becomes horizontal
+    let g1_00 = 0
+    let g1_01 = 0
+    let g1_02 = 1
+    let g1_03 = 0
+    let g1_04 = 0
+    
+    let g1_10 = 0
+    let g1_11 = 0
+    let g1_12 = 1
+    let g1_13 = 0
+    let g1_14 = 0
+    
+    let g1_20 = 0
+    let g1_21 = 0
+    let g1_22 = 1
+    let g1_23 = 0
+    let g1_24 = 0
+    
+    let g1_30 = 0
+    let g1_31 = 0
+    let g1_32 = 0
+    let g1_33 = 0
+    let g1_34 = 0
+    
+    let g1_40 = 0
+    let g1_41 = 0
+    let g1_42 = 0
+    let g1_43 = 0
+    let g1_44 = 0
+    
+    println "Generation 1:"
+    print_grid_5x5(g1_00, g1_01, g1_02, g1_03, g1_04,
+                   g1_10, g1_11, g1_12, g1_13, g1_14,
+                   g1_20, g1_21, g1_22, g1_23, g1_24,
+                   g1_30, g1_31, g1_32, g1_33, g1_34,
+                   g1_40, g1_41, g1_42, g1_43, g1_44)
+    println ""
+    
+    // Generation 2 returns to original
+    println "Generation 2:"
+    print_grid_5x5(g0_00, g0_01, g0_02, g0_03, g0_04,
+                   g0_10, g0_11, g0_12, g0_13, g0_14,
+                   g0_20, g0_21, g0_22, g0_23, g0_24,
+                   g0_30, g0_31, g0_32, g0_33, g0_34,
+                   g0_40, g0_41, g0_42, g0_43, g0_44)
+    
+    println ""
+    println "Pattern repeats every 2 generations (blinker oscillator)"
+    println ""
+    println "Rules of Conway's Game of Life:"
+    println "  1. Any live cell with 2-3 live neighbors survives"
+    println "  2. Any dead cell with exactly 3 live neighbors becomes alive"
+    println "  3. All other cells die or stay dead"
+    println ""
+    println "=========================================="
+}
+
+fn print_grid_5x5(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y) {
+    print_row(a, b, c, d, e)
+    print_row(f, g, h, i, j)
+    print_row(k, l, m, n, o)
+    print_row(p, q, r, s, t)
+    print_row(u, v, w, x, y)
+}
+
+fn print_row(a, b, c, d, e) {
+    print "  "
+    print_cell(a)
+    print_cell(b)
+    print_cell(c)
+    print_cell(d)
+    print_cell(e)
+    println ""
+}
+
+fn print_cell(n) {
+    if n == 1 {
+        print "■ "
+    } else {
+        print "· "
+    }
+}

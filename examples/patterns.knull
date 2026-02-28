@@ -1,0 +1,202 @@
+// =============================================================================
+// Pattern Printing Programs
+// =============================================================================
+// Demonstrates nested loops and pattern generation.
+
+// -----------------------------------------------------------------------------
+// MAIN ENTRY POINT
+// -----------------------------------------------------------------------------
+
+fn main() {
+    print_header()
+    
+    print_right_triangle()
+    print_inverted_triangle()
+    print_pyramid()
+    print_number_triangle()
+    print_diamond()
+    
+    print_footer()
+}
+
+// -----------------------------------------------------------------------------
+// DISPLAY FUNCTIONS
+// -----------------------------------------------------------------------------
+
+fn print_header() {
+    println "=========================================="
+    println "  PATTERN PROGRAMS"
+    println "=========================================="
+    println ""
+}
+
+fn print_footer() {
+    println "=========================================="
+}
+
+// -----------------------------------------------------------------------------
+// RIGHT TRIANGLE
+// -----------------------------------------------------------------------------
+
+fn print_right_triangle() {
+    println "--- RIGHT TRIANGLE ---"
+    println ""
+    
+    let rows = 5
+    let i = 1
+    
+    while i <= rows {
+        let j = 1
+        while j <= i {
+            print "* "
+            j = j + 1
+        }
+        println ""
+        i = i + 1
+    }
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// INVERTED RIGHT TRIANGLE
+// -----------------------------------------------------------------------------
+
+fn print_inverted_triangle() {
+    println "--- INVERTED TRIANGLE ---"
+    println ""
+    
+    let rows = 5
+    let i = rows
+    
+    while i >= 1 {
+        let j = 1
+        while j <= i {
+            print "* "
+            j = j + 1
+        }
+        println ""
+        i = i - 1
+    }
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// PYRAMID
+// -----------------------------------------------------------------------------
+
+fn print_pyramid() {
+    println "--- PYRAMID ---"
+    println ""
+    
+    let rows = 5
+    let i = 1
+    
+    while i <= rows {
+        // Print leading spaces
+        let spaces = rows - i
+        let s = 0
+        while s < spaces {
+            print "  "
+            s = s + 1
+        }
+        
+        // Print stars
+        let stars = 2 * i - 1
+        let j = 0
+        while j < stars {
+            print "* "
+            j = j + 1
+        }
+        
+        println ""
+        i = i + 1
+    }
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// NUMBER TRIANGLE
+// -----------------------------------------------------------------------------
+
+fn print_number_triangle() {
+    println "--- NUMBER TRIANGLE ---"
+    println ""
+    
+    let rows = 5
+    let i = 1
+    
+    while i <= rows {
+        let j = 1
+        while j <= i {
+            print j
+            print " "
+            j = j + 1
+        }
+        println ""
+        i = i + 1
+    }
+    
+    println ""
+}
+
+// -----------------------------------------------------------------------------
+// DIAMOND
+// -----------------------------------------------------------------------------
+
+fn print_diamond() {
+    println "--- DIAMOND ---"
+    println ""
+    
+    let size = 5
+    
+    // Top half
+    let i = 1
+    while i <= size {
+        // Spaces
+        let spaces = size - i
+        let s = 0
+        while s < spaces {
+            print " "
+            s = s + 1
+        }
+        
+        // Stars
+        let stars = 2 * i - 1
+        let j = 0
+        while j < stars {
+            print "*"
+            j = j + 1
+        }
+        
+        println ""
+        i = i + 1
+    }
+    
+    // Bottom half
+    i = size - 1
+    while i >= 1 {
+        // Spaces
+        let spaces = size - i
+        let s = 0
+        while s < spaces {
+            print " "
+            s = s + 1
+        }
+        
+        // Stars
+        let stars = 2 * i - 1
+        let j = 0
+        while j < stars {
+            print "*"
+            j = j + 1
+        }
+        
+        println ""
+        i = i - 1
+    }
+    
+    println ""
+}

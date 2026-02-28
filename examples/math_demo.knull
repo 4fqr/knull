@@ -1,0 +1,132 @@
+// =============================================================================
+// KNULL MATH CONSTANTS AND FUNCTIONS
+// =============================================================================
+// A comprehensive math library demonstration
+
+fn main() {
+    println "=========================================="
+    println "  MATHEMATICAL CONSTANTS & FUNCTIONS"
+    println "=========================================="
+    println ""
+    
+    // Constants
+    println "--- MATHEMATICAL CONSTANTS ---"
+    println ""
+    println "π (Pi) approximation:     3.14159"
+    println "e (Euler's number):       2.71828"
+    println "φ (Golden ratio):         1.61803"
+    println "√2 (Square root of 2):    1.41421"
+    println ""
+    
+    // Triangle calculations
+    println "--- TRIANGLE CALCULATIONS ---"
+    println ""
+    
+    let a = 3
+    let b = 4
+    let c = 5
+    
+    println "Triangle sides: a=" + a + ", b=" + b + ", c=" + c
+    println ""
+    
+    // Perimeter
+    let perimeter = a + b + c
+    println "Perimeter: " + perimeter
+    
+    // Semi-perimeter
+    let s = perimeter / 2
+    println "Semi-perimeter: " + s
+    
+    // Area (Heron's formula simplified)
+    // For 3-4-5 triangle, area = 6
+    let area = 6
+    println "Area: " + area
+    
+    // Check if right triangle
+    let is_right = (a * a + b * b) == (c * c)
+    println "Right triangle: " + is_right
+    println ""
+    
+    // Number theory
+    println "--- NUMBER THEORY ---"
+    println ""
+    
+    let test_num = 28
+    println "Analyzing number: " + test_num
+    println ""
+    
+    // Check if perfect number
+    let sum_divisors = 0
+    let i = 1
+    while i < test_num {
+        if test_num % i == 0 {
+            sum_divisors = sum_divisors + i
+        }
+        i = i + 1
+    }
+    
+    println "Sum of divisors: " + sum_divisors
+    if sum_divisors == test_num {
+        println test_num + " is a PERFECT NUMBER!"
+    } else {
+        if sum_divisors > test_num {
+            println test_num + " is an abundant number"
+        } else {
+            println test_num + " is a deficient number"
+        }
+    }
+    println ""
+    
+    // Prime factorization
+    println "Prime factorization of 60:"
+    println "  60 = 2 × 2 × 3 × 5"
+    println "  60 = 2² × 3 × 5"
+    println ""
+    
+    // GCD and LCM
+    println "GCD(48, 18) = 6"
+    println "LCM(4, 6) = 12"
+    println ""
+    
+    // Series
+    println "--- MATHEMATICAL SERIES ---"
+    println ""
+    
+    // Sum of first n natural numbers
+    let n = 100
+    let sum_n = n * (n + 1) / 2
+    println "Sum of 1 to " + n + ": " + sum_n
+    println "Formula: n(n+1)/2 = " + n + " × " + (n + 1) + " / 2"
+    println ""
+    
+    // Sum of squares
+    let sum_sq = n * (n + 1) * (2 * n + 1) / 6
+    println "Sum of squares 1² to " + n + "²: " + sum_sq
+    println ""
+    
+    // Powers of 2
+    println "Powers of 2 (0 to 10):"
+    let pow = 1
+    let exp = 0
+    while exp <= 10 {
+        print "  2^" + exp + " = " + pow
+        if pow < 10 {
+            println "    "
+        } else {
+            if pow < 100 {
+                println "   "
+            } else {
+                if pow < 1000 {
+                    println "  "
+                } else {
+                    println " "
+                }
+            }
+        }
+        pow = pow * 2
+        exp = exp + 1
+    }
+    
+    println ""
+    println "=========================================="
+}

@@ -1,67 +1,154 @@
 //! Knull Programming Language - CLI Entry Point
+//! The most fabulous CLI tool ever created
 
 mod cli;
 mod compiler;
 mod lexer;
 mod parser;
+mod pkg;
 
 use clap::{Parser, Subcommand};
+use colored::*;
 use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "knull")]
 #[command(version = "1.0.0")]
-#[command(about = "The Knull Programming Language", long_about = None)]
+#[command(about = "The Knull Programming Language - Fast. Powerful. Fabulous.", long_about = None)]
+#[command(arg_required_else_help = true)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 
-    #[arg(short, long, global = true)]
+    #[arg(short, long, global = true, help = "Verbose output")]
     verbose: bool,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run a Knull file
+    /// Run a Knull file (like Python!)
+    #[command(alias = "r")]
     Run {
         /// The .knull file to run
         file: PathBuf,
     },
-    /// Compile a Knull file
+    /// Compile a Knull file to binary
+    #[command(alias = "b")]
     Build {
         /// The .knull file to compile
         file: PathBuf,
-        /// Output file
+        /// Output file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Release mode (optimized)
+        #[arg(short, long)]
+        release: bool,
+    },
+    /// Generate assembly output
+    #[command(alias = "a")]
+    Asm {
+        /// The .knull file to generate assembly from
+        file: PathBuf,
+        /// Output assembly file
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
     /// Check syntax without building
+    #[command(alias = "c")]
     Check {
         /// The .knull file to check
         file: PathBuf,
     },
     /// Format a Knull file
+    #[command(alias = "f")]
     Fmt {
         /// The .knull file to format
         file: PathBuf,
     },
-    /// Start REPL
+    /// Create a new Knull project
+    #[command(alias = "n")]
+    New {
+        /// Project name
+        name: String,
+    },
+    /// Add a dependency to the project
+    #[command(alias = "A")]
+    Add {
+        /// Package name
+        package: String,
+        /// Package version
+        version: Option<String>,
+    },
+    /// Run tests
+    #[command(alias = "t")]
+    Test,
+    /// Start interactive REPL
+    #[command(alias = "i")]
     Repl,
+    /// Show version information
+    #[command(alias = "v")]
+    Version,
+    /// Show help information
+    #[command(alias = "h")]
+    Help,
+}
+
+fn print_banner() {
+    println!("{}", r#"
+ _  ___      _       _ 
+| |/ / |    | |     | |
+| ' /| | ___| |_   _| |
+| . \| |/ _ \ | | | | |
+| |\ \ |  __/ | |_| |_|
+|_| \_\_|\___|_|\__, (_)
+                 __/ |  
+                |___/   
+"#.bright_purple());
 }
 
 fn main() {
+    // Enable colored output
+    colored::control::set_override(true);
+    
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Run { file } => cli::run_file(&file),
-        Commands::Build { file, output } => cli::build_file(&file, output.as_deref()),
-        Commands::Check { file } => cli::check_file(&file),
-        Commands::Fmt { file } => cli::format_file(&file),
-        Commands::Repl => cli::start_repl(),
+        Some(Commands::Run { file }) => cli::run_file(&file, cli.verbose),
+        Some(Commands::Build { file, output, release }) => {
+            if release {
+                println!("{} Building in release mode...", "🚀".bright_yellow());
+            }
+            cli::build_file(&file, output.as_deref(), cli.verbose)
+        }
+        Some(Commands::Asm { file, output }) => cli::generate_asm(&file, output.as_deref()),
+        Some(Commands::Check { file }) => cli::check_file(&file),
+        Some(Commands::Fmt { file }) => cli::format_file(&file),
+        Some(Commands::New { name }) => cli::new_project(&name),
+        Some(Commands::Add { package, version }) => cli::add_dependency(&package, version.as_deref()),
+        Some(Commands::Test) => cli::run_tests(),
+        Some(Commands::Repl) => {
+            print_banner();
+            cli::start_repl()
+        }
+        Some(Commands::Version) => {
+            cli::show_version();
+            Ok(())
+        }
+        Some(Commands::Help) => {
+            cli::show_help();
+            Ok(())
+        }
+        None => {
+            cli::show_help();
+            Ok(())
+        }
     };
 
-    if let Err(e) = result {
-        eprintln!("Error: {}", e);
-        std::process::exit(1);
+    match result {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("{} {}", "✗ Error:".bright_red().bold(), e);
+            std::process::exit(1);
+        }
     }
 }

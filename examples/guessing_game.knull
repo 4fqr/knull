@@ -1,0 +1,68 @@
+// =============================================================================
+// KNULL NUMBER GUESSING GAME
+// =============================================================================
+// Interactive game - computer picks a number, you guess it
+
+fn main() {
+    println "=========================================="
+    println "  NUMBER GUESSING GAME"
+    println "=========================================="
+    println ""
+    println "I'm thinking of a number between 1 and 100..."
+    println "(For this demo, the answer is 42)"
+    println ""
+    
+    let secret = 42
+    let guesses = 0
+    let max_guesses = 7
+    let won = false
+    
+    // Simulated guesses for demo (in real version, would use input)
+    let guess_list = [50, 25, 37, 43, 40, 41, 42]
+    let guess_idx = 0
+    
+    while guesses < max_guesses {
+        guesses = guesses + 1
+        
+        // Get next simulated guess
+        let guess = guess_list[guess_idx]
+        guess_idx = guess_idx + 1
+        
+        println "Guess #" + guesses + ": " + guess
+        
+        if guess == secret {
+            println "  >>> CORRECT! You got it! <<<"
+            won = true
+            break
+        } else {
+            if guess < secret {
+                println "  Too low! Try higher."
+            } else {
+                println "  Too high! Try lower."
+            }
+        }
+        
+        println ""
+    }
+    
+    println ""
+    if won {
+        println "🎉 CONGRATULATIONS! 🎉"
+        println "You found the number in " + guesses + " guesses!"
+        
+        if guesses <= 4 {
+            println "Amazing! You have excellent intuition!"
+        } else {
+            if guesses <= 6 {
+                println "Great job! That's a good score."
+            } else {
+                println "Not bad! But you can do better next time."
+            }
+        }
+    } else {
+        println "Game Over! The number was: " + secret
+    }
+    
+    println ""
+    println "Thanks for playing!"
+}
