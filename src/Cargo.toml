@@ -16,6 +16,7 @@ path = "main.rs"
 default = ["llvm-backend", "lsp"]
 llvm-backend = ["dep:inkwell"]
 lsp = ["dep:tower-lsp"]
+debugger = []
 
 [dependencies]
 clap = { version = "4.4", features = ["derive", "env"] }

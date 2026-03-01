@@ -583,27 +583,55 @@ knull/
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Lexer | Complete | Full tokenization |
-| Parser | Complete | Full AST generation |
-| Type System | Complete | Type inference, checking |
-| Ownership System | Complete | Borrow checker |
-| Interpreter | Complete | Tree-walk interpreter |
-| LLVM Backend | Partial | Basic codegen working |
-| Self-Hosted Compiler | In Progress | Lexer/parser complete |
-| Standard Library | Partial | Core modules working |
-| Package Manager | In Progress | Basic functionality |
-| Networking | Complete | TCP/UDP/sockets |
-| Documentation | In Progress | Core docs complete |
+| Lexer | Complete | Full tokenization, handles all basic tokens |
+| Parser | Complete | AST generation for core language features |
+| Interpreter | Complete | Tree-walk interpreter for execution |
+| C Backend | Complete | Generates valid C code, compiles to executable |
+| REPL | Complete | Interactive evaluation |
+| Type System | Partial | Basic type inference, not fully enforced |
+| Ownership System | Partial | Infrastructure exists, not enforced |
+| LLVM Backend | Partial | Basic codegen, limited optimization |
+| Self-Hosted Compiler | Stub | Lexer/parser stubs exist, non-functional |
+| Standard Library | Partial | Core built-in functions |
+| Package Manager | Partial | Basic project scaffolding |
+| Networking | Partial | TCP/UDP functions via builtins |
 
 ### Performance
 
-| Benchmark | Knull | Python | C | Rust |
-|-----------|-------|--------|---|------|
-| Fibonacci (40) | ~0.8s | ~35s | ~0.6s | ~0.5s |
-| Primes (1M) | ~0.3s | ~12s | ~0.2s | ~0.15s |
-| String concat | ~0.1s | ~2s | ~0.05s | ~0.04s |
+Benchmarks vary significantly based on implementation. The interpreter provides basic performance for prototyping and learning.
 
-*Note: Benchmarks run on AMD Ryzen 9 5900X, compiled with -O2*
+| Benchmark | Knull (Interpreter) | Python | C |
+|-----------|---------------------|--------|---|
+| Fibonacci (30) | ~2-5s | ~8s | ~0.2s |
+| Primes (100K) | ~1-3s | ~3s | ~0.1s |
+
+*Note: These are rough estimates for the interpreter. C backend performance varies. Not currently reproducibility-tested.*
+
+---
+
+## Known Limitations
+
+### Language Features
+- **Ownership system**: Infrastructure exists but is not enforced at compile time
+- **Mode system** (`novice`/`expert`/`god`): Syntax is parsed but mode switching has no effect
+- **Type checking**: Basic inference works, but strict mode not enforced
+- **Unsafe blocks**: Parsed but borrow checking is not active
+- **Inline assembly**: Syntax is parsed but assembly generation is not implemented
+- **Syscalls**: Basic support via built-in functions, not full syscall interface
+
+### Compiler
+- **Self-hosted compiler**: Lexer and parser stubs exist in `self_hosted/` but are non-functional
+- **LLVM backend**: Basic code generation, limited optimization passes
+- **C backend**: Generates valid C code but has limited optimization
+
+### Standard Library
+- **Module system**: `mod` keyword parsed but module loading is limited
+- **Full std library**: Core built-ins only, no comprehensive std like Rust
+
+### Ecosystem
+- **Package manager**: Basic project creation, limited dependency management
+- **LSP/IDE support**: Not implemented
+- **Debugger**: Not implemented
 
 ---
 
@@ -632,11 +660,15 @@ cargo clippy
 
 ### Areas for Contribution
 
+- [x] Complete C backend optimization
 - [ ] Complete LLVM backend optimization passes
+- [ ] Self-hosted compiler implementation
+- [ ] Full type system enforcement
+- [ ] Ownership/borrow checker implementation
 - [ ] WebAssembly target support
-- [ ] LSP (Language Server Protocol) implementation
+- [ ] Complete standard library
+- [ ] Package manager with dependency resolution
 - [ ] IDE plugins (VS Code, Vim, Emacs)
-- [ ] Additional standard library modules
 - [ ] Documentation translations
 - [ ] More examples and tutorials
 
@@ -652,10 +684,10 @@ cargo clippy
 - [x] Basic LLVM backend
 - [x] Standard library foundation
 
-### Phase 2: Self-Hosting (In Progress)
-- [x] Self-hosted lexer
-- [x] Self-hosted parser
-- [x] Self-hosted type checker
+### Phase 2: Self-Hosting (Stub)
+- [x] Self-hosted lexer (stub)
+- [x] Self-hosted parser (stub)
+- [ ] Self-hosted type checker
 - [ ] Self-hosted code generator
 - [ ] Self-compilation
 
@@ -765,15 +797,20 @@ Knull is currently in development. The language design and implementation may ch
 
 ## Project Statistics
 
-- **42 Working Examples**: All `.knull` example files execute correctly
-- **33/33 Tests Passing**: Complete test suite coverage
-- **Standard Library**: 6 modules (core, io, math, collections, net, async)
-- **Self-Hosted Compiler**: 1700+ lines of complete Knull implementation
-- **Bootstrap Compiler**: Rust-based compiler with C backend
-- **Package Manager**: Create, build, and manage projects
-- **LSP Server**: Full IDE integration with diagnostics, hover, completion
-- **Native Compilation**: Compiles to native binaries via C backend
-- **Three Language Modes**: Novice, Expert, and God modes fully functional
+- **Examples**: ~40 example files (mix of demonstrations and runnable programs)
+- **Tests**: 3 test files for core functionality
+- **Standard Library**: Built-in functions for I/O, networking, threading
+- **Bootstrap Compiler**: Rust-based compiler with C code generation
+- **C Backend**: Generates C code that compiles to executables
+- **REPL**: Interactive read-eval-print loop for experimentation
+
+### Working Features
+
+- Lexer and parser for core language syntax
+- Tree-walk interpreter for execution
+- C code generation for compilation
+- REPL for interactive use
+- Basic built-in functions (print, file I/O, networking)
 
 ---
 

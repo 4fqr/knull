@@ -8,6 +8,12 @@ use std::process::Command;
 
 use crate::parser::{ASTNode, Literal};
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum CompileMode {
+    Normal,
+    God,
+}
+
 pub struct CCodeGen {
     output: String,
     indent: usize,
@@ -18,6 +24,7 @@ pub struct CCodeGen {
     needs_gc: bool,
     needs_threading: bool,
     needs_networking: bool,
+    mode: CompileMode,
 }
 
 #[derive(Debug, Clone)]
@@ -38,6 +45,7 @@ impl CCodeGen {
             needs_gc: false,
             needs_threading: false,
             needs_networking: false,
+            mode: CompileMode::Normal,
         }
     }
 
@@ -392,6 +400,20 @@ impl CCodeGen {
                     self.emit_line(&format!("array_push({}, {});", temp, val));
                 }
                 Ok(format!("(knull_int){}", temp))
+            }
+            ASTNode::Asm(code) => {
+                if self.mode == CompileMode::God {
+                    Ok(format!("asm({});", code))
+                } else {
+                    Err("Inline assembly only allowed in God mode".to_string())
+                }
+            }
+            ASTNode::Syscall(args) => {
+                let args_code: Result<Vec<String>, String> =
+                    args.iter().map(|a| self.compile_node(a)).collect();
+                let args_str = args_code?.join(", ");
+
+                Ok(format!("syscall({})", args_str))
             }
             _ => Ok("0".to_string()),
         }

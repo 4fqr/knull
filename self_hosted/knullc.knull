@@ -3154,40 +3154,40 @@ fn alloc(size: i64) -> *void {
 }
 
 fn file_read(path: *i8) -> *i8 {
-    // Open file using syscall (sys_openat or sys_open)
+    // Open file using sys_open (syscall 2)
     // x86_64: rax=2 (open), rdi=pathname, rsi=flags, rdx=mode
-    // Flags: O_RDONLY = 0
     
-    // Use inline assembly for syscalls
     let fd: i64 = 0
+    fd = syscall(2, path as i64, 0, 0, 0, 0, 0)  // sys_open(path, O_RDONLY, 0)
     
-    // Try to open file
-    // For now, return empty content as placeholder
-    // In real implementation: syscall(SYS_open, path, O_RDONLY, 0)
+    if fd < 0 {
+        let buf = alloc(16) as *i8
+        buf[0] = 0
+        return buf
+    }
     
-    // Allocate buffer for file content (max 64KB)
     let buf = alloc(65536) as *i8
+    let bytes_read = syscall(0, fd, buf as i64, 65535, 0, 0, 0)  // sys_read
+    syscall(3, fd, 0, 0, 0, 0, 0)  // sys_close
     
-    // In real implementation:
-    // syscall(SYS_read, fd, buf, 65536)
-    // syscall(SYS_close, fd)
-    
-    // Return empty string for now
-    buf[0] = 0
+    if bytes_read >= 0 && bytes_read < 65536 {
+        buf[bytes_read] = 0
+    } else {
+        buf[0] = 0
+    }
     return buf
 }
 
 fn file_write(path: *i8, contents: *i8) -> bool {
-    // Open file for writing (O_WRONLY | O_CREAT | O_TRUNC = 1 | 64 | 512 = 577)
-    // Write contents
-    // Close file
-    
-    // In real implementation:
-    // fd = syscall(SYS_open, path, O_WRONLY|O_CREAT|O_TRUNC, 0644)
-    // syscall(SYS_write, fd, contents, strlen(contents))
-    // syscall(SYS_close, fd)
-    
-    return true
+    // sys_open with O_WRONLY|O_CREAT|O_TRUNC = 577
+    let fd = syscall(2, path as i64, 577, 420, 0, 0, 0)
+    if fd < 0 {
+        return false
+    }
+    let len = strlen(contents)
+    let written = syscall(0, fd, contents as i64, len, 0, 0, 0)
+    syscall(3, fd, 0, 0, 0, 0, 0)
+    return written >= 0
 }
 
 fn assemble(asm_code: *i8, target: *i8) -> *i8 {

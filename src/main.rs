@@ -10,10 +10,14 @@ mod compiler;
 mod ffi;
 mod gc;
 mod interpreter;
+#[cfg(feature = "lsp")]
+mod lsp;
 mod lexer;
 mod ownership;
 mod parser;
 mod pkg;
+#[cfg(feature = "debugger")]
+mod debugger;
 mod type_system;
 
 #[cfg(feature = "llvm-backend")]
@@ -113,6 +117,25 @@ enum Commands {
     /// Show help information
     #[command(alias = "h")]
     Help,
+    /// Start LSP server for IDE integration
+    #[cfg(feature = "lsp")]
+    Lsp {
+        /// Port to listen on (default: 5007)
+        #[arg(short, long, default_value = "5007")]
+        port: u16,
+        /// Initialize stdin/stdout for LSP protocol
+        #[arg(long)]
+        stdin: bool,
+    },
+    /// Start debugger
+    #[cfg(feature = "debugger")]
+    Debug {
+        /// The .knull file to debug
+        file: PathBuf,
+        /// Breakpoint line numbers
+        #[arg(short, long)]
+        break_at: Option<Vec<u32>>,
+    },
 }
 
 fn main() {
@@ -151,6 +174,18 @@ fn main() {
         Some(Commands::Help) | None => {
             show_help();
             Ok(())
+        }
+        #[cfg(feature = "lsp")]
+        Some(Commands::Lsp { port, stdin }) => {
+            if stdin {
+                crate::lsp::run_stdio()?;
+            } else {
+                crate::lsp::run_server(port)?;
+            }
+        }
+        #[cfg(feature = "debugger")]
+        Some(Commands::Debug { file, break_at }) => {
+            crate::debugger::start_debug_session(&file, break_at.unwrap_or_default())?;
         }
     };
 
