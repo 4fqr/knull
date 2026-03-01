@@ -180,7 +180,7 @@ pub fn generate_assembly(
     codegen.optimize(options.opt_level);
 
     // Generate assembly
-    codegen.compile_to_assembly(output_path)?;
+    codegen.compile_to_object(output_path)?;
 
     Ok(())
 }

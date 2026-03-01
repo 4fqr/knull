@@ -41,6 +41,19 @@ pub enum TokenKind {
     // Special
     Asm,
     Syscall,
+    // Compile-time execution
+    HashRun,
+    // Linear types
+    Linear,
+    // Effect system
+    Effect,
+    // Coroutines
+    Yield,
+    // Async
+    Async,
+    Await,
+    // Linear type consumption
+    Consume,
     // Range
     DotDot,
     DotDotEq,
@@ -127,6 +140,21 @@ impl TokenKind {
             // Special
             "asm" => Some(TokenKind::Asm),
             "syscall" => Some(TokenKind::Syscall),
+            // Linear types
+            "linear" => Some(TokenKind::Linear),
+            "consume" => Some(TokenKind::Consume),
+            "share" => Some(TokenKind::Identifier),
+            "copy" => Some(TokenKind::Identifier),
+            // Effect system
+            "effect" => Some(TokenKind::Effect),
+            "handler" => Some(TokenKind::Identifier),
+            "pure" => Some(TokenKind::Identifier),
+            // IO effect
+            "IO" => Some(TokenKind::Effect),
+            // Other keywords
+            "yield" => Some(TokenKind::Yield),
+            "async" => Some(TokenKind::Async),
+            "await" => Some(TokenKind::Await),
             _ => None,
         }
     }
@@ -431,9 +459,24 @@ impl Lexer {
                     self.advance();
                     TokenKind::At
                 }
-                '_' => {
+                '#' => {
                     self.advance();
-                    TokenKind::Underscore
+                    if self.peek() == Some('r') {
+                        let rest = &self.source[self.pos..self.pos + 3];
+                        if rest.iter().collect::<String>() == "run" {
+                            self.advance();
+                            self.advance();
+                            self.advance();
+                            tokens.push(Token {
+                                kind: TokenKind::HashRun,
+                                value: "#run".to_string(),
+                                line,
+                                col,
+                            });
+                            continue;
+                        }
+                    }
+                    TokenKind::Unknown
                 }
                 '=' => {
                     self.advance();

@@ -101,6 +101,59 @@ pub enum ASTNode {
     Asm(String),
     // Syscall
     Syscall(Vec<ASTNode>),
+    // Linear types
+    Consume(Box<ASTNode>),
+    LinearExpr(Box<ASTNode>, LinearKind),
+    // Effects
+    EffectAnnotation {
+        expr: Box<ASTNode>,
+        effects: Vec<Effect>,
+    },
+    // Capability types
+    Capability {
+        name: String,
+        resource: Option<Box<ASTNode>>,
+        permissions: Vec<Permission>,
+    },
+    // Compile-time execution (#run)
+    CompileTimeRun(Box<ASTNode>),
+    // Async function
+    AsyncFunction {
+        name: String,
+        params: Vec<Param>,
+        ret_type: Option<Type>,
+        body: Box<ASTNode>,
+    },
+    // Await expression
+    Await(Box<ASTNode>),
+    // Yield expression
+    Yield(Option<Box<ASTNode>>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LinearKind {
+    Linear,
+    Unrestricted,
+    Shareable,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Effect {
+    IO,
+    Mutation,
+    Panic,
+    Async,
+    NonDeterminism,
+    Divergence,
+    Custom(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Permission {
+    Read,
+    Write,
+    Execute,
+    Own,
 }
 
 #[derive(Debug, Clone)]
@@ -270,6 +323,11 @@ impl Parser {
                 }
                 TokenKind::Asm => items.push(self.parse_asm()?),
                 TokenKind::Syscall => items.push(self.parse_syscall()?),
+                TokenKind::Consume => items.push(self.parse_consume()?),
+                TokenKind::Linear => items.push(self.parse_linear_expr()?),
+                TokenKind::Effect => items.push(self.parse_effect_annotation()?),
+                TokenKind::HashRun => items.push(self.parse_run_block()?),
+                TokenKind::Async => items.push(self.parse_async_function()?),
                 _ => {
                     let expr = self.parse_expression()?;
                     items.push(expr);
@@ -636,6 +694,24 @@ impl Parser {
                 op,
                 operand: Box::new(operand),
             });
+        }
+        if self.current().kind == TokenKind::Yield {
+            self.advance();
+            if self.current().kind == TokenKind::Semicolon
+                || self.current().kind == TokenKind::RBrace
+                || self.current().kind == TokenKind::Comma
+                || self.current().kind == TokenKind::RParen
+                || self.current().kind == TokenKind::LBracket
+            {
+                return Ok(ASTNode::Yield(None));
+            }
+            let expr = self.parse_expression()?;
+            return Ok(ASTNode::Yield(Some(Box::new(expr))));
+        }
+        if self.current().kind == TokenKind::Await {
+            self.advance();
+            let expr = self.parse_unary()?;
+            return Ok(ASTNode::Await(Box::new(expr)));
         }
         self.parse_postfix()
     }
@@ -1032,6 +1108,106 @@ impl Parser {
         }
         self.expect(TokenKind::RParen)?;
         Ok(ASTNode::Syscall(args))
+    }
+
+    // Parse consume expression (forces linear use)
+    fn parse_consume(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Consume)?;
+        let expr = self.parse_expression()?;
+        Ok(ASTNode::Consume(Box::new(expr)))
+    }
+
+    // Parse linear expression
+    fn parse_linear_expr(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Linear)?;
+        let inner = self.parse_expression()?;
+        Ok(ASTNode::LinearExpr(Box::new(inner), LinearKind::Linear))
+    }
+
+    // Parse effect annotation
+    fn parse_effect_annotation(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Effect)?;
+        self.expect(TokenKind::LBrace)?;
+
+        let mut effects = Vec::new();
+        while self.current().kind != TokenKind::RBrace && self.current().kind != TokenKind::Eof {
+            let effect_name = self.parse_identifier()?;
+            let effect = match effect_name.to_lowercase().as_str() {
+                "io" => Effect::IO,
+                "mutation" | "mut" => Effect::Mutation,
+                "panic" => Effect::Panic,
+                "async" => Effect::Async,
+                "nondet" | "nondeterminism" => Effect::NonDeterminism,
+                "divergence" => Effect::Divergence,
+                _ => Effect::Custom(effect_name),
+            };
+            effects.push(effect);
+
+            if self.current().kind == TokenKind::Comma {
+                self.advance();
+            }
+        }
+        self.expect(TokenKind::RBrace)?;
+
+        let expr = self.parse_expression()?;
+        Ok(ASTNode::EffectAnnotation {
+            expr: Box::new(expr),
+            effects,
+        })
+    }
+
+    // Parse #run compile-time execution block
+    fn parse_run_block(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::HashRun)?;
+        let block = self.parse_block()?;
+        Ok(ASTNode::CompileTimeRun(Box::new(block)))
+    }
+
+    // Parse async function
+    fn parse_async_function(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Async)?;
+        self.expect(TokenKind::Fn)?;
+        let name = self.parse_identifier()?;
+
+        let mut params = Vec::new();
+        if self.current().kind == TokenKind::LParen {
+            self.advance();
+            while self.current().kind != TokenKind::RParen && self.current().kind != TokenKind::Eof
+            {
+                let param_name = self.parse_identifier()?;
+                let ty = if self.current().kind == TokenKind::Colon {
+                    self.advance();
+                    Some(self.parse_type()?)
+                } else {
+                    None
+                };
+                params.push(Param {
+                    name: param_name,
+                    ty,
+                });
+                if self.current().kind == TokenKind::Comma {
+                    self.advance();
+                }
+            }
+            if self.current().kind == TokenKind::RParen {
+                self.advance();
+            }
+        }
+
+        let ret_type = if self.current().kind == TokenKind::Arrow {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        let body = self.parse_block()?;
+        Ok(ASTNode::AsyncFunction {
+            name,
+            params,
+            ret_type,
+            body: Box::new(body),
+        })
     }
 }
 

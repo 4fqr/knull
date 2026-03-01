@@ -1,0 +1,297 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - MEMORY ALLOCATORS MODULE
+// =============================================================================
+// Pluggable allocator implementations for various use cases
+
+module stdlib.mem.allocators
+
+// =============================================================================
+// ALLOCATOR TRAIT
+// =============================================================================
+
+pub trait Allocator {
+    fn alloc(size: usize) -> *void
+    fn free(ptr: *void)
+    fn realloc(ptr: *void, new_size: usize) -> *void
+}
+
+// =============================================================================
+// ARENA ALLOCATOR
+// =============================================================================
+// Fast bulk allocation with single free for all allocations
+
+pub struct Arena {
+    buffer: *void,
+    offset: usize,
+    capacity: usize,
+}
+
+impl Arena {
+    pub fn new(capacity: usize) -> Arena {
+        let buffer = std.mem.alloc(capacity)
+        return Arena {
+            buffer: buffer,
+            offset: 0,
+            capacity: capacity,
+        }
+    }
+
+    pub fn alloc(&mut self, size: usize) -> *void {
+        let align = 16
+        let aligned_offset = (self.offset + align - 1) & !(align - 1)
+        
+        if aligned_offset + size > self.capacity {
+            return 0 as *void
+        }
+        
+        let ptr = (self.buffer as *u8).offset(aligned_offset)
+        self.offset = aligned_offset + size
+        return ptr as *void
+    }
+
+    pub fn free(&mut self, ptr: *void) {
+        // No-op: bulk deallocation only via reset
+    }
+
+    pub fn reset(&mut self) {
+        self.offset = 0
+    }
+
+    pub fn used(&self) -> usize {
+        return self.offset
+    }
+
+    pub fn remaining(&self) -> usize {
+        return self.capacity - self.offset
+    }
+}
+
+// =============================================================================
+// BUMP POINTER ALLOCATOR
+// =============================================================================
+// Fastest allocator - simple incrementing pointer, no free
+
+pub struct BumpPointer {
+    start: *void,
+    end: *void,
+    current: *void,
+}
+
+impl BumpPointer {
+    pub fn new(capacity: usize) -> BumpPointer {
+        let start = std.mem.alloc(capacity)
+        return BumpPointer {
+            start: start,
+            end: (start as *u8).offset(capacity),
+            current: start,
+        }
+    }
+
+    pub fn alloc(&mut self, size: usize) -> *void {
+        let align = 8
+        let aligned = (self.current as usize + align - 1) & !(align - 1)
+        let next = aligned + size
+        
+        if next > (self.end as usize) {
+            return 0 as *void
+        }
+        
+        self.current = next as *void
+        return aligned as *void
+    }
+
+    pub fn free(&mut self, ptr: *void) {
+        // No-op: bump pointer cannot free individual allocations
+    }
+
+    pub fn reset(&mut self) {
+        self.current = self.start
+    }
+
+    pub fn allocated(&self) -> usize {
+        return (self.current as usize) - (self.start as usize)
+    }
+}
+
+// =============================================================================
+// POOL ALLOCATOR
+// =============================================================================
+// Fixed-size object pool - excellent for many same-sized objects
+
+pub struct Pool {
+    block_size: usize,
+    align: usize,
+    free_list: *void,
+    memory: *void,
+    total_blocks: usize,
+    allocated: usize,
+}
+
+impl Pool {
+    pub fn new(block_size: usize, num_blocks: usize) -> Pool {
+        let align = 16
+        let aligned_size = (block_size + align - 1) & !(align - 1)
+        
+        let memory = std.mem.alloc(aligned_size * num_blocks)
+        
+        // Build free list
+        let free_list = memory
+        let mut current = memory as *void
+        let mut i = 0
+        while i < num_blocks - 1 {
+            let next = (memory as *u8).offset((i + 1) * aligned_size)
+            // Store next pointer in current block
+            current = (memory as *void).offset(i * aligned_size)
+            i = i + 1
+        }
+        
+        return Pool {
+            block_size: aligned_size,
+            align: align,
+            free_list: free_list,
+            memory: memory,
+            total_blocks: num_blocks,
+            allocated: 0,
+        }
+    }
+
+    pub fn alloc(&mut self) -> *void {
+        if self.free_list == 0 as *void {
+            return 0 as *void
+        }
+        
+        let ptr = self.free_list
+        
+        // Read next free pointer from current block
+        let next = *(self.free_list as * *void)
+        self.free_list = next
+        self.allocated = self.allocated + 1
+        
+        return ptr
+    }
+
+    pub fn free(&mut self, ptr: *void) {
+        if ptr == 0 as *void {
+            return
+        }
+        
+        // Store current free list head in freed block
+        *(ptr as * *void) = self.free_list
+        self.free_list = ptr
+        self.allocated = self.allocated - 1
+    }
+
+    pub fn used(&self) -> usize {
+        return self.allocated
+    }
+
+    pub fn available(&self) -> usize {
+        return self.total_blocks - self.allocated
+    }
+
+    pub fn reset(&mut self) {
+        // Rebuild free list
+        let mut i = 0
+        let mut current = self.memory as *void
+        while i < self.total_blocks - 1 {
+            let next = (self.memory as *u8).offset((i + 1) * self.block_size)
+            *(current as * *void) = next
+            current = next as *void
+            i = i + 1
+        }
+        *(current as * *void) = 0 as *void
+        self.free_list = self.memory
+        self.allocated = 0
+    }
+}
+
+// =============================================================================
+// MALLOC ALLOCATOR (SYSTEM DEFAULT)
+// =============================================================================
+// Wraps standard malloc/free
+
+pub struct MallocAllocator {}
+
+impl MallocAllocator {
+    pub fn new() -> MallocAllocator {
+        return MallocAllocator {}
+    }
+}
+
+impl Allocator for MallocAllocator {
+    pub fn alloc(size: usize) -> *void {
+        return std.mem.alloc(size)
+    }
+
+    pub fn free(ptr: *void) {
+        std.mem.free(ptr)
+    }
+
+    pub fn realloc(ptr: *void, new_size: usize) -> *void {
+        return std.mem.realloc(ptr, new_size)
+    }
+}
+
+// =============================================================================
+// ALLOCATOR SETTINGS
+// =============================================================================
+
+pub static mut CURRENT_ALLOCATOR: MallocAllocator = MallocAllocator {}
+
+pub fn set_allocator<A: Allocator>(alloc: A) {
+    // In practice, this would use interior mutability
+    // CURRENT_ALLOCATOR = alloc
+}
+
+pub fn get_allocator<T: Allocator>() -> &T {
+    // Return reference to current allocator
+    return &CURRENT_ALLOCATOR as &T
+}
+
+// =============================================================================
+// ALLOCATOR-FRIENDLY CONTAINERS
+// =============================================================================
+
+pub struct ArenaVec<T> {
+    arena: *Arena,
+    data: *T,
+    len: usize,
+    capacity: usize,
+}
+
+impl<T> ArenaVec<T> {
+    pub fn new_in(arena: *Arena, capacity: usize) -> ArenaVec<T> {
+        let data = arena.alloc(capacity * __size_of::<T>()) as *T
+        return ArenaVec {
+            arena: arena,
+            data: data,
+            len: 0,
+            capacity: capacity,
+        }
+    }
+
+    pub fn push(&mut self, value: T) {
+        if self.len >= self.capacity {
+            return
+        }
+        self.data[self.len] = value
+        self.len = self.len + 1
+    }
+
+    pub fn len(&self) -> usize {
+        return self.len
+    }
+
+    pub fn get(&self, index: usize) -> &T {
+        return &self.data[index]
+    }
+}
+
+// Helper for compile-time size
+fn __size_of<T>() -> usize {
+    compile_time!(0)
+}
+
+fn compile_time<T>(expr: T) -> T {
+    expr
+}

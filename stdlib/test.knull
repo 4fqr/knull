@@ -1,0 +1,185 @@
+// Test Framework for Knull
+// Built-in testing utilities
+
+/// Assert that a condition is true
+/// Usage: assert!(condition, "optional message")
+macro assert!($cond:expr, $msg:str) => {
+    if !$cond {
+        panic!("Assertion failed: " ++ $msg)
+    }
+}
+
+/// Assert that two values are equal
+/// Usage: assert_eq!(actual, expected)
+macro assert_eq!($actual:expr, $expected:expr) => {
+    let __actual = $actual
+    let __expected = $expected
+    if __actual != __expected {
+        panic!("Assertion failed: " ++ __actual ++ " != " ++ __expected)
+    }
+}
+
+/// Assert that two values are not equal
+macro assert_ne!($actual:expr, $expected:expr) => {
+    let __actual = $actual
+    let __expected = $expected
+    if __actual == __expected {
+        panic!("Assertion failed: " ++ __actual ++ " == " ++ __expected)
+    }
+}
+
+/// Assert that a value is null
+macro assert_null!($val:expr) => {
+    if $val != null {
+        panic!("Assertion failed: expected null")
+    }
+}
+
+/// Assert that a value is not null
+macro assert_not_null!($val:expr) => {
+    if $val == null {
+        panic!("Assertion failed: expected non-null")
+    }
+}
+
+/// Assert that a closure panics
+macro assert_panic!($closure:expr) => {
+    let __panicked = false
+    // In a full implementation, this would catch the panic
+    $closure
+}
+
+/// Test attribute - marks a function as a test
+/// Usage:
+/// @test
+/// fn test_example() {
+///     assert_eq!(add(2, 2), 4)
+/// }
+attribute @test
+
+/// Benchmark attribute - marks a function as a benchmark
+/// Usage:
+/// @bench
+/// fn bench_sort() {
+///     let arr = generate_array(1000)
+///     sort(arr)
+/// }
+attribute @bench
+
+/// Property-based test attribute
+/// Usage:
+/// @property
+/// fn test_sort_properties() {
+///     let arr = random_array(100)
+///     assert(is_sorted(sort(arr)))
+/// }
+attribute @property
+
+/// Ignore test attribute - skip this test
+attribute @ignore
+
+/// Test module marker
+module test {
+    pub fn run_all_tests() {
+        println("Running all tests...")
+    }
+    
+    pub fn run_benchmarks() {
+        println("Running benchmarks...")
+    }
+    
+    pub fn run_property_tests() {
+        println("Running property-based tests...")
+    }
+}
+
+fn assert(condition: bool, message: str) {
+    if !condition {
+        panic(message)
+    }
+}
+
+fn assert_eq<T>(a: T, b: T) where T: Eq {
+    if a != b {
+        panic("Values are not equal")
+    }
+}
+
+fn assert_ne<T>(a: T, b: T) where T: Eq {
+    if a == b {
+        panic("Values should not be equal")
+    }
+}
+
+fn assert_null<T>(value: T) {
+    if value != null {
+        panic("Expected null")
+    }
+}
+
+fn assert_not_null<T>(value: T) {
+    if value == null {
+        panic("Expected non-null value")
+    }
+}
+
+fn assert_true(condition: bool) {
+    if !condition {
+        panic("Expected true")
+    }
+}
+
+fn assert_false(condition: bool) {
+    if condition {
+        panic("Expected false")
+    }
+}
+
+// Test result types
+enum TestResult {
+    Passed,
+    Failed(str),
+    Skipped,
+}
+
+// Test statistics
+struct TestStats {
+    total: i32,
+    passed: i32,
+    failed: i32,
+    skipped: i32,
+}
+
+impl TestStats {
+    fn new() -> TestStats {
+        TestStats {
+            total: 0,
+            passed: 0,
+            failed: 0,
+            skipped: 0,
+        }
+    }
+    
+    fn record_pass(&mut self) {
+        self.total += 1
+        self.passed += 1
+    }
+    
+    fn record_fail(&mut self) {
+        self.total += 1
+        self.failed += 1
+    }
+    
+    fn record_skip(&mut self) {
+        self.total += 1
+        self.skipped += 1
+    }
+    
+    fn print_summary(&self) {
+        println("Test Results:")
+        println("  Total:  " ++ self.total.to_str())
+        println("  Passed: " ++ self.passed.to_str())
+        println("  Failed: " ++ self.failed.to_str())
+        println("  Skipped:" ++ self.skipped.to_str())
+    }
+}

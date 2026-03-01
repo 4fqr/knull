@@ -379,12 +379,27 @@ pub fn list_dependencies() -> Result<(), String> {
 
 /// Run tests
 pub fn run_tests() -> Result<(), String> {
-    println!("{}", "Running tests...".bright_yellow().bold());
+    run_tests_with_options(false, false)
+}
+
+/// Run tests with options
+pub fn run_tests_with_options(bench: bool, property_test: bool) -> Result<(), String> {
+    if bench {
+        println!("{}", "Running benchmarks...".bright_yellow().bold());
+    } else if property_test {
+        println!(
+            "{}",
+            "Running property-based tests...".bright_yellow().bold()
+        );
+    } else {
+        println!("{}", "Running tests...".bright_yellow().bold());
+    }
 
     let test_dirs = vec!["tests", "test", "src/tests"];
     let mut found_tests = false;
     let mut passed = 0;
     let mut failed = 0;
+    let mut skipped = 0;
 
     for dir in test_dirs {
         if let Ok(entries) = fs::read_dir(dir) {
@@ -401,8 +416,13 @@ pub fn run_tests() -> Result<(), String> {
                             passed += 1;
                         }
                         Err(e) => {
-                            println!("{} {}", "FAIL".red(), e);
-                            failed += 1;
+                            if path.to_string_lossy().contains("@ignore") {
+                                println!("{} (skipped)", "SKIP".yellow());
+                                skipped += 1;
+                            } else {
+                                println!("{} {}", "FAIL".red(), e);
+                                failed += 1;
+                            }
                         }
                     }
                 }
@@ -412,9 +432,13 @@ pub fn run_tests() -> Result<(), String> {
 
     if !found_tests {
         println!("  No test files found. Create .knull files in tests/ directory.");
+        println!("  Use @test, @bench, or @property attributes to mark test functions.");
     } else {
         println!();
-        println!("Test Results: {} passed, {} failed", passed, failed);
+        println!(
+            "Test Results: {} passed, {} failed, {} skipped",
+            passed, failed, skipped
+        );
     }
 
     Ok(())

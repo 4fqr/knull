@@ -2,6 +2,7 @@
 //! 
 //! Core runtime support for the Knull programming language.
 //! Provides memory management, syscalls, file I/O, networking, threading, and inline assembly support.
+//! Also includes Phase 3: Runtime Innovation - Pluggable allocators, zero-cost async, and coroutines.
 
 pub mod mem;
 pub mod syscall;
@@ -9,11 +10,17 @@ pub mod asm;
 pub mod io;
 pub mod net;
 pub mod thread;
+pub mod allocators;
+pub mod async_rt;
+pub mod coroutine;
 
 /// Initialize the runtime
 pub fn init() {
     // Initialize memory manager with default settings
     mem::init_memory_manager(mem::MemoryMode::GarbageCollected);
+    
+    // Initialize default allocator
+    allocators::set_allocator(allocators::MallocAllocator);
 }
 
 /// Runtime version

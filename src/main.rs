@@ -7,9 +7,14 @@ mod ast;
 mod c_codegen;
 mod cli;
 mod compiler;
+mod comptime;
+mod doc;
 mod ffi;
 mod gc;
+mod incremental;
 mod interpreter;
+mod linear_check;
+mod effects;
 #[cfg(feature = "lsp")]
 mod lsp;
 mod lexer;
@@ -107,7 +112,17 @@ enum Commands {
     },
     /// Run tests
     #[command(alias = "t")]
-    Test,
+    Test {
+        /// Run benchmarks instead of tests
+        #[arg(short, long)]
+        bench: bool,
+        /// Run property-based tests
+        #[arg(short, long)]
+        property: bool,
+        /// Generate documentation
+        #[arg(short, long)]
+        doc: bool,
+    },
     /// Start interactive REPL
     #[command(alias = "i")]
     Repl,
@@ -165,7 +180,21 @@ fn main() {
         Some(Commands::Add { package, version }) => {
             cli::add_dependency(&package, version.as_deref())
         }
-        Some(Commands::Test) => cli::run_tests(),
+        Some(Commands::Test { bench, property, doc }) => {
+            if doc {
+                println!("{}", "Generating documentation...".bright_yellow());
+                let project_path = std::env::current_dir().unwrap_or_default();
+                match crate::doc::generate_docs_for_project(&project_path) {
+                    Ok(docs) => {
+                        println!("{}", docs);
+                        Ok(())
+                    }
+                    Err(e) => Err(e)
+                }
+            } else {
+                cli::run_tests_with_options(bench, property)
+            }
+        }
         Some(Commands::Repl) => cli::start_repl(),
         Some(Commands::Version) => {
             show_version();

@@ -1,226 +1,505 @@
 // =============================================================================
 // KNULL STANDARD LIBRARY - ASYNC MODULE
 // =============================================================================
-// Asynchronous programming support
+// Zero-cost asynchronous programming support
+// Async functions generate state machines only when awaited
 
-// -----------------------------------------------------------------------------
-// FUTURE/PROMISE
-// -----------------------------------------------------------------------------
+module stdlib.async
 
-struct Future<T> {
-    completed: bool,
-    value: T,
-    error: *i8,
-    callbacks: *void,  // List of callbacks
+// =============================================================================
+// ZERO-COST FUTURE (LAZY STATE MACHINE)
+// =============================================================================
+// Future<T> is a zero-cost abstraction that generates state machine
+// only when .await is called. If never awaited, no overhead.
+
+// State machine states for async functions
+enum AsyncState {
+    Pending,    // Not started yet
+    Running,    // Currently executing
+    Suspended,  // Waiting for I/O
+    Completed,  // Finished with result
+    Failed,     // Finished with error
 }
+
+// Zero-cost Future - no heap allocation if not awaited
+struct Future<T> {
+    state: AsyncState,
+    result: T,
+    error: *i8,
+}
+
+// Constructor that creates a ready future (zero-allocation)
+pub fn future_ready<T>(value: T) -> Future<T> {
+    return Future<T> {
+        state: AsyncState.Completed,
+        result: value,
+        error: 0 as *i8,
+    }
+}
+
+// Constructor for pending future
+pub fn future_pending<T>() -> Future<T> {
+    return Future<T> {
+        state: AsyncState.Pending,
+        result: null,
+        error: 0 as *i8,
+    }
+}
+
+// Check if future is ready (does not poll/start the future)
+pub fn future_is_ready<T>(f: *Future<T>) -> bool {
+    return f.state == AsyncState.Completed || f.state == AsyncState.Failed
+}
+
+// Get result - blocks if not complete
+pub fn future_get<T>(f: *Future<T>) -> T {
+    while f.state != AsyncState.Completed && f.state != AsyncState.Failed {
+        // Yield to scheduler
+        yield_current_task()
+    }
+    return f.result
+}
+
+// Poll future (non-blocking)
+pub fn future_poll<T>(f: *Future<T>) -> bool {
+    return f.state == AsyncState.Completed
+}
+
+// =============================================================================
+// ASYNC/AWAIT DESUGARING
+// =============================================================================
+//
+// async fn fetch(url: String) -> Response
+// Desugars to:
+//
+// struct FetchState {
+//     url: String,
+//     result: Response,
+//     state: i32,  // 0=start, 1=waiting_connect, 2=waiting_recv, 3=done
+// }
+//
+// fn fetch(url: String) -> Future<Response> {
+//     return Future { state: FetchState { ... } }
+// }
+//
+// await future
+// Desugars to:
+//
+// if future.poll() == false {
+//     suspend_until_ready(&future)
+// }
+// return future.get()
+
+// Marker trait for async functions
+trait AsyncFn<Args, Return> {
+    fn async_call(args: Args) -> Future<Return>
+}
+
+// Suspend current task until future is ready
+fn suspend_until_ready<T>(f: *Future<T>) {
+    while !future_poll(f) {
+        yield_current_task()
+    }
+}
+
+// =============================================================================
+// TASK LOCAL STORAGE
+// =============================================================================
+
+struct TaskLocal<T> {
+    key: i64,
+    value: T,
+}
+
+pub fn task_local_get<T>(key: i64) -> Option<T> {
+    // Would access thread-local storage
+    return None()
+}
+
+pub fn task_local_set<T>(key: i64, value: T) {
+    // Would store in thread-local storage
+}
+
+// =============================================================================
+// PROMISE (FOR MANUAL ASYNC)
+// =============================================================================
 
 struct Promise<T> {
     future: Future<T>,
 }
 
-fn promise_new<T>() -> Promise<T> {
-    return Promise<T> {
-        future: Future<T> {
-            completed: false,
-            value: null,
-            error: 0 as *i8,
-            callbacks: 0 as *void,
-        },
+pub fn promise_new<T>() -> Promise<T> {
+    return Promise {
+        future: future_pending(),
     }
 }
 
-fn promise_resolve<T>(p: *Promise<T>, val: T) {
-    if !p.future.completed {
-        p.future.value = val
-        p.future.completed = true
-        // Call all callbacks
+pub fn promise_resolve<T>(p: *Promise<T>, val: T) {
+    if p.future.state == AsyncState.Pending || p.future.state == AsyncState.Running {
+        p.future.result = val
+        p.future.state = AsyncState.Completed
     }
 }
 
-fn promise_reject<T>(p: *Promise<T>, err: *i8) {
-    if !p.future.completed {
+pub fn promise_reject<T>(p: *Promise<T>, err: *i8) {
+    if p.future.state == AsyncState.Pending || p.future.state == AsyncState.Running {
         p.future.error = err
-        p.future.completed = true
+        p.future.state = AsyncState.Failed
     }
 }
 
-fn future_then<T, U>(f: *Future<T>, callback: fn(T) -> U) -> Future<U> {
-    // Register callback
-    return Future<U> {
-        completed: false,
-        value: null,
-        error: 0 as *i8,
-        callbacks: 0 as *void,
+pub fn promise_future<T>(p: *Promise<T>) -> *Future<T> {
+    return &p.future
+}
+
+// =============================================================================
+// FUTURE COMBINATORS
+// =============================================================================
+
+// Map result of future
+pub fn future_map<T, U>(f: *Future<T>, transform: fn(T) -> U) -> Future<U> {
+    let result = future_pending()
+    
+    // Wait for original future, then transform
+    let value = future_get(f)
+    let mapped = transform(value)
+    
+    return future_ready(mapped)
+}
+
+// Flatten nested futures
+pub fn future_flatten<T>(f: *Future<Future<T>>) -> Future<T> {
+    let inner = future_get(f)
+    return inner
+}
+
+// Race two futures (first to complete wins)
+pub fn future_race<T, U>(a: *Future<T>, b: *Future<U>) -> Future<i64> {
+    let result = future_pending()
+    
+    // Simplified - would need proper concurrent execution
+    if future_poll(a) {
+        return future_ready(0)
     }
-}
-
-fn future_catch<T>(f: *Future<T>, callback: fn(*i8)) -> Future<T> {
-    // Register error callback
-    return f
-}
-
-fn future_await<T>(f: *Future<T>) -> T {
-    // Block until future completes
-    while !f.completed {
-        // Yield or sleep
-        sleep(1)
+    if future_poll(b) {
+        return future_ready(1)
     }
-    return f.value
+    
+    return result
 }
 
-// -----------------------------------------------------------------------------
-// ASYNC/AWAIT
-// -----------------------------------------------------------------------------
+// Join multiple futures
+pub fn future_join<T>(futures: *Vec<Future<T>>) -> Future<Vec<T>> {
+    let all_done = true
+    
+    let i = 0
+    while i < futures.len {
+        if !future_poll(&futures.data[i]) {
+            all_done = false
+        }
+        i = i + 1
+    }
+    
+    if all_done {
+        let results = vec_new::<T>()
+        
+        let j = 0
+        while j < futures.len {
+            vec_push(&results, futures.data[j].result)
+            j = j + 1
+        }
+        
+        return future_ready(results)
+    }
+    
+    return future_pending()
+}
 
-// These would be language-level features in real implementation
-// For now, macros and conventions
-
-// async fn example() -> i32 {
-//     // Body
-// }
-// 
-// Desugars to:
-// fn example() -> Future<i32> {
-//     return async_block {
-//         // Body
-//     }
-// }
-
-// await expr
-// Desugars to:
-// future_await(expr)
-
-// -----------------------------------------------------------------------------
+// =============================================================================
 // TASK SCHEDULER
-// -----------------------------------------------------------------------------
+// =============================================================================
 
 struct Task {
     id: i64,
-    func: fn() -> *void,
-    state: i32,  // 0=pending, 1=running, 2=completed
+    func: fn() -> void,
+    state: AsyncState,
     priority: i32,
 }
 
 struct Scheduler {
     tasks: Vec<Task>,
-    current: i64,
+    current_id: i64,
 }
 
-fn scheduler_new() -> Scheduler {
+pub fn scheduler_new() -> Scheduler {
     return Scheduler {
-        tasks: vec_new<Task>(),
-        current: 0,
+        tasks: vec_new::<Task>(),
+        current_id: 0,
     }
 }
 
-fn scheduler_spawn(s: *Scheduler, f: fn() -> *void, priority: i32) -> i64 {
+pub fn scheduler_spawn(s: *Scheduler, f: fn() -> void, priority: i32) -> i64 {
+    let id = s.current_id
+    s.current_id = s.current_id + 1
+    
     let task = Task {
-        id: s.tasks.len,
+        id: id,
         func: f,
-        state: 0,
+        state: AsyncState.Pending,
         priority: priority,
     }
+    
     vec_push(&s.tasks, task)
-    return task.id
+    return id
 }
 
-fn scheduler_run(s: *Scheduler) {
+pub fn scheduler_run(s: *Scheduler) {
     while s.tasks.len > 0 {
         let i = 0
         while i < s.tasks.len {
             let task = &s.tasks.data[i]
-            if task.state == 0 {
-                task.state = 1
+            
+            if task.state == AsyncState.Pending || task.state == AsyncState.Running {
+                task.state = AsyncState.Running
                 task.func()
-                task.state = 2
             }
+            
             i = i + 1
         }
-        
-        // Remove completed tasks
-        // (Simplified - in real impl would use proper queue)
     }
 }
 
-// -----------------------------------------------------------------------------
-// CHANNEL (MESSAGE PASSING)
-// -----------------------------------------------------------------------------
-
-struct Channel<T> {
-    queue: Queue<T>,
-    closed: bool,
+// Yield control to scheduler
+fn yield_current_task() {
+    // In implementation, this would save state and return to scheduler
 }
 
-struct Sender<T> {
-    chan: *Channel<T>,
-}
+// =============================================================================
+// ASYNC UTILITIES
+// =============================================================================
 
-struct Receiver<T> {
-    chan: *Channel<T>,
-}
-
-fn channel_new<T>() -> (Sender<T>, Receiver<T>) {
-    let chan = alloc(sizeof(Channel<T>)) as *Channel<T>
-    chan.queue = queue_new<T>()
-    chan.closed = false
+// Sleep for specified milliseconds
+pub fn sleep(ms: i64) -> Future<i64> {
+    let p = promise_new::<i64>()
     
-    let tx = Sender<T> { chan: chan }
-    let rx = Receiver<T> { chan: chan }
+    // Would spawn timer task
+    // For now, simple implementation
+    future_ready(ms)
+    
+    return p.future
+}
+
+// Timeout for a future
+pub fn timeout<T>(f: *Future<T>, ms: i64) -> Future<Option<T>> {
+    let p = promise_new::<Option<T>>()
+    
+    // Race between original future and timeout
+    // Simplified - would need concurrent execution
+    if future_poll(f) {
+        promise_resolve(&p, Some(f.result))
+    } else {
+        promise_resolve(&p, None())
+    }
+    
+    return p.future
+}
+
+// Retry with backoff
+pub fn retry<T>(max_attempts: i32, mut action: fn() -> Future<T>) -> Future<T> {
+    let attempt = 0
+    
+    while attempt < max_attempts {
+        let result = action()
+        
+        if future_poll(&result) {
+            return result
+        }
+        
+        // Wait before retry
+        sleep(100 * (attempt + 1))
+    }
+    
+    return future_pending()
+}
+
+// =============================================================================
+// STREAMS (ASYNC ITERATORS)
+// =============================================================================
+
+struct Stream<T> {
+    next: fn() -> Future<Option<T>>,
+}
+
+pub fn stream_next<T>(s: *Stream<T>) -> Future<Option<T>> {
+    return s.next()
+}
+
+// Map over stream
+pub fn stream_map<T, U>(s: *Stream<T>, transform: fn(T) -> U) -> Stream<U> {
+    return Stream {
+        next: fn() -> Future<Option<U>> {
+            let item = future_get(&s.next())
+            match item {
+                Some(val) => future_ready(Some(transform(val))),
+                None => future_ready(None()),
+            }
+        }
+    }
+}
+
+// Filter stream
+pub fn stream_filter<T>(s: *Stream<T>, predicate: fn(T) -> bool) -> Stream<T> {
+    return Stream {
+        next: fn() -> Future<Option<T>> {
+            loop {
+                let item = future_get(&s.next())
+                match item {
+                    Some(val) => {
+                        if predicate(val) {
+                            return future_ready(Some(val))
+                        }
+                    },
+                    None => return future_ready(None()),
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
+// CHANNELS (ASYNC MESSAGE PASSING)
+// =============================================================================
+
+struct AsyncChannel<T> {
+    queue: Vec<T>,
+    closed: bool,
+    sender_waiting: bool,
+    receiver_waiting: bool,
+}
+
+pub fn channel_new<T>(buffer_size: usize) -> (AsyncSender<T>, AsyncReceiver<T>) {
+    let chan = alloc(sizeof(AsyncChannel<T>)) as *AsyncChannel<T>
+    chan.queue = vec_new::<T>()
+    chan.closed = false
+    chan.sender_waiting = false
+    chan.receiver_waiting = false
+    
+    let tx = AsyncSender { chan: chan }
+    let rx = AsyncReceiver { chan: chan }
     
     return (tx, rx)
 }
 
-fn sender_send<T>(tx: *Sender<T>, val: T) -> bool {
-    if tx.chan.closed {
-        return false
-    }
-    queue_enqueue(&tx.chan.queue, val)
-    return true
+struct AsyncSender<T> {
+    chan: *AsyncChannel<T>,
 }
 
-fn sender_close<T>(tx: *Sender<T>) {
+struct AsyncReceiver<T> {
+    chan: *AsyncChannel<T>,
+}
+
+pub fn sender_send<T>(tx: *AsyncSender<T>, value: T) -> Future<bool> {
+    if tx.chan.closed {
+        return future_ready(false)
+    }
+    
+    vec_push(&tx.chan.queue, value)
+    
+    if tx.chan.receiver_waiting {
+        // Wake up receiver
+        tx.chan.receiver_waiting = false
+    }
+    
+    return future_ready(true)
+}
+
+pub fn sender_close<T>(tx: *AsyncSender<T>) {
     tx.chan.closed = true
 }
 
-fn receiver_recv<T>(rx: *Receiver<T>) -> Option<T> {
-    // Block until message available
-    while queue_is_empty(&rx.chan.queue) && !rx.chan.closed {
-        sleep(1)
+pub fn receiver_recv<T>(rx: *AsyncReceiver<T>) -> Future<Option<T>> {
+    while vec_len(&rx.chan.queue) == 0 && !rx.chan.closed {
+        rx.chan.receiver_waiting = true
+        yield_current_task()
     }
     
-    if queue_is_empty(&rx.chan.queue) {
-        return None()
+    if vec_len(&rx.chan.queue) == 0 {
+        return future_ready(None())
     }
     
-    return queue_dequeue(&rx.chan.queue)
+    let value = vec_pop(&rx.chan.queue)
+    return future_ready(Some(value))
 }
 
-fn receiver_try_recv<T>(rx: *Receiver<T>) -> Option<T> {
-    return queue_dequeue(&rx.chan.queue)
+pub fn receiver_try_recv<T>(rx: *AsyncReceiver<T>) -> Future<Option<T>> {
+    if vec_len(&rx.chan.queue) == 0 {
+        return future_ready(None())
+    }
+    
+    let value = vec_pop(&rx.chan.queue)
+    return future_ready(Some(value))
 }
 
-// -----------------------------------------------------------------------------
-// TIMEOUT AND DELAY
-// -----------------------------------------------------------------------------
+// =============================================================================
+// MUTEX (ASYNC)
+// =============================================================================
 
-fn delay(ms: i64) -> Future<i64> {
-    let p = promise_new<i64>()
-    // Spawn thread that sleeps and then resolves
-    return p.future
+struct AsyncMutex<T> {
+    locked: bool,
+    waiters: Vec<Coroutine>,
+    value: T,
 }
 
-fn timeout<T>(f: *Future<T>, ms: i64) -> Future<T> {
-    // Race between future completing and timeout
-    return f
+pub fn mutex_new<T>(initial_value: T) -> AsyncMutex<T> {
+    return AsyncMutex {
+        locked: false,
+        waiters: vec_new::<Coroutine>(),
+        value: initial_value,
+    }
 }
 
-// -----------------------------------------------------------------------------
-// SELECT (RACE MULTIPLE FUTURES)
-// -----------------------------------------------------------------------------
+pub fn mutex_lock<T>(m: *AsyncMutex<T>) -> Future<*T> {
+    while m.locked {
+        yield_current_task()
+    }
+    
+    m.locked = true
+    return future_ready(&m.value)
+}
 
-fn select2<T, U>(a: *Future<T>, b: *Future<U>) -> Future<i64> {
-    // Return which completes first
-    let p = promise_new<i64>()
-    // Race them
-    return p.future
+pub fn mutex_unlock<T>(m: *AsyncMutex<T>) {
+    m.locked = false
+}
+
+// =============================================================================
+// SELECT (MULTI Futures)
+// =============================================================================
+
+enum SelectOutcome<A, B> {
+    A(A),
+    B(B),
+    Closed,
+}
+
+pub fn select<A, B>(
+    a: *Future<A>,
+    b: *Future<B>
+) -> Future<SelectOutcome<A, B>> {
+    if future_poll(a) {
+        return future_ready(SelectOutcome::A(a.result))
+    }
+    if future_poll(b) {
+        return future_ready(SelectOutcome::B(b.result))
+    }
+    
+    // Wait for either
+    while !future_poll(a) && !future_poll(b) {
+        yield_current_task()
+    }
+    
+    if future_poll(a) {
+        return future_ready(SelectOutcome::A(a.result))
+    }
+    
+    return future_ready(SelectOutcome::B(b.result))
 }

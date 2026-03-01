@@ -265,3 +265,276 @@ pub unsafe fn ffi_read_string(ptr: usize) -> String {
 pub fn ffi_init() {
     println!("[FFI] Foreign Function Interface initialized");
 }
+
+// ============================================
+// Enhanced FFI - extern "C" and extern "C++"
+// ============================================
+
+#[derive(Debug, Clone)]
+pub enum CallingConvention {
+    C,
+    CPlusPlus,
+    Raw,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternFunction {
+    pub name: String,
+    pub mangled_name: Option<String>,
+    pub return_type: FFIType,
+    pub param_types: Vec<FFIType>,
+    pub calling_convention: CallingConvention,
+    pub is_variadic: bool,
+}
+
+impl ExternFunction {
+    pub fn c(name: &str, return_type: FFIType, param_types: Vec<FFIType>) -> Self {
+        ExternFunction {
+            name: name.to_string(),
+            mangled_name: None,
+            return_type,
+            param_types,
+            calling_convention: CallingConvention::C,
+            is_variadic: false,
+        }
+    }
+
+    pub fn c_plus_plus(name: &str, return_type: FFIType, param_types: Vec<FFIType>) -> Self {
+        let mangled = cpp_name_mangle(name, &param_types);
+        ExternFunction {
+            name: name.to_string(),
+            mangled_name: Some(mangled),
+            return_type,
+            param_types,
+            calling_convention: CallingConvention::CPlusPlus,
+            is_variadic: false,
+        }
+    }
+
+    pub fn variadic(mut self) -> Self {
+        self.is_variadic = true;
+        self
+    }
+
+    pub fn get_symbol_name(&self) -> &str {
+        self.mangled_name.as_deref().unwrap_or(&self.name)
+    }
+}
+
+pub struct ExternBlock {
+    pub convention: CallingConvention,
+    pub functions: Vec<ExternFunction>,
+    pub library_path: Option<String>,
+}
+
+impl ExternBlock {
+    pub fn c() -> Self {
+        ExternBlock {
+            convention: CallingConvention::C,
+            functions: Vec::new(),
+            library_path: None,
+        }
+    }
+
+    pub fn c_plus_plus() -> Self {
+        ExternBlock {
+            convention: CallingConvention::CPlusPlus,
+            functions: Vec::new(),
+            library_path: None,
+        }
+    }
+
+    pub fn with_library(mut self, path: &str) -> Self {
+        self.library_path = Some(path.to_string());
+        self
+    }
+
+    pub fn add_function(mut self, func: ExternFunction) -> Self {
+        self.functions.push(func);
+        self
+    }
+}
+
+fn cpp_name_mangle(name: &str, params: &[FFIType]) -> String {
+    let mut mangled = String::from("_Z");
+    mangled.push_str(&encode_length(name));
+    mangled.push_str(name);
+
+    for param in params {
+        mangled.push_str(&match param {
+            FFIType::Void => "v".to_string(),
+            FFIType::Int => "i".to_string(),
+            FFIType::Float => "d".to_string(),
+            FFIType::Bool => "b".to_string(),
+            FFIType::String => "PKc".to_string(),
+            FFIType::Pointer => "Pv".to_string(),
+        });
+    }
+
+    mangled
+}
+
+fn encode_length(s: &str) -> String {
+    let len = s.len();
+    let mut result = String::new();
+    let digits = len.to_string();
+    for c in digits.chars() {
+        result.push(c);
+    }
+    result
+}
+
+pub struct BindingGenerator {
+    extern_blocks: Vec<ExternBlock>,
+}
+
+impl BindingGenerator {
+    pub fn new() -> Self {
+        BindingGenerator {
+            extern_blocks: Vec::new(),
+        }
+    }
+
+    pub fn add_extern_block(&mut self, block: ExternBlock) {
+        self.extern_blocks.push(block);
+    }
+
+    pub fn generate_knull_bindings(&self) -> String {
+        let mut output = String::new();
+
+        for block in &self.extern_blocks {
+            let keyword = match block.convention {
+                CallingConvention::C => "extern \"C\"",
+                CallingConvention::CPlusPlus => "extern \"C++\"",
+                CallingConvention::Raw => "extern",
+            };
+
+            output.push_str(&format!("{} {{\n", keyword));
+
+            for func in &block.functions {
+                output.push_str(&format!("    fn {}(", func.name));
+
+                for (i, param) in func.param_types.iter().enumerate() {
+                    if i > 0 {
+                        output.push_str(", ");
+                    }
+                    output.push_str(&format!("_: {}", self.ffi_type_to_knull(param)));
+                }
+
+                output.push_str(")");
+
+                if let Some(ret) = self.ffi_type_to_knull_opt(&func.return_type) {
+                    output.push_str(&format!(" -> {}", ret));
+                }
+
+                output.push_str("\n");
+            }
+
+            output.push_str("}\n\n");
+        }
+
+        output
+    }
+
+    fn ffi_type_to_knull(&self, ty: &FFIType) -> &'static str {
+        match ty {
+            FFIType::Void => "()",
+            FFIType::Int => "i64",
+            FFIType::Float => "f64",
+            FFIType::Bool => "bool",
+            FFIType::String => "&str",
+            FFIType::Pointer => "usize",
+        }
+    }
+
+    fn ffi_type_to_knull_opt(&self, ty: &FFIType) -> Option<&'static str> {
+        match ty {
+            FFIType::Void => None,
+            _ => Some(self.ffi_type_to_knull(ty)),
+        }
+    }
+
+    pub fn auto_generate_bindings(
+        header_path: &str,
+        convention: CallingConvention,
+    ) -> Result<String, String> {
+        let source = std::fs::read_to_string(header_path)
+            .map_err(|e| format!("Failed to read header: {}", e))?;
+
+        let mut bindings = String::new();
+        let keyword = match convention {
+            CallingConvention::C => "extern \"C\"",
+            CallingConvention::CPlusPlus => "extern \"C++\"",
+            CallingConvention::Raw => "extern",
+        };
+
+        bindings.push_str(&format!("{} {{\n", keyword));
+
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("fn ")
+                || (!trimmed.starts_with("#include") && trimmed.contains("("))
+            {
+                if trimmed.contains(";") {
+                    bindings.push_str(&format!("    {}\n", trimmed));
+                }
+            }
+        }
+
+        bindings.push_str("}\n");
+
+        Ok(bindings)
+    }
+}
+
+pub mod c_functions {
+    use super::*;
+
+    pub fn printf(format: &str, args: &[FFIValue]) -> i32 {
+        println!("[C] printf: {}", format);
+        0
+    }
+
+    pub fn malloc(size: usize) -> usize {
+        unsafe { libc::malloc(size as size_t) as usize }
+    }
+
+    pub fn free(ptr: usize) {
+        unsafe { libc::free(ptr as *mut c_void) }
+    }
+
+    pub fn memcpy(dest: usize, src: usize, n: usize) -> usize {
+        unsafe {
+            std::ptr::copy_nonoverlapping(src as *const c_void, dest as *mut c_void, n);
+        }
+        dest
+    }
+
+    pub fn strlen(s: *const c_char) -> usize {
+        unsafe {
+            let mut len = 0;
+            while *s.add(len) != 0 {
+                len += 1;
+            }
+            len
+        }
+    }
+}
+
+pub mod cpp_functions {
+    use super::*;
+
+    pub fn std__cout__flush() {
+        println!("[C++] std::cout::flush()");
+    }
+
+    pub fn std__cout__operator_lt_lt(value: i64) {
+        print!("{}", value);
+    }
+
+    pub fn std__string__constructor() -> usize {
+        0
+    }
+
+    pub fn std__string__destructor(_ptr: usize) {}
+}

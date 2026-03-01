@@ -1,0 +1,368 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - COROUTINES MODULE
+// =============================================================================
+// Lightweight coroutine support for cooperative multitasking
+
+module stdlib.thread.coroutines
+
+// =============================================================================
+// COROUTINE PRIMITIVES
+// =============================================================================
+
+pub struct Coroutine {
+    id: i64,
+    stack: *void,
+    stack_size: usize,
+    state: CoroutineState,
+    func: fn() -> void,
+    result: *void,
+}
+
+pub enum CoroutineState {
+    Ready,
+    Running,
+    Suspended,
+    Completed,
+}
+
+pub static mut NEXT_COROUTINE_ID: i64 = 0
+
+// =============================================================================
+// COROUTINE CREATION
+// =============================================================================
+
+pub fn spawn(func: fn() -> void) -> Coroutine {
+    let stack_size: usize = 65536 // 64KB default stack
+    
+    let stack = std.mem.alloc(stack_size)
+    
+    let id = get_next_id()
+    
+    return Coroutine {
+        id: id,
+        stack: stack,
+        stack_size: stack_size,
+        state: CoroutineState.Ready,
+        func: func,
+        result: 0 as *void,
+    }
+}
+
+pub fn spawn_with_stack(func: fn() -> void, stack_size: usize) -> Coroutine {
+    let stack = std.mem.alloc(stack_size)
+    
+    let id = get_next_id()
+    
+    return Coroutine {
+        id: id,
+        stack: stack,
+        stack_size: stack_size,
+        state: CoroutineState.Ready,
+        func: func,
+        result: 0 as *void,
+    }
+}
+
+fn get_next_id() -> i64 {
+    let id = NEXT_COROUTINE_ID
+    NEXT_COROUTINE_ID = NEXT_COROUTINE_ID + 1
+    return id
+}
+
+// =============================================================================
+// COROUTINE CONTROL
+// =============================================================================
+
+pub fn yield() {
+    // Suspend current coroutine, return control to scheduler
+    // In implementation, this would save/restore context
+    coroutine_yield_internal()
+}
+
+pub fn resume(coro: *Coroutine) {
+    if coro.state == CoroutineState.Completed {
+        return
+    }
+    
+    coro.state = CoroutineState.Running
+    
+    // Execute the coroutine function
+    coro.func()
+    
+    coro.state = CoroutineState.Completed
+}
+
+pub fn suspend() -> void {
+    yield()
+}
+
+pub fn is_completed(coro: *Coroutine) -> bool {
+    return coro.state == CoroutineState.Completed
+}
+
+pub fn is_suspended(coro: *Coroutine) -> bool {
+    return coro.state == CoroutineState.Suspended
+}
+
+// Internal yield implementation (platform-specific)
+extern "C" fn coroutine_yield_internal()
+
+// =============================================================================
+// COROUTINE RESULT
+// =============================================================================
+
+pub fn set_result(coro: *Coroutine, result: *void) {
+    coro.result = result
+}
+
+pub fn get_result(coro: *Coroutine) -> *void {
+    return coro.result
+}
+
+// =============================================================================
+// GENERATORS (COROUTINES THAT YIELD VALUES)
+// =============================================================================
+
+pub struct Generator<T> {
+    id: i64,
+    state: i32,
+    value: T,
+    stack: *void,
+    stack_size: usize,
+}
+
+pub fn generator_new<T>(stack_size: usize) -> Generator<T> {
+    let stack = std.mem.alloc(stack_size)
+    
+    return Generator {
+        id: get_next_id(),
+        state: 0,
+        value: null,
+        stack: stack,
+        stack_size: stack_size,
+    }
+}
+
+// =============================================================================
+// ASYNC/AWAIT VIA COROUTINES
+// =============================================================================
+// Basic building blocks for async/await using coroutines
+
+pub struct Awaitable<T> {
+    completed: bool,
+    value: T,
+    waiter: *Coroutine,
+}
+
+pub fn awaitable_new<T>(value: T) -> Awaitable<T> {
+    return Awaitable {
+        completed: true,
+        value: value,
+        waiter: 0 as *Coroutine,
+    }
+}
+
+pub fn awaitable_new_pending<T>() -> Awaitable<T> {
+    return Awaitable {
+        completed: false,
+        value: null,
+        waiter: 0 as *Coroutine,
+    }
+}
+
+pub fn awaitable_is_ready<T>(a: *Awaitable<T>) -> bool {
+    return a.completed
+}
+
+pub fn awaitable_get<T>(a: *Awaitable<T>) -> T {
+    while !a.completed {
+        yield()
+    }
+    return a.value
+}
+
+pub fn awaitable_complete<T>(a: *Awaitable<T>, value: T) {
+    a.value = value
+    a.completed = true
+}
+
+// =============================================================================
+// COROUTINE SCHEDULER
+// =============================================================================
+
+pub struct Scheduler {
+    ready_queue: Vec<Coroutine>,
+    running: *Coroutine,
+}
+
+impl Scheduler {
+    pub fn new() -> Scheduler {
+        return Scheduler {
+            ready_queue: vec_new::<Coroutine>(),
+            running: 0 as *Coroutine,
+        }
+    }
+
+    pub fn spawn(&mut self, func: fn() -> void) -> *Coroutine {
+        let coro = spawn(func)
+        vec_push(&self.ready_queue, coro)
+        return &coro
+    }
+
+    pub fn run(&mut self) {
+        while self.ready_queue.len > 0 {
+            let coro = vec_pop(&self.ready_queue)
+            self.running = &coro
+            resume(&coro)
+            
+            if !is_completed(&coro) {
+                // Re-add suspended coroutines to queue
+                vec_push(&self.ready_queue, coro)
+            }
+        }
+    }
+
+    pub fn yield_to_scheduler(&mut self) {
+        if self.running != 0 as *Coroutine {
+            let coro = self.running
+            vec_push(&self.ready_queue, *coro)
+        }
+    }
+}
+
+// =============================================================================
+// CHANNEL FOR COROUTINE COMMUNICATION
+// =============================================================================
+
+pub struct CoroutineChannel<T> {
+    buffer: Vec<T>,
+    closed: bool,
+    sender_count: i32,
+    receiver_count: i32,
+}
+
+impl<T> CoroutineChannel<T> {
+    pub fn new(capacity: usize) -> CoroutineChannel<T> {
+        return CoroutineChannel {
+            buffer: vec_new::<T>(),
+            closed: false,
+            sender_count: 0,
+            receiver_count: 0,
+        }
+    }
+
+    pub fn send(&mut self, value: T) -> bool {
+        if self.closed {
+            return false
+        }
+        vec_push(&self.buffer, value)
+        return true
+    }
+
+    pub fn recv(&mut self) -> Option<T> {
+        while vec_len(&self.buffer) == 0 && !self.closed {
+            yield()
+        }
+        
+        if vec_len(&self.buffer) == 0 {
+            return None()
+        }
+        
+        return vec_pop(&self.buffer)
+    }
+
+    pub fn close(&mut self) {
+        self.closed = true
+    }
+
+    pub fn is_closed(&self) -> bool {
+        return self.closed
+    }
+}
+
+// =============================================================================
+// SELECT STATEMENT (MULTIPLE COROUTINE WAITING)
+// =============================================================================
+
+pub enum SelectResult<T> {
+    Ready(T),
+    Timeout,
+    Closed,
+}
+
+pub fn select_timeout<T>(timeout_ms: i64, channels: *CoroutineChannel<T>) -> SelectResult<T> {
+    // Simplified implementation - would need timer support
+    return SelectResult::Closed
+}
+
+// =============================================================================
+// WORK STEALING QUEUE (FOR PARALLEL COROUTINES)
+// =============================================================================
+
+pub struct WorkStealingQueue {
+    buffers: Vec<Vec<Coroutine>>,
+    local_index: i64,
+}
+
+impl WorkStealingQueue {
+    pub fn new(num_threads: usize) -> WorkStealingQueue {
+        let buffers = vec_new::<Vec<Coroutine>>()
+        
+        let mut i = 0
+        while i < num_threads {
+            let queue = vec_new::<Coroutine>()
+            vec_push(&buffers, queue)
+            i = i + 1
+        }
+        
+        return WorkStealingQueue {
+            buffers: buffers,
+            local_index: 0,
+        }
+    }
+
+    pub fn push(&mut self, coro: Coroutine, thread_id: usize) {
+        if thread_id < vec_len(&self.buffers) {
+            vec_push(&self.buffers.data[thread_id], coro)
+        }
+    }
+
+    pub fn steal(&mut self, thread_id: usize) -> Option<Coroutine> {
+        // Try to steal from other threads
+        let mut other_id = (thread_id + 1) % vec_len(&self.buffers)
+        
+        while other_id != thread_id {
+            if vec_len(&self.buffers.data[other_id]) > 0 {
+                return vec_pop(&self.buffers.data[other_id])
+            }
+            other_id = (other_id + 1) % vec_len(&self.buffers)
+        }
+        
+        return None()
+    }
+}
+
+// =============================================================================
+// SLEEP / DELAY
+// =============================================================================
+
+pub fn sleep(ms: i64) {
+    // Yield until time elapses
+    // Simplified - real implementation would use timer interrupts
+    let end = get_time_ms() + ms
+    while get_time_ms() < end {
+        yield()
+    }
+}
+
+extern "C" fn get_time_ms() -> i64
+
+// =============================================================================
+// MAIN COROUTINE LOOP
+// =============================================================================
+
+pub fn start_coroutines(main_fn: fn() -> void) {
+    let mut scheduler = Scheduler.new()
+    scheduler.spawn(main_fn)
+    scheduler.run()
+}
