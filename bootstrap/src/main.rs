@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::process::exit;
 
 mod ast;
+mod ccodegen;
 mod codegen;
 mod compiler;
 mod lexer;
@@ -81,6 +82,16 @@ enum Commands {
         file: PathBuf,
     },
 
+    /// Generate C code from a Knull file
+    Cc {
+        /// The .knull file to compile
+        file: PathBuf,
+
+        /// Output file for C code (default: stdout)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
     /// Format a Knull file
     Fmt {
         /// The .knull file to format
@@ -128,6 +139,7 @@ fn main() {
         Commands::Ir { file, output } => generate_ir(file.clone(), output.clone()),
         Commands::Lsp => start_lsp(),
         Commands::Check { file } => check_file(file.clone()),
+        Commands::Cc { file, output } => generate_cc(file.clone(), output.clone()),
         Commands::Fmt { file, write } => format_file(file.clone(), *write),
         Commands::Version => {
             println!("knull {}", env!("CARGO_PKG_VERSION"));
@@ -268,6 +280,68 @@ fn generate_ir(file: PathBuf, output: Option<PathBuf>) -> Result<()> {
 
     Ok(())
 }
+
+/// Generate C code from a Knull file
+fn generate_cc(file: PathBuf, output: Option<PathBuf>) -> Result<()> {
+    info!("Generating C code for: {:?}", file);
+
+    // Read source file
+    let source = std::fs::read_to_string(&file)
+        .with_context(|| format!("Failed to read file: {:?}", file))?;
+
+    // Lex
+    let tokens = lexer::Lexer::new(&source).lex()?;
+
+    // Parse
+    let ast = parser::Parser::new(tokens).parse()?;
+
+    // Generate C code
+    let mut cc = ccodegen::CCodeGenerator::new();
+    let c_code = cc.generate(&ast);
+
+    // Add runtime functions (before the generated code)
+    let full_c = format!("{}\n\n{}\n", RUNTIME_FUNCTIONS, c_code);
+
+    match output {
+        Some(path) => {
+            std::fs::write(&path, full_c.as_bytes())?;
+            info!("C code written to: {:?}", path);
+        }
+        None => {
+            println!("{}", full_c);
+        }
+    }
+
+    Ok(())
+}
+
+const RUNTIME_FUNCTIONS: &str = r#"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define knull_println(x) _Generic((x), \
+    int: printf("%d\n", (x)), \
+    char*: printf("%s\n", (x)), \
+    default: printf("%p\n", (x)))
+
+#define knull_print(x) _Generic((x), \
+    int: printf("%d", (x)), \
+    char*: printf("%s", (x)), \
+    default: printf("%p", (x)))
+
+int knull_len(int* arr) {
+    return sizeof(arr) / sizeof(int);
+}
+
+void* knull_alloc(size_t size) {
+    return malloc(size);
+}
+
+void knull_free(void* ptr) {
+    free(ptr);
+}
+"#;
 
 /// Start the Language Server
 fn start_lsp() -> Result<()> {

@@ -15,6 +15,7 @@ mod incremental;
 mod interpreter;
 mod linear_check;
 mod effects;
+mod macros;
 #[cfg(feature = "lsp")]
 mod lsp;
 mod lexer;

@@ -660,7 +660,6 @@ impl Parser {
                     | TokenKind::LParen
                     | TokenKind::LBracket
                     | TokenKind::LBrace
-                    | TokenKind::OpSub
                     | TokenKind::OpLogNot
                     | TokenKind::OpBitNot
             )
@@ -1101,7 +1100,10 @@ impl Parser {
             None
         };
 
-        self.expect(TokenKind::Semicolon)?;
+        // Semicolons are optional in Knull
+        if self.check(TokenKind::Semicolon) {
+            self.advance();
+        }
 
         Ok(Stmt::Let { pattern, ty, init })
     }
@@ -1131,7 +1133,10 @@ impl Parser {
             None
         };
 
-        self.expect(TokenKind::Semicolon)?;
+        // Semicolons are optional in Knull
+        if self.check(TokenKind::Semicolon) {
+            self.advance();
+        }
 
         Ok(Stmt::Var { pattern, ty, init })
     }
@@ -1139,13 +1144,16 @@ impl Parser {
     fn parse_return_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwReturn)?;
 
-        let value = if self.check(TokenKind::Semicolon) {
+        let value = if self.check(TokenKind::Semicolon) || self.check(TokenKind::RBrace) {
             None
         } else {
             Some(self.parse_expression()?)
         };
 
-        self.expect(TokenKind::Semicolon)?;
+        // Semicolons are optional in Knull
+        if self.check(TokenKind::Semicolon) {
+            self.advance();
+        }
 
         Ok(Stmt::Return { value })
     }
