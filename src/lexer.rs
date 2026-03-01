@@ -54,6 +54,8 @@ pub enum TokenKind {
     Await,
     // Linear type consumption
     Consume,
+    // Type cast
+    As,
     // Range
     DotDot,
     DotDotEq,
@@ -127,6 +129,7 @@ impl TokenKind {
             "self" => Some(TokenKind::SelfValue),
             "unsafe" => Some(TokenKind::Unsafe),
             "const" => Some(TokenKind::Const),
+            "as" => Some(TokenKind::As),
             "type" => Some(TokenKind::Type),
             "never" => Some(TokenKind::Never),
             "true" => Some(TokenKind::True),
@@ -215,11 +218,44 @@ impl Lexer {
             if c == '/' {
                 if let Some(&next) = self.source.get(self.pos + 1) {
                     if next == '/' {
+                        // Single-line comment
                         while let Some(ch) = self.peek() {
                             if ch == '\n' {
                                 break;
                             }
                             self.advance();
+                        }
+                        continue;
+                    } else if next == '*' {
+                        // Block comment /* ... */
+                        self.advance(); // skip /
+                        self.advance(); // skip *
+                        let mut depth = 1;
+                        while let Some(ch) = self.peek() {
+                            if ch == '/' {
+                                self.advance();
+                                if let Some(&next_ch) = self.source.get(self.pos) {
+                                    if next_ch == '*' {
+                                        depth = depth + 1;
+                                        self.advance();
+                                    } else if next_ch == '/' {
+                                        // Check for nested comment end
+                                    }
+                                }
+                            } else if ch == '*' {
+                                self.advance();
+                                if let Some(&next_ch) = self.source.get(self.pos) {
+                                    if next_ch == '/' {
+                                        depth = depth - 1;
+                                        self.advance();
+                                        if depth == 0 {
+                                            break;
+                                        }
+                                    }
+                                }
+                            } else {
+                                self.advance();
+                            }
                         }
                         continue;
                     }
@@ -250,9 +286,38 @@ impl Lexer {
                 continue;
             }
 
-            // Number
+            // Number (including hex 0x...)
             if c.is_numeric() {
                 let mut value = String::new();
+                value.push(c);
+                self.advance();
+
+                // Check for hex literal (0x...)
+                if c == '0' {
+                    if let Some(ch) = self.peek() {
+                        if ch == 'x' || ch == 'X' {
+                            value.push(ch);
+                            self.advance();
+                            while let Some(ch) = self.peek() {
+                                if ch.is_ascii_hexdigit() {
+                                    value.push(ch);
+                                    self.advance();
+                                } else {
+                                    break;
+                                }
+                            }
+                            tokens.push(Token {
+                                kind: TokenKind::Int,
+                                value,
+                                line,
+                                col,
+                            });
+                            continue;
+                        }
+                    }
+                }
+
+                // Regular number
                 let mut has_dot = false;
                 while let Some(ch) = self.peek() {
                     if ch.is_numeric() {

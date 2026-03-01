@@ -101,6 +101,11 @@ pub enum ASTNode {
     Asm(String),
     // Syscall
     Syscall(Vec<ASTNode>),
+    // Type cast
+    AsCast {
+        expr: Box<ASTNode>,
+        target_type: Type,
+    },
     // Linear types
     Consume(Box<ASTNode>),
     LinearExpr(Box<ASTNode>, LinearKind),
@@ -306,7 +311,7 @@ impl Parser {
                 }
                 TokenKind::Const => {
                     self.advance();
-                    items.push(self.parse_let()?);
+                    items.push(self.parse_const()?);
                 }
                 TokenKind::Type => {
                     self.advance();
@@ -429,6 +434,29 @@ impl Parser {
         })
     }
 
+    fn parse_const(&mut self) -> Result<ASTNode, String> {
+        let name = self.parse_identifier()?;
+
+        // Check for type annotation
+        let ty = if self.current().kind == TokenKind::Colon {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        self.expect(TokenKind::Eq)?;
+        let value = self.parse_expression()?;
+        if self.current().kind == TokenKind::Semicolon {
+            self.advance();
+        }
+        Ok(ASTNode::Let {
+            name,
+            ty,
+            value: Box::new(value),
+        })
+    }
+
     fn parse_if(&mut self) -> Result<ASTNode, String> {
         self.expect(TokenKind::If)?;
         let cond = self.parse_expression()?;
@@ -489,6 +517,10 @@ impl Parser {
     fn parse_statement(&mut self) -> Result<ASTNode, String> {
         match self.current().kind {
             TokenKind::Let => self.parse_let(),
+            TokenKind::Const => {
+                self.advance();
+                self.parse_const()
+            }
             TokenKind::Return => {
                 self.advance();
                 let value = self.parse_expression()?;
@@ -770,6 +802,13 @@ impl Parser {
                     obj: Box::new(node),
                     field,
                 };
+            } else if self.current().kind == TokenKind::As {
+                self.advance();
+                let target_type = self.parse_type()?;
+                node = ASTNode::AsCast {
+                    expr: Box::new(node),
+                    target_type,
+                };
             } else {
                 break;
             }
@@ -783,7 +822,11 @@ impl Parser {
         match &token.kind {
             TokenKind::Int => {
                 self.advance();
-                let n: i64 = token.value.parse().unwrap_or(0);
+                let n: i64 = if token.value.starts_with("0x") || token.value.starts_with("0X") {
+                    i64::from_str_radix(&token.value[2..], 16).unwrap_or(0)
+                } else {
+                    token.value.parse().unwrap_or(0)
+                };
                 Ok(ASTNode::Literal(Literal::Int(n)))
             }
             TokenKind::Float => {
@@ -1080,6 +1123,21 @@ impl Parser {
                 self.advance();
                 let ty = self.parse_type()?;
                 Ok(Type::Ref(Box::new(ty)))
+            }
+            TokenKind::LBracket => {
+                self.advance();
+                let inner_ty = self.parse_type()?;
+                if self.current().kind == TokenKind::Semicolon {
+                    self.advance();
+                    if let TokenKind::Int = self.current().kind {
+                        let size: usize = self.current().value.parse().unwrap_or(1);
+                        self.advance();
+                        self.expect(TokenKind::RBracket)?;
+                        return Ok(Type::Array(Box::new(inner_ty), size));
+                    }
+                }
+                self.expect(TokenKind::RBracket)?;
+                Ok(Type::Slice(Box::new(inner_ty)))
             }
             _ => Ok(Type::Custom(self.current().value.clone())),
         }

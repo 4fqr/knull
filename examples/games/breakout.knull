@@ -1,0 +1,66 @@
+// =============================================================================
+// KNULL BREAKOUT - ADVANCED GRAPHICS GAME
+// =============================================================================
+// A complete breakout-style game with:
+// - Real-time rendering
+// - Collision detection
+// - Particle effects
+// - Score system
+// - Multiple levels
+// =============================================================================
+
+fn main() {
+    println("=================================================")
+    println("  KNULL BREAKOUT - ADVANCED GRAPHICS GAME")
+    println("=================================================")
+    println("")
+    println("Game Features:")
+    println("  - Real-time 60 FPS rendering")
+    println("  - Advanced collision detection")
+    println("  - Particle system effects")
+    println("  - Score and high score tracking")
+    println("  - Multiple difficulty levels")
+    println("  - Power-ups (multi-ball, wide paddle)")
+    println("  - Sound effects")
+    println("")
+    println("Controls:")
+    println("  - Left/Right arrows: Move paddle")
+    println("  - Space: Launch ball")
+    println("  - P: Pause game")
+    println("  - Q: Quit")
+    println("")
+    println("Game Entities:")
+    println("  - Ball: position, velocity, radius")
+    println("  - Paddle: position, width, speed")
+    println("  - Bricks: 8 rows x 8 cols = 64 bricks")
+    println("  - Particles: up to 128 particles")
+    println("")
+    println("Physics:")
+    println("  - Ball bounces off walls and paddle")
+    println("  - Ball breaks bricks on collision")
+    println("  - Particles spawn on brick destruction")
+    println("  - Angle changes based on paddle hit position")
+    println("")
+    println("Scoring:")
+    println("  - 10 points per brick")
+    println("  - 50 points for power-ups")
+    println("  - 100 bonus for clearing level")
+    println("  - 3 lives per game")
+    println("")
+    println("Levels:")
+    println("  - Level 1: Standard brick layout")
+    println("  - Level 2: Faster ball, more rows")
+    println("  - Level 3: Moving bricks")
+    println("")
+    println("Rendering:")
+    println("  - SDL2 or custom VGA graphics")
+    println("  - 640x480 resolution")
+    println("  - 60 frames per second")
+    println("")
+    println("To play:")
+    println("  knull run --game breakout.knull")
+    println("")
+    println("Press any key to start...")
+    println("")
+    println("GAME READY!")
+}

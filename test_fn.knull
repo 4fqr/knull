@@ -1,8 +1,0 @@
-fn main() {
-    let x = foo()
-    println x
-}
-
-fn foo() -> i32 {
-    return 42
-}

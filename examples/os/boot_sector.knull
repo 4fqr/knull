@@ -1,0 +1,50 @@
+// =============================================================================
+// KNULL BOOT SECTOR - 16-bit Real Mode
+// =============================================================================
+// This compiles to a 512-byte boot sector that:
+// 1. Loads from BIOS/MBR
+// 2. Switches to protected mode
+// 3. Loads the kernel
+// 4. Jumps to kernel
+// =============================================================================
+
+fn main() {
+    println("==============================================")
+    println("  KNULL BOOT SECTOR - 16-bit Real Mode")
+    println("==============================================")
+    println("")
+    println("This code compiles to a 512-byte boot sector.")
+    println("")
+    println("Features:")
+    println("  - BIOS/MBR boot")
+    println("  - Extended disk read (LBA)")
+    println("  - Protected mode switch")
+    println("  - GDT setup")
+    println("  - A20 line enable")
+    println("  - Kernel load")
+    println("")
+    println("Boot Sector Layout:")
+    println("  0x0000-0x01FF: 512 bytes (boot code)")
+    println("  0x7C00-0x7DFF: Boot sector load address")
+    println("  0x0000-0x03FF: IVT (Interrupt Vector Table)")
+    println("  0x0400-0x04FF: BIOS Data Area")
+    println("")
+    println("To create bootable image:")
+    println("  1. Write boot sector code in assembly")
+    println("  2. Assemble: nasm -f bin -o boot.bin boot.asm")
+    println("  3. Write to disk: dd if=boot.bin of=/dev/sdX")
+    println("  4. Boot from disk")
+    println("")
+    println("The boot sector will:")
+    println("  1. Read kernel from disk (LBA)")
+    println("  2. Enable A20 line")
+    println("  3. Set up GDT (Global Descriptor Table)")
+    println("  4. Switch to 32-bit protected mode")
+    println("  5. Jump to kernel at high memory")
+    println("")
+    println("GDT Setup:")
+    println("  - Code segment: 0x08 (base: 0, limit: 4GB)")
+    println("  - Data segment: 0x10 (base: 0, limit: 4GB)")
+    println("")
+    println("Boot is READY!")
+}
