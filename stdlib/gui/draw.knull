@@ -1,0 +1,244 @@
+// =============================================================================
+// KNULL DRAWING PRIMITIVES - SDL2 Rendering
+// =============================================================================
+
+module std.gui.draw
+
+use std.gui.sdl2
+
+// -----------------------------------------------------------------------------
+// SDL2 Drawing Functions
+// -----------------------------------------------------------------------------
+
+extern "C" {
+    fn SDL_SetRenderDrawColor(renderer: *void, r: u8, g: u8, b: u8, a: u8) -> i32
+    fn SDL_RenderClear(renderer: *void) -> i32
+    fn SDL_RenderDrawLine(renderer: *void, x1: i32, y1: i32, x2: i32, y2: i32) -> i32
+    fn SDL_RenderDrawRect(renderer: *void, x: i32, y: i32, w: i32, h: i32) -> i32
+    fn SDL_RenderFillRect(renderer: *void, x: i32, y: i32, w: i32, h: i32) -> i32
+    fn SDL_RenderDrawPoint(renderer: *void, x: i32, y: i32) -> i32
+    fn SDL_SetRenderDrawBlendMode(renderer: *void, blend: i32) -> i32
+}
+
+// -----------------------------------------------------------------------------
+// Blend Modes
+// -----------------------------------------------------------------------------
+
+const SDL_BLENDMODE_NONE: i32 = 0
+const SDL_BLENDMODE_BLEND: i32 = 1
+const SDL_BLENDMODE_ADD: i32 = 2
+const SDL_BLENDMODE_MOD: i32 = 4
+
+// -----------------------------------------------------------------------------
+// Color Type
+// -----------------------------------------------------------------------------
+
+struct Color {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+}
+
+// Predefined colors
+const BLACK: Color = Color { r: 0, g: 0, b: 0, a: 255 }
+const WHITE: Color = Color { r: 255, g: 255, b: 255, a: 255 }
+const RED: Color = Color { r: 255, g: 0, b: 0, a: 255 }
+const GREEN: Color = Color { r: 0, g: 255, b: 0, a: 255 }
+const BLUE: Color = Color { r: 0, g: 0, b: 255, a: 255 }
+const YELLOW: Color = Color { r: 255, g: 255, b: 0, a: 255 }
+const CYAN: Color = Color { r: 0, g: 255, b: 255, a: 255 }
+const MAGENTA: Color = Color { r: 255, g: 0, b: 255, a: 255 }
+const GRAY: Color = Color { r: 128, g: 128, b: 128, a: 255 }
+const DARK_GRAY: Color = Color { r: 64, g: 64, b: 64, a: 255 }
+const LIGHT_GRAY: Color = Color { r: 192, g: 192, b: 192, a: 255 }
+const ORANGE: Color = Color { r: 255, g: 165, b: 0, a: 255 }
+const PURPLE: Color = Color { r: 128, g: 0, b: 128, a: 255 }
+const PINK: Color = Color { r: 255, g: 192, b: 203, a: 255 }
+const BROWN: Color = Color { r: 139, g: 69, b: 19, a: 255 }
+const TRANSPARENT: Color = Color { r: 0, g: 0, b: 0, a: 0 }
+
+fn rgb(r: u8, g: u8, b: u8) -> Color {
+    Color { r: r, g: g, b: b, a: 255 }
+}
+
+fn rgba(r: u8, g: u8, b: u8, a: u8) -> Color {
+    Color { r: r, g: g, b: b, a: a }
+}
+
+// -----------------------------------------------------------------------------
+// Clear Screen
+// -----------------------------------------------------------------------------
+
+fn clear(renderer: *void, color: Color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
+    SDL_RenderClear(renderer)
+}
+
+// -----------------------------------------------------------------------------
+// Set Blend Mode
+// -----------------------------------------------------------------------------
+
+fn set_blend_mode(renderer: *void, blend: i32) {
+    SDL_SetRenderDrawBlendMode(renderer, blend)
+}
+
+// -----------------------------------------------------------------------------
+// Draw Point
+// -----------------------------------------------------------------------------
+
+fn draw_point(renderer: *void, x: i32, y: i32, color: Color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
+    SDL_RenderDrawPoint(renderer, x, y)
+}
+
+// -----------------------------------------------------------------------------
+// Draw Line
+// -----------------------------------------------------------------------------
+
+fn draw_line(renderer: *void, x1: i32, y1: i32, x2: i32, y2: i32, color: Color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
+    SDL_RenderDrawLine(renderer, x1, y1, x2, y2)
+}
+
+// -----------------------------------------------------------------------------
+// Draw Rectangle (outline)
+// -----------------------------------------------------------------------------
+
+fn draw_rect(renderer: *void, x: i32, y: i32, w: i32, h: i32, color: Color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
+    SDL_RenderDrawRect(renderer, x, y, w, h)
+}
+
+// -----------------------------------------------------------------------------
+// Draw Filled Rectangle
+// -----------------------------------------------------------------------------
+
+fn fill_rect(renderer: *void, x: i32, y: i32, w: i32, h: i32, color: Color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
+    SDL_RenderFillRect(renderer, x, y, w, h)
+}
+
+// -----------------------------------------------------------------------------
+// Draw Circle (outline)
+// -----------------------------------------------------------------------------
+
+fn draw_circle(renderer: *void, cx: i32, cy: i32, radius: i32, color: Color) {
+    if radius <= 0 {
+        return
+    }
+    
+    let x = radius
+    let y = i32(0)
+    let err = i32(0)
+    
+    while x >= y {
+        draw_point(renderer, cx + x, cy + y, color)
+        draw_point(renderer, cx + y, cy + x, color)
+        draw_point(renderer, cx - y, cy + x, color)
+        draw_point(renderer, cx - x, cy + y, color)
+        draw_point(renderer, cx - x, cy - y, color)
+        draw_point(renderer, cx - y, cy - x, color)
+        draw_point(renderer, cx + y, cy - x, color)
+        draw_point(renderer, cx + x, cy - y, color)
+        
+        y = y + 1
+        if err <= 0 {
+            err = err + 2 * y + 1
+        }
+        if err > 0 {
+            x = x - 1
+            err = err - 2 * x + 1
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Draw Filled Circle
+// -----------------------------------------------------------------------------
+
+fn fill_circle(renderer: *void, cx: i32, cy: i32, radius: i32, color: Color) {
+    if radius <= 0 {
+        return
+    }
+    
+    let y = -radius
+    while y <= radius {
+        let x = -radius
+        while x <= radius {
+            if x*x + y*y <= radius*radius {
+                draw_point(renderer, cx + x, cy + y, color)
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Draw Triangle
+// -----------------------------------------------------------------------------
+
+fn draw_triangle(renderer: *void, x1: i32, y1: i32, x2: i32, y2: i32, x3: i32, y3: i32, color: Color) {
+    draw_line(renderer, x1, y1, x2, y2, color)
+    draw_line(renderer, x2, y2, x3, y3, color)
+    draw_line(renderer, x3, y3, x1, y1, color)
+}
+
+// -----------------------------------------------------------------------------
+// Draw Filled Triangle
+// -----------------------------------------------------------------------------
+
+fn fill_triangle(renderer: *void, x1: i32, y1: i32, x2: i32, y2: i32, x3: i32, y3: i32, color: Color) {
+    let min_x = x1
+    let max_x = x1
+    if x2 < min_x { min_x = x2 }
+    if x3 < min_x { min_x = x3 }
+    if x2 > max_x { max_x = x2 }
+    if x3 > max_x { max_x = x3 }
+    
+    let min_y = y1
+    let max_y = y1
+    if y2 < min_y { min_y = y2 }
+    if y3 < min_y { min_y = y3 }
+    if y2 > max_y { max_y = y2 }
+    if y3 > max_y { max_y = y3 }
+    
+    let y = min_y
+    while y <= max_y {
+        let x = min_x
+        while x <= max_x {
+            let w0 = cross(x2 - x1, y2 - y1, x - x1, y - y1)
+            let w1 = cross(x3 - x2, y3 - y2, x - x2, y - y2)
+            let w2 = cross(x1 - x3, y1 - y3, x - x3, y - y3)
+            
+            if w0 >= 0 && w1 >= 0 && w2 >= 0 {
+                draw_point(renderer, x, y, color)
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+}
+
+fn cross(ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
+    ax * by - ay * bx
+}
+
+// -----------------------------------------------------------------------------
+// Draw Grid
+// -----------------------------------------------------------------------------
+
+fn draw_grid(renderer: *void, x: i32, y: i32, w: i32, h: i32, cell_size: i32, color: Color) {
+    let cx = x
+    while cx <= x + w {
+        draw_line(renderer, cx, y, cx, y + h, color)
+        cx = cx + cell_size
+    }
+    
+    let cy = y
+    while cy <= y + h {
+        draw_line(renderer, x, cy, x + w, cy, color)
+        cy = cy + cell_size
+    }
+}

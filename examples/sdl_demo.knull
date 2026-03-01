@@ -1,0 +1,92 @@
+// =============================================================================
+// KNULL SDL2 DEMO - Working Graphics Example
+// =============================================================================
+
+use std.gui.sdl2
+use std.gui.draw
+
+fn main() {
+    println("=====================================")
+    println("  KNULL SDL2 GRAPHICS DEMO")
+    println("=====================================")
+    println("")
+    
+    // Initialize SDL2
+    if !sdl_init_video() {
+        println("ERROR: Failed to initialize SDL2!")
+        println("Error: " + sdl_get_error())
+        return
+    }
+    println("[OK] SDL2 initialized successfully")
+    
+    // Create window
+    let win = window_create_simple("Knull SDL2 Demo", 800, 600)
+    if !window_is_valid(win) {
+        println("ERROR: Failed to create window!")
+        println("Error: " + sdl_get_error())
+        SDL_Quit()
+        return
+    }
+    println("[OK] Window created (800x600)")
+    
+    // Create renderer
+    let rnd = renderer_create_auto(win)
+    if !renderer_is_valid(rnd) {
+        println("ERROR: Failed to create renderer!")
+        println("Error: " + sdl_get_error())
+        window_destroy(win)
+        SDL_Quit()
+        return
+    }
+    println("[OK] Renderer created")
+    
+    // Draw something
+    println("")
+    println("Drawing graphics...")
+    
+    // Clear to dark background
+    clear(rnd.ptr, DARK_GRAY)
+    
+    // Draw a grid
+    draw_grid(rnd.ptr, 50, 50, 700, 500, 50, GRAY)
+    
+    // Draw some shapes
+    draw_rect(rnd.ptr, 100, 100, 100, 100, RED)
+    fill_rect(rnd.ptr, 250, 100, 100, 100, GREEN)
+    
+    draw_circle(rnd.ptr, 550, 150, 50, YELLOW)
+    fill_circle(rnd.ptr, 550, 250, 50, CYAN)
+    
+    draw_triangle(rnd.ptr, 100, 350, 200, 450, 100, 450, MAGENTA)
+    fill_triangle(rnd.ptr, 250, 350, 350, 450, 250, 450, ORANGE)
+    
+    // Draw some lines
+    let i = 0
+    while i < 10 {
+        let y = 100 + i * 30
+        draw_line(rnd.ptr, 400, y, 700, y + 50, PURPLE)
+        i = i + 1
+    }
+    
+    // Present the renderer
+    renderer_present(rnd)
+    
+    println("[OK] Graphics rendered!")
+    println("")
+    println("A graphics window should be visible.")
+    println("It will close automatically in 5 seconds...")
+    
+    // Wait 5 seconds
+    delay_seconds(5)
+    
+    // Clean up
+    renderer_destroy(rnd)
+    window_destroy(win)
+    SDL_Quit()
+    
+    println("")
+    println("[OK] SDL2 shut down cleanly")
+    println("=====================================")
+    println("  DEMO COMPLETE!")
+    println("=====================================")
+}

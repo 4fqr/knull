@@ -1,0 +1,30 @@
+// Minimal runtime for bare-metal
+
+// No-op start
+fn _start() -> i32 {
+    main()
+    0  // or hang
+}
+
+// Minimal memcpy
+fn memcpy(dest: *void, src: *void, n: usize) -> *void {
+    let d = dest as *u8
+    let s = src as *u8
+    let i = 0
+    while i < n {
+        d[i] = s[i]
+        i = i + 1
+    }
+    dest
+}
+
+// Minimal memset
+fn memset(s: *void, c: i32, n: usize) -> *void {
+    let p = s as *u8
+    let i = 0
+    while i < n {
+        p[i] = c as u8
+        i = i + 1
+    }
+    s
+}

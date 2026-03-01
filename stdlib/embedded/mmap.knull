@@ -1,0 +1,33 @@
+// Memory-mapped I/O for hardware access
+
+// Read from memory-mapped register
+fn mmio_read32(addr: u32) -> u32 {
+    let ptr = addr as *volatile u32
+    *ptr
+}
+
+// Write to memory-mapped register
+fn mmio_write32(addr: u32, value: u32) {
+    let ptr = addr as *volatile u32
+    *ptr = value
+}
+
+// UART16550 Serial (common embedded UART)
+// Base address for Raspberry Pi (0x3F201000 for Pi 3, 0x20201000 for Pi 4)
+const UART_BASE: u32 = 0x3F201000
+const UART_DR: u32 = UART_BASE + 0  // Data register
+const UART_FR: u32 = UART_BASE + 0x18  // Flag register
+
+fn uart_putchar(c: u8) {
+    // Wait for TX FIFO to have space
+    while (mmio_read32(UART_FR) & 0x20) != 0 {}
+    mmio_write32(UART_DR, c as u32)
+}
+
+fn uart_puts(s: *i8) {
+    let i = 0
+    while s[i] != 0 {
+        uart_putchar(s[i])
+        i = i + 1
+    }
+}

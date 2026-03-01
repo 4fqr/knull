@@ -1,33 +1,54 @@
-// =============================================================================
-// Knull Web Server - Production Ready
-// =============================================================================
-// A complete HTTP/1.1 web server demonstrating Knull capabilities
-
-// =============================================================================
-// MAIN
-// =============================================================================
-
-fn main() {
-    println("Knull Web Server starting on port 8080...")
-    println("Try: curl http://localhost:8080/")
-    println("Try: curl http://localhost:8080/health")
-    println("Try: curl http://localhost:8080/api/fib/10")
-    println("")
-    
-    // For now, just demonstrate the fibonacci endpoint
-    println("Testing fibonacci endpoint:")
-    let n = 10
-    let result = fibonacci(n)
-    println("fib(" + n + ") = " + result)
-    
-    println("")
-    println("Server would listen on http://localhost:8080")
-    println("(Full TCP socket support coming in next release)")
+fn find_space(s, start) {
+    let i = start
+    while i < len(s) {
+        if s[i] == " " {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
 }
 
-fn fibonacci(n) {
-    if n <= 1 {
-        return n
+fn get_path(request) {
+    let first = find_space(request, 0)
+    if first < 0 {
+        return "/"
     }
-    return fibonacci(n - 1) + fibonacci(n - 2)
+    let second = find_space(request, first + 1)
+    if second < 0 {
+        return "/"
+    }
+    return substring(request, first + 1, second)
+}
+
+fn route(path) {
+    if path == "/" {
+        return "<html><body>Home</body></html>"
+    }
+    if path == "/api" {
+        return "{\"api\": true}"
+    }
+    if path == "/health" {
+        return "{\"status\": \"healthy\"}"
+    }
+    if path == "/info" {
+        return "{\"name\": \"Knull Web Server\", \"version\": \"1.0.0\"}"
+    }
+    return "<html><body>404</body></html>"
+}
+
+fn main() { 
+let l = tcp_listen("127.0.0.1:5003")
+println("Listen: " + l)
+while true {
+  let r = tcp_accept(l)
+  let c = r[0]
+  if c > 0 {
+    let req = tcp_recv(c, 1024)
+    let path = get_path(req)
+    let body = route(path)
+    tcp_send(c, "HTTP/1.1 200 OK\r\nContent-Length: " + len(body) + "\r\n\r\n" + body)
+    tcp_close(c)
+  }
+}
 }

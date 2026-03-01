@@ -1,0 +1,13 @@
+// Marker for no_std code
+// This code doesn't use the standard library
+
+// Custom panic handler
+fn panic_handler(msg: *i8) {
+    // Halt on panic - no panic messages in embedded
+    loop {}
+}
+
+// Disable assertions in embedded
+macro! assert(expr, msg) {
+    // No-op in embedded
+}

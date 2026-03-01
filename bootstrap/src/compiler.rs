@@ -44,7 +44,7 @@ impl Compiler {
     }
 
     /// Compile the AST to an executable module
-    pub fn compile(&self) -> Result<CompiledModule> {
+    pub fn compile(&mut self) -> Result<CompiledModule> {
         // Phase 1: Build symbol table
         self.build_symbols()?;
 
@@ -62,11 +62,13 @@ impl Compiler {
     }
 
     /// Build the symbol table
-    fn build_symbols(&self) -> Result<()> {
+    fn build_symbols(&mut self) -> Result<()> {
         for item in &self.ast.items {
             match item {
                 Item::Function(f) => {
-                    self.symbols.declare_function(&f.name, &f.ty)?;
+                    if let Some(ref rt) = f.return_type {
+                        self.symbols.declare_function(&f.name, rt)?;
+                    }
                 }
                 Item::Struct(s) => {
                     self.symbols.declare_type(&s.name)?;
@@ -87,14 +89,15 @@ impl Compiler {
     }
 
     /// Type check the AST
-    fn type_check(&self) -> Result<()> {
-        for item in &self.ast.items {
-            self.check_item(item)?;
+    fn type_check(&mut self) -> Result<()> {
+        let items = self.ast.items.clone();
+        for item in items {
+            self.check_item(&item)?;
         }
         Ok(())
     }
 
-    fn check_item(&self, item: &Item) -> Result<()> {
+    fn check_item(&mut self, item: &Item) -> Result<()> {
         match item {
             Item::Function(f) => self.check_function(f),
             Item::Struct(s) => self.check_struct(s),
@@ -225,7 +228,7 @@ impl Compiler {
         }
     }
 
-    fn check_struct(&self, s: &StructDef) -> Result<()> {
+    fn check_struct(&mut self, s: &StructDef) -> Result<()> {
         // Register struct fields
         for field in &s.fields {
             self.types
@@ -234,7 +237,7 @@ impl Compiler {
         Ok(())
     }
 
-    fn check_enum(&self, e: &EnumDef) -> Result<()> {
+    fn check_enum(&mut self, e: &EnumDef) -> Result<()> {
         // Register enum variants
         for variant in &e.variants {
             self.types
@@ -374,8 +377,8 @@ impl TypeChecker {
         }
     }
 
-    pub fn check(&self, ast: &Program) -> Result<()> {
-        let compiler = Compiler::new(ast);
+    pub fn check(ast: &Program) -> Result<()> {
+        let mut compiler = Compiler::new(ast);
         compiler.type_check()
     }
 }

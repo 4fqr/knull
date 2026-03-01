@@ -1,0 +1,87 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - HTTP PARSER
+// =============================================================================
+// Parse HTTP requests from raw bytes
+
+use string
+
+// -----------------------------------------------------------------------------
+// HTTP REQUEST STRUCT
+// -----------------------------------------------------------------------------
+
+struct HttpRequest {
+    method: *i8,
+    path: *i8,
+    version: *i8,
+    body: *i8,
+}
+
+fn http_request_new() -> HttpRequest {
+    return HttpRequest {
+        method: "" as *i8,
+        path: "" as *i8,
+        version: "HTTP/1.1" as *i8,
+        body: "" as *i8,
+    }
+}
+
+// -----------------------------------------------------------------------------
+// HTTP REQUEST PARSING
+// -----------------------------------------------------------------------------
+
+fn parse_request(raw: *i8) -> HttpRequest {
+    let req = http_request_new()
+    
+    // Find the end of headers (double CRLF)
+    let header_end = strstr(raw, "\r\n\r\n")
+    let has_body = header_end != 0 as *i8
+    
+    // Get header part
+    let header_part = raw
+    if has_body {
+        let header_len = header_end - raw
+        header_part = strndup(raw, header_len)
+    }
+    
+    // Split header part into lines
+    let lines = split_lines(header_part)
+    
+    // Parse request line: "GET /path HTTP/1.1"
+    if lines.len > 0 {
+        let request_line = lines.data[0]
+        let parts = split_whitespace(request_line)
+        
+        if parts.len >= 3 {
+            req.method = strdup(parts.data[0])
+            req.path = strdup(parts.data[1])
+            req.version = strdup(parts.data[2])
+        }
+    }
+    
+    // Parse body if present
+    if has_body {
+        let body_start = header_end + 4
+        let body_len = strlen(body_start)
+        if body_len > 0 {
+            req.body = strdup(body_start)
+        }
+    }
+    
+    return req
+}
+
+// -----------------------------------------------------------------------------
+// HELPER FUNCTIONS
+// -----------------------------------------------------------------------------
+
+fn get_method(req: *HttpRequest) -> *i8 {
+    return req.method
+}
+
+fn get_path(req: *HttpRequest) -> *i8 {
+    return req.path
+}
+
+fn get_body(req: *HttpRequest) -> *i8 {
+    return req.body
+}

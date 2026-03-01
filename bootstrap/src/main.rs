@@ -1,19 +1,20 @@
 //! Knull Programming Language - Bootstrap Compiler
-//! 
+//!
 //! This is the initial compiler written in Rust to bootstrap the Knull language.
 //! It handles lexing, parsing, type checking, and code generation.
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use log::{error, info, warn};
+use log::{error, info};
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::exit;
 
+mod ast;
+mod codegen;
+mod compiler;
 mod lexer;
 mod parser;
-mod compiler;
-mod codegen;
-mod ast;
 
 #[derive(Parser)]
 #[command(name = "knull")]
@@ -107,18 +108,27 @@ fn main() {
     std::panic::set_hook(Box::new(|panic_info| {
         error!("PANIC: {}", panic_info);
         if let Some(location) = panic_info.location() {
-            error!("  at {}:{}:{}", location.file(), location.line(), location.column());
+            error!(
+                "  at {}:{}:{}",
+                location.file(),
+                location.line(),
+                location.column()
+            );
         }
     }));
 
     // Execute command
-    let result = match cli.command {
-        Commands::Run { file, args } => run_file(file, args, &cli),
-        Commands::Build { file, debug, lto } => build_file(file, debug, lto, &cli),
-        Commands::Ir { file, output } => generate_ir(file, output),
+    let verbose = cli.verbose;
+    let build_type = cli.build_type.clone();
+    let target = cli.target.clone();
+    let output = cli.output.clone();
+    let result = match &cli.command {
+        Commands::Run { file, args } => run_file(file.clone(), args.clone(), &cli),
+        Commands::Build { file, debug, lto } => build_file(file.clone(), *debug, *lto, &cli),
+        Commands::Ir { file, output } => generate_ir(file.clone(), output.clone()),
         Commands::Lsp => start_lsp(),
-        Commands::Check { file } => check_file(file),
-        Commands::Fmt { file, write } => format_file(file, write),
+        Commands::Check { file } => check_file(file.clone()),
+        Commands::Fmt { file, write } => format_file(file.clone(), *write),
         Commands::Version => {
             println!("knull {}", env!("CARGO_PKG_VERSION"));
             println!("Platform: {}", std::env::consts::OS);
@@ -152,7 +162,8 @@ fn run_file(file: PathBuf, args: Vec<String>, cli: &Cli) -> Result<()> {
         .with_context(|| format!("Failed to read file: {:?}", file))?;
 
     // Lex
-    let tokens = lexer::Lexer::new(&source).lex()
+    let tokens = lexer::Lexer::new(&source)
+        .lex()
         .with_context(|| "Lexing failed")?;
 
     if cli.verbose {
@@ -160,7 +171,8 @@ fn run_file(file: PathBuf, args: Vec<String>, cli: &Cli) -> Result<()> {
     }
 
     // Parse
-    let ast = parser::Parser::new(tokens).parse()
+    let ast = parser::Parser::new(tokens)
+        .parse()
         .with_context(|| "Parsing failed")?;
 
     if cli.verbose {
@@ -168,7 +180,8 @@ fn run_file(file: PathBuf, args: Vec<String>, cli: &Cli) -> Result<()> {
     }
 
     // Compile
-    let module = compiler::Compiler::new(&ast).compile()
+    let module = compiler::Compiler::new(&ast)
+        .compile()
         .with_context(|| "Compilation failed")?;
 
     // Execute (JIT)
@@ -209,9 +222,11 @@ fn build_file(file: PathBuf, debug: bool, lto: bool, cli: &Cli) -> Result<()> {
         .compile()?;
 
     // Link to produce executable
-    let target_triple = cli.target.clone()
+    let target_triple = cli
+        .target
+        .clone()
         .unwrap_or_else(|| std::env::consts::ARCH.to_string());
-    
+
     codegen::Linker::new()
         .with_target(&target_triple)
         .link(&module, &output)?;
@@ -239,8 +254,8 @@ fn generate_ir(file: PathBuf, output: Option<PathBuf>) -> Result<()> {
     let module = compiler::Compiler::new(&ast).compile()?;
 
     // Output IR
-    let ir = module.llvm_ir();
-    
+    let ir = module.ir.llvm_ir();
+
     match output {
         Some(path) => {
             std::fs::write(&path, ir.as_bytes())?;
@@ -257,13 +272,13 @@ fn generate_ir(file: PathBuf, output: Option<PathBuf>) -> Result<()> {
 /// Start the Language Server
 fn start_lsp() -> Result<()> {
     info!("Starting LSP server...");
-    
+
     #[cfg(feature = "lsp")]
     {
         lsp::run();
         Ok(())
     }
-    
+
     #[cfg(not(feature = "lsp"))]
     {
         anyhow::bail!("LSP support not compiled. Enable with --features lsp");
@@ -285,7 +300,7 @@ fn check_file(file: PathBuf) -> Result<()> {
     let ast = parser::Parser::new(tokens).parse()?;
 
     // Type check
-    compiler::TypeChecker::new().check(&ast)?;
+    compiler::TypeChecker::check(&ast)?;
 
     info!("No errors found");
 
@@ -332,7 +347,7 @@ mod lsp {
 
 mod lsp_server {
     use anyhow::Result;
-    
+
     pub fn run() -> Result<()> {
         // LSP implementation would go here
         // For now, just a placeholder
@@ -342,13 +357,13 @@ mod lsp_server {
 
 mod formatter {
     pub struct Formatter;
-    
+
     impl Formatter {
         pub fn new() -> Self {
             Formatter
         }
-        
-        pub fn format(&self, source: &str) -> Result<String> {
+
+        pub fn format(&self, source: &str) -> anyhow::Result<String> {
             // Simple formatter - just returns source for now
             Ok(source.to_string())
         }

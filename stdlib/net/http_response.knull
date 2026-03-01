@@ -1,0 +1,262 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - HTTP RESPONSE
+// =============================================================================
+// Build and serialize HTTP responses
+
+use string
+
+// -----------------------------------------------------------------------------
+// HTTP RESPONSE STRUCT
+// -----------------------------------------------------------------------------
+
+struct HttpResponse {
+    status: i32,
+    status_text: *i8,
+    body: *i8,
+}
+
+fn http_response_new() -> HttpResponse {
+    return HttpResponse {
+        status: 200,
+        status_text: "OK" as *i8,
+        body: "" as *i8,
+    }
+}
+
+// -----------------------------------------------------------------------------
+// RESPONSE BUILDERS
+// -----------------------------------------------------------------------------
+
+fn response_200(body: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 200
+    resp.status_text = "OK" as *i8
+    resp.body = body
+    return resp
+}
+
+fn response_201(body: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 201
+    resp.status_text = "Created" as *i8
+    resp.body = body
+    return resp
+}
+
+fn response_204() -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 204
+    resp.status_text = "No Content" as *i8
+    resp.body = "" as *i8
+    return resp
+}
+
+fn response_301(location: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 301
+    resp.status_text = "Moved Permanently" as *i8
+    resp.body = "<html><body><h1>Moved Permanently</h1></body></html>" as *i8
+    return resp
+}
+
+fn response_302(location: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 302
+    resp.status_text = "Found" as *i8
+    resp.body = "<html><body><h1>Found</h1></body></html>" as *i8
+    return resp
+}
+
+fn response_400(msg: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 400
+    resp.status_text = "Bad Request" as *i8
+    let body = "<html><body><h1>400 Bad Request</h1><p>" as *i8
+    body = strconcat(body, msg)
+    body = strconcat(body, "</p></body></html>" as *i8)
+    resp.body = body
+    return resp
+}
+
+fn response_401(msg: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 401
+    resp.status_text = "Unauthorized" as *i8
+    let body = "<html><body><h1>401 Unauthorized</h1><p>" as *i8
+    body = strconcat(body, msg)
+    body = strconcat(body, "</p></body></html>" as *i8)
+    resp.body = body
+    return resp
+}
+
+fn response_403(msg: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 403
+    resp.status_text = "Forbidden" as *i8
+    let body = "<html><body><h1>403 Forbidden</h1><p>" as *i8
+    body = strconcat(body, msg)
+    body = strconcat(body, "</p></body></html>" as *i8)
+    resp.body = body
+    return resp
+}
+
+fn response_404(msg: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 404
+    resp.status_text = "Not Found" as *i8
+    if strlen(msg) > 0 {
+        let body = "<html><body><h1>404 Not Found</h1><p>" as *i8
+        body = strconcat(body, msg)
+        body = strconcat(body, "</p></body></html>" as *i8)
+        resp.body = body
+    } else {
+        resp.body = "<html><body><h1>404 Not Found</h1><p>The requested resource was not found.</p></body></html>" as *i8
+    }
+    return resp
+}
+
+fn response_405(msg: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 405
+    resp.status_text = "Method Not Allowed" as *i8
+    let body = "<html><body><h1>405 Method Not Allowed</h1><p>" as *i8
+    body = strconcat(body, msg)
+    body = strconcat(body, "</p></body></html>" as *i8)
+    resp.body = body
+    return resp
+}
+
+fn response_500(msg: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 500
+    resp.status_text = "Internal Server Error" as *i8
+    if strlen(msg) > 0 {
+        let body = "<html><body><h1>500 Internal Server Error</h1><p>" as *i8
+        body = strconcat(body, msg)
+        body = strconcat(body, "</p></body></html>" as *i8)
+        resp.body = body
+    } else {
+        resp.body = "<html><body><h1>500 Internal Server Error</h1><p>An unexpected error occurred.</p></body></html>" as *i8
+    }
+    return resp
+}
+
+fn response_501(msg: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 501
+    resp.status_text = "Not Implemented" as *i8
+    let body = "<html><body><h1>501 Not Implemented</h1><p>" as *i8
+    body = strconcat(body, msg)
+    body = strconcat(body, "</p></body></html>" as *i8)
+    resp.body = body
+    return resp
+}
+
+fn response_503(msg: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 503
+    resp.status_text = "Service Unavailable" as *i8
+    if strlen(msg) > 0 {
+        let body = "<html><body><h1>503 Service Unavailable</h1><p>" as *i8
+        body = strconcat(body, msg)
+        body = strconcat(body, "</p></body></html>" as *i8)
+        resp.body = body
+    } else {
+        resp.body = "<html><body><h1>503 Service Unavailable</h1><p>The server is temporarily unavailable.</p></body></html>" as *i8
+    }
+    return resp
+}
+
+// -----------------------------------------------------------------------------
+// JSON RESPONSES
+// -----------------------------------------------------------------------------
+
+fn response_json(body: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = 200
+    resp.status_text = "OK" as *i8
+    resp.body = body
+    return resp
+}
+
+fn response_json_error(status: i32, msg: *i8) -> HttpResponse {
+    let resp = http_response_new()
+    resp.status = status
+    
+    if status == 400 {
+        resp.status_text = "Bad Request" as *i8
+    } else if status == 401 {
+        resp.status_text = "Unauthorized" as *i8
+    } else if status == 403 {
+        resp.status_text = "Forbidden" as *i8
+    } else if status == 404 {
+        resp.status_text = "Not Found" as *i8
+    } else if status == 500 {
+        resp.status_text = "Internal Server Error" as *i8
+    } else {
+        resp.status_text = "Error" as *i8
+    }
+    
+    let json = "{\"error\": \"" as *i8
+    json = strconcat(json, msg)
+    json = strconcat(json, "\"}" as *i8)
+    resp.body = json
+    return resp
+}
+
+// -----------------------------------------------------------------------------
+// RESPONSE TO STRING
+// -----------------------------------------------------------------------------
+
+fn response_to_string(resp: HttpResponse) -> *i8 {
+    // Build response line
+    let status_str: i8[16]
+    itoa(resp.status, &status_str)
+    
+    let result = "HTTP/1.1 " as *i8
+    result = strconcat(result, &status_str)
+    result = strconcat(result, " " as *i8)
+    result = strconcat(result, resp.status_text)
+    result = strconcat(result, "\r\n" as *i8)
+    
+    // Content-Type and Content-Length
+    result = strconcat(result, "Content-Type: text/html\r\n" as *i8)
+    
+    let body_len = strlen(resp.body)
+    let len_str: i8[32]
+    ltoa(body_len, &len_str)
+    result = strconcat(result, "Content-Length: " as *i8)
+    result = strconcat(result, &len_str)
+    result = strconcat(result, "\r\n" as *i8)
+    
+    // Connection close
+    result = strconcat(result, "Connection: close\r\n" as *i8)
+    
+    // End headers
+    result = strconcat(result, "\r\n" as *i8)
+    
+    // Add body
+    result = strconcat(result, resp.body)
+    
+    return result
+}
+
+// -----------------------------------------------------------------------------
+// HELPER FUNCTIONS
+// -----------------------------------------------------------------------------
+
+fn strconcat(a: *i8, b: *i8) -> *i8 {
+    let a_len = strlen(a)
+    let b_len = strlen(b)
+    let result = alloc(a_len + b_len + 1) as *i8
+    memcpy(result, a, a_len)
+    memcpy(result + a_len, b, b_len)
+    result[a_len + b_len] = 0
+    return result
+}
+
+fn int_to_string(n: i64) -> *i8 {
+    let buf: i8[32]
+    ltoa(n as i32, &buf)
+    return strdup(&buf)
+}

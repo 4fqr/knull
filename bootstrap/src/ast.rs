@@ -1,5 +1,5 @@
 //! Knull Abstract Syntax Tree (AST)
-//! 
+//!
 //! This module defines the AST node types for the Knull language.
 
 use crate::lexer::Span;
@@ -294,17 +294,17 @@ pub enum Stmt {
 pub enum Expr {
     // Literals
     Literal(Literal, Span),
-    
+
     // Identifiers
     Ident(String, Span),
-    
+
     // Unary operations
     Unary {
         op: UnaryOp,
         expr: Box<Expr>,
         span: Span,
     },
-    
+
     // Binary operations
     Binary {
         op: BinaryOp,
@@ -312,7 +312,7 @@ pub enum Expr {
         right: Box<Expr>,
         span: Span,
     },
-    
+
     // Ternary
     Ternary {
         condition: Box<Expr>,
@@ -320,32 +320,32 @@ pub enum Expr {
         else_: Box<Expr>,
         span: Span,
     },
-    
+
     // Block
     Block(Block),
-    
+
     // If expression
     If {
         condition: Box<Expr>,
         then: Box<Expr>,
-        else: Option<Box<Expr>>,
+        else_branch: Option<Box<Expr>>,
         span: Span,
     },
-    
+
     // Match expression
     Match {
         scrutinee: Box<Expr>,
         arms: Vec<MatchArm>,
         span: Span,
     },
-    
+
     // Loop
     Loop {
         label: Option<String>,
         body: Box<Expr>,
         span: Span,
     },
-    
+
     // While loop
     While {
         label: Option<String>,
@@ -353,7 +353,7 @@ pub enum Expr {
         body: Box<Expr>,
         span: Span,
     },
-    
+
     // For loop
     For {
         pattern: Pattern,
@@ -361,14 +361,14 @@ pub enum Expr {
         body: Box<Expr>,
         span: Span,
     },
-    
+
     // Function call
     Call {
         func: Box<Expr>,
         args: Vec<Expr>,
         span: Span,
     },
-    
+
     // Method call
     MethodCall {
         expr: Box<Expr>,
@@ -376,37 +376,37 @@ pub enum Expr {
         args: Vec<Expr>,
         span: Span,
     },
-    
+
     // Field access
     Field {
         expr: Box<Expr>,
         field: String,
         span: Span,
     },
-    
+
     // Index access
     Index {
         expr: Box<Expr>,
         index: Box<Expr>,
         span: Span,
     },
-    
+
     // Array literal
     Array(Vec<Expr>, Span),
-    
+
     // Struct literal
     Struct {
         name: String,
         fields: Vec<(String, Expr)>,
         span: Span,
     },
-    
+
     // Tuple
     Tuple(Vec<Expr>, Span),
-    
+
     // Parenthesized expression
     Paren(Box<Expr>),
-    
+
     // Lambda
     Lambda {
         params: Vec<String>,
@@ -414,14 +414,14 @@ pub enum Expr {
         body: Box<Expr>,
         span: Span,
     },
-    
+
     // Cast
     Cast {
         expr: Box<Expr>,
         ty: Type,
         span: Span,
     },
-    
+
     // Range
     Range {
         start: Box<Expr>,
@@ -429,32 +429,32 @@ pub enum Expr {
         inclusive: bool,
         span: Span,
     },
-    
+
     // Unsafe
     Unsafe {
         expr: Box<Expr>,
         span: Span,
     },
-    
+
     // Comptime
     Comptime {
         expr: Box<Expr>,
         span: Span,
     },
-    
+
     // Break with value
     Break {
         label: Option<String>,
         value: Option<Box<Expr>>,
         span: Span,
     },
-    
+
     // Continue
     Continue {
         label: Option<String>,
         span: Span,
     },
-    
+
     // Return
     Return {
         value: Option<Box<Expr>>,
@@ -497,11 +497,11 @@ pub enum Pattern {
 /// Unary operators
 #[derive(Debug, Clone, Copy)]
 pub enum UnaryOp {
-    Neg,      // -
-    Not,      // !
-    BitNot,   // ~
-    Deref,    // *
-    Ref,      // &
+    Neg,    // -
+    Not,    // !
+    BitNot, // ~
+    Deref,  // *
+    Ref,    // &
 }
 
 /// Binary operators

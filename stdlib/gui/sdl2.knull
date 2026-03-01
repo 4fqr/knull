@@ -1,0 +1,146 @@
+// =============================================================================
+// KNULL SDL2 BINDINGS - Real Graphics Support
+// =============================================================================
+
+module std.gui.sdl2
+
+// -----------------------------------------------------------------------------
+// SDL2 Initialization & Window Management
+// -----------------------------------------------------------------------------
+
+extern "C" {
+    fn SDL_Init(flags: i32) -> i32
+    fn SDL_CreateWindow(title: *i8, x: i32, y: i32, w: i32, h: i32, flags: i32) -> *void
+    fn SDL_DestroyWindow(window: *void)
+    fn SDL_CreateRenderer(window: *void, index: i32, flags: i32) -> *void
+    fn SDL_DestroyRenderer(renderer: *void)
+    fn SDL_RenderPresent(renderer: *void)
+    fn SDL_Delay(ms: u32)
+    fn SDL_Quit()
+    fn SDL_PollEvent(event: *void) -> i32
+    fn SDL_GetError() -> *i8
+}
+
+// -----------------------------------------------------------------------------
+// SDL2 Constants
+// -----------------------------------------------------------------------------
+
+const SDL_INIT_VIDEO: i32 = 0x00000020
+const SDL_INIT_AUDIO: i32 = 0x00000010
+const SDL_WINDOW_SHOWN: i32 = 0x00000004
+const SDL_WINDOW_RESIZABLE: i32 = 0x00000020
+const SDL_WINDOW_FULLSCREEN: i32 = 0x00000001
+
+const SDL_RENDERER_SOFTWARE: i32 = 0x00000001
+const SDL_RENDERER_ACCELERATED: i32 = 0x00000002
+const SDL_RENDERER_PRESENTVSYNC: i32 = 0x00000004
+
+// -----------------------------------------------------------------------------
+// SDL2 Initialization Functions
+// -----------------------------------------------------------------------------
+
+fn sdl_init_video() -> bool {
+    SDL_Init(SDL_INIT_VIDEO) == 0
+}
+
+fn sdl_init_full() -> bool {
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) == 0
+}
+
+fn sdl_get_error() -> string {
+    let err = SDL_GetError()
+    if err as u64 == 0 {
+        return ""
+    }
+    return err
+}
+
+// -----------------------------------------------------------------------------
+// Window Type
+// -----------------------------------------------------------------------------
+
+struct Window {
+    ptr: *void,
+}
+
+struct Renderer {
+    ptr: *void,
+    window: Window,
+}
+
+fn window_create(title: string, x: i32, y: i32, w: i32, h: i32, flags: i32) -> Window {
+    let ptr = SDL_CreateWindow(title.as_ptr(), x, y, w, h, flags)
+    Window { ptr }
+}
+
+fn window_create_simple(title: string, w: i32, h: i32) -> Window {
+    window_create(title, 100, 100, w, h, SDL_WINDOW_SHOWN)
+}
+
+fn window_is_valid(win: Window) -> bool {
+    win.ptr as u64 != 0
+}
+
+fn window_destroy(win: Window) {
+    if win.ptr as u64 != 0 {
+        SDL_DestroyWindow(win.ptr)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Renderer Functions
+// -----------------------------------------------------------------------------
+
+fn renderer_create(win: Window, index: i32, flags: i32) -> Renderer {
+    let ptr = SDL_CreateRenderer(win.ptr, index, flags)
+    Renderer { ptr: ptr, window: win }
+}
+
+fn renderer_create_indexed(win: Window, index: i32) -> Renderer {
+    renderer_create(win, index, SDL_RENDERER_ACCELERATED)
+}
+
+fn renderer_create_auto(win: Window) -> Renderer {
+    renderer_create(win, -1, SDL_RENDERER_ACCELERATED)
+}
+
+fn renderer_is_valid(rnd: Renderer) -> bool {
+    rnd.ptr as u64 != 0
+}
+
+fn renderer_destroy(rnd: Renderer) {
+    if rnd.ptr as u64 != 0 {
+        SDL_DestroyRenderer(rnd.ptr)
+    }
+}
+
+fn renderer_present(rnd: Renderer) {
+    SDL_RenderPresent(rnd.ptr)
+}
+
+// -----------------------------------------------------------------------------
+// Delay Function
+// -----------------------------------------------------------------------------
+
+fn delay(ms: u32) {
+    SDL_Delay(ms)
+}
+
+fn delay_seconds(seconds: u32) {
+    SDL_Delay(seconds * 1000)
+}
+
+// -----------------------------------------------------------------------------
+// Event Types
+// -----------------------------------------------------------------------------
+
+const SDL_QUIT: i32 = 0x100
+const SDL_KEYDOWN: i32 = 0x301
+const SDL_KEYUP: i32 = 0x302
+const SDL_MOUSEBUTTONDOWN: i32 = 0x601
+const SDL_MOUSEBUTTONUP: i32 = 0x602
+const SDL_MOUSEMOTION: i32 = 0x400
+const SDL_WINDOWEVENT: i32 = 0x200
+
+const SDLK_ESCAPE: i32 = 27
+const SDLK_q: i32 = 113

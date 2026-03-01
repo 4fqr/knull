@@ -1,0 +1,95 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - HTTP ROUTER
+// =============================================================================
+// Route HTTP requests to handlers
+
+// -----------------------------------------------------------------------------
+// HANDLER TYPE
+// -----------------------------------------------------------------------------
+
+type Handler = fn(HttpRequest) -> HttpResponse
+
+// -----------------------------------------------------------------------------
+// MAX ROUTES
+// -----------------------------------------------------------------------------
+
+const MAX_ROUTES: i64 = 32
+
+// -----------------------------------------------------------------------------
+// ROUTER STRUCT
+// -----------------------------------------------------------------------------
+
+struct Router {
+    methods: [ *i8, MAX_ROUTES ],
+    paths: [ *i8, MAX_ROUTES ],
+    handlers: [ Handler, MAX_ROUTES ],
+    route_count: i64,
+}
+
+fn router_new() -> Router {
+    let r: Router
+    let i: i64 = 0
+    while i < MAX_ROUTES {
+        r.methods[i] = "" as *i8
+        r.paths[i] = "" as *i8
+        r.handlers[i] = 0 as Handler
+        i = i + 1
+    }
+    r.route_count = 0
+    return r
+}
+
+fn router_add(r: *Router, method: *i8, path: *i8, handler: Handler) {
+    if r.route_count < MAX_ROUTES {
+        let idx = r.route_count
+        r.methods[idx] = method
+        r.paths[idx] = path
+        r.handlers[idx] = handler
+        r.route_count = r.route_count + 1
+    }
+}
+
+fn router_dispatch(r: *Router, req: HttpRequest) -> HttpResponse {
+    // Try to find matching route
+    let i: i64 = 0
+    while i < r.route_count {
+        // Check method and path match
+        if strcmp(r.methods[i], req.method) == 0 && strcmp(r.paths[i], req.path) == 0 {
+            return r.handlers[i](req)
+        }
+        
+        i = i + 1
+    }
+    
+    // No route found - return 404
+    let not_found_msg = "Route not found" as *i8
+    return response_404(not_found_msg)
+}
+
+// -----------------------------------------------------------------------------
+// CONVENIENCE METHODS
+// -----------------------------------------------------------------------------
+
+fn router_get(r: *Router, path: *i8, handler: Handler) {
+    router_add(r, "GET" as *i8, path, handler)
+}
+
+fn router_post(r: *Router, path: *i8, handler: Handler) {
+    router_add(r, "POST" as *i8, path, handler)
+}
+
+fn router_put(r: *Router, path: *i8, handler: Handler) {
+    router_add(r, "PUT" as *i8, path, handler)
+}
+
+fn router_delete(r: *Router, path: *i8, handler: Handler) {
+    router_add(r, "DELETE" as *i8, path, handler)
+}
+
+fn router_patch(r: *Router, path: *i8, handler: Handler) {
+    router_add(r, "PATCH" as *i8, path, handler)
+}
+
+fn router_options(r: *Router, path: *i8, handler: Handler) {
+    router_add(r, "OPTIONS" as *i8, path, handler)
+}

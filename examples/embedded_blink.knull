@@ -1,0 +1,21 @@
+// Raspberry Pi LED blink - REAL code!
+
+fn delay(ms: u32) {
+    let i = 0
+    let count = ms * 1000
+    while i < count {
+        i = i + 1
+    }
+}
+
+fn main() {
+    // GPIO 21 (or 18 on Pi 3)
+    let led = 21
+    
+    loop {
+        gpio_write(led, true)
+        delay(500)
+        gpio_write(led, false)
+        delay(500)
+    }
+}

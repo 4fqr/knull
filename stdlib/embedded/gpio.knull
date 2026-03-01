@@ -1,0 +1,19 @@
+// GPIO control for Raspberry Pi
+const GPIO_BASE: u32 = 0x3F200000
+
+fn gpio_set_output(pin: u32) {
+    // Set pin as output (simplified)
+    let sel = GPIO_BASE + (pin / 10) * 4
+    // ... set register
+}
+
+fn gpio_write(pin: u32, value: bool) {
+    // Write to output pin
+    let set = GPIO_BASE + 0x1C  // GPSET0
+    let clr = GPIO_BASE + 0x28  // GPCLR0
+    if value {
+        mmio_write32(set, 1 << pin)
+    } else {
+        mmio_write32(clr, 1 << pin)
+    }
+}

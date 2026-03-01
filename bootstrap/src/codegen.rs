@@ -211,7 +211,7 @@ impl StaticLibraryGenerator {
     /// Generate a static library
     pub fn generate_archive(
         &self,
-        objects: &[std::path::Path],
+        objects: &[std::path::PathBuf],
         output: &std::path::Path,
     ) -> Result<()> {
         let mut args = vec!["rcs".to_string(), output.to_string_lossy().to_string()];

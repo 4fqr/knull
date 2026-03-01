@@ -1,12 +1,13 @@
 //! Knull Parser - Abstract Syntax Tree
-//! 
+//!
 //! This module handles parsing tokens into an Abstract Syntax Tree (AST).
 
 use anyhow::{bail, Result};
 use std::iter::Peekable;
 
-use crate::lexer::{Token, TokenKind, Span};
 use crate::ast::*;
+use crate::ast::{BinaryOp, UnaryOp};
+use crate::lexer::{Position, Span, Token, TokenKind};
 
 /// Parser for Knull
 pub struct Parser {
@@ -37,37 +38,37 @@ impl Parser {
 
             // Parse item
             match self.peek().map(|t| &t.kind) {
-                Some(TokenKind::KwFn) => {
+                Some(t) if *t == TokenKind::KwFn => {
                     items.push(self.parse_function()?);
                 }
-                Some(TokenKind::KwStruct) => {
+                Some(t) if *t == TokenKind::KwStruct => {
                     items.push(self.parse_struct()?);
                 }
-                Some(TokenKind::KwEnum) => {
+                Some(t) if *t == TokenKind::KwEnum => {
                     items.push(self.parse_enum()?);
                 }
-                Some(TokenKind::KwTrait) => {
+                Some(t) if *t == TokenKind::KwTrait => {
                     items.push(self.parse_trait()?);
                 }
-                Some(TokenKind::KwImpl) => {
+                Some(t) if *t == TokenKind::KwImpl => {
                     items.push(self.parse_impl()?);
                 }
-                Some(TokenKind::KwType) => {
+                Some(t) if *t == TokenKind::KwType => {
                     items.push(self.parse_type_alias()?);
                 }
-                Some(TokenKind::KwConst) => {
+                Some(t) if *t == TokenKind::KwConst => {
                     items.push(self.parse_const()?);
                 }
-                Some(TokenKind::KwStatic) => {
+                Some(t) if *t == TokenKind::KwStatic => {
                     items.push(self.parse_static()?);
                 }
-                Some(TokenKind::KwModule) => {
+                Some(t) if *t == TokenKind::KwModule => {
                     items.push(self.parse_module()?);
                 }
-                Some(TokenKind::KwImport) => {
+                Some(t) if *t == TokenKind::KwImport => {
                     items.push(self.parse_import()?);
                 }
-                Some(TokenKind::KwActor) => {
+                Some(t) if *t == TokenKind::KwActor => {
                     items.push(self.parse_actor()?);
                 }
                 _ => {
@@ -102,8 +103,15 @@ impl Parser {
 
     fn expect(&mut self, kind: TokenKind) -> Result<Token> {
         match self.peek() {
-            Some(token) if token.kind == kind => self.advance().ok_or_else(|| anyhow::anyhow!("Unexpected end of input")),
-            Some(token) => bail!("Expected {:?}, got {:?} at {:?}", kind, token.kind, token.span),
+            Some(token) if token.kind == kind => self
+                .advance()
+                .ok_or_else(|| anyhow::anyhow!("Unexpected end of input")),
+            Some(token) => bail!(
+                "Expected {:?}, got {:?} at {:?}",
+                kind,
+                token.kind,
+                token.span
+            ),
             None => bail!("Unexpected end of input"),
         }
     }
@@ -124,7 +132,9 @@ impl Parser {
     }
 
     fn is_eof(&self) -> bool {
-        self.peek().map(|t| t.kind == TokenKind::Eof).unwrap_or(true)
+        self.peek()
+            .map(|t| t.kind == TokenKind::Eof)
+            .unwrap_or(true)
     }
 
     // =========================================================================
@@ -133,7 +143,7 @@ impl Parser {
 
     fn parse_function(&mut self) -> Result<Item> {
         let fn_token = self.expect(TokenKind::KwFn)?;
-        
+
         // Function name
         let name = match self.peek() {
             Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
@@ -141,7 +151,7 @@ impl Parser {
         };
 
         // Type parameters (generics)
-        let type_params = if self.check(TokenKind::Lt) {
+        let type_params = if self.check(TokenKind::OpLt) {
             self.parse_type_params()?
         } else {
             Vec::new()
@@ -153,13 +163,15 @@ impl Parser {
         if !self.check(TokenKind::RParen) {
             loop {
                 let param_name = match self.peek() {
-                    Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
+                    Some(t) if t.kind == TokenKind::Identifier => {
+                        self.advance().map(|t| t.value).unwrap()
+                    }
                     _ => bail!("Expected parameter name"),
                 };
-                
+
                 self.expect(TokenKind::Colon)?;
                 let param_type = self.parse_type()?;
-                
+
                 params.push(Param {
                     name: param_name,
                     ty: param_type,
@@ -185,6 +197,7 @@ impl Parser {
 
         // Body
         let body = self.parse_block()?;
+        let body_span = body.span;
 
         Ok(Item::Function(Function {
             name,
@@ -192,17 +205,19 @@ impl Parser {
             params,
             return_type,
             body,
-            span: fn_token.span.merge(body.span),
+            span: fn_token.span.merge(body_span),
         }))
     }
 
     fn parse_type_params(&mut self) -> Result<Vec<TypeParam>> {
-        self.expect(TokenKind::Lt)?;
+        self.expect(TokenKind::OpLt)?;
         let mut params = Vec::new();
 
         loop {
             let name = match self.peek() {
-                Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
+                Some(t) if t.kind == TokenKind::Identifier => {
+                    self.advance().map(|t| t.value).unwrap()
+                }
                 _ => break,
             };
 
@@ -218,7 +233,7 @@ impl Parser {
             }
         }
 
-        self.expect(TokenKind::Gt)?;
+        self.expect(TokenKind::OpGt)?;
         Ok(params)
     }
 
@@ -228,26 +243,28 @@ impl Parser {
 
     fn parse_struct(&mut self) -> Result<Item> {
         let struct_token = self.expect(TokenKind::KwStruct)?;
-        
+
         let name = match self.peek() {
             Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
             _ => bail!("Expected struct name"),
         };
 
-        let type_params = if self.check(TokenKind::Lt) {
+        let type_params = if self.check(TokenKind::OpLt) {
             self.parse_type_params()?
         } else {
             Vec::new()
         };
 
         self.expect(TokenKind::LBrace)?;
-        
+
         let mut fields = Vec::new();
         while !self.check(TokenKind::RBrace) {
             self.skip_trivia();
-            
+
             let field_name = match self.peek() {
-                Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
+                Some(t) if t.kind == TokenKind::Identifier => {
+                    self.advance().map(|t| t.value).unwrap()
+                }
                 _ => break,
             };
 
@@ -263,7 +280,7 @@ impl Parser {
             if self.check(TokenKind::Comma) {
                 self.advance();
             }
-            
+
             self.skip_trivia();
         }
 
@@ -283,26 +300,28 @@ impl Parser {
 
     fn parse_enum(&mut self) -> Result<Item> {
         let enum_token = self.expect(TokenKind::KwEnum)?;
-        
+
         let name = match self.peek() {
             Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
             _ => bail!("Expected enum name"),
         };
 
-        let type_params = if self.check(TokenKind::Lt) {
+        let type_params = if self.check(TokenKind::OpLt) {
             self.parse_type_params()?
         } else {
             Vec::new()
         };
 
         self.expect(TokenKind::LBrace)?;
-        
+
         let mut variants = Vec::new();
         while !self.check(TokenKind::RBrace) {
             self.skip_trivia();
-            
+
             let variant_name = match self.peek() {
-                Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
+                Some(t) if t.kind == TokenKind::Identifier => {
+                    self.advance().map(|t| t.value).unwrap()
+                }
                 _ => break,
             };
 
@@ -322,7 +341,9 @@ impl Parser {
                 let mut fields = Vec::new();
                 while !self.check(TokenKind::RBrace) {
                     let field_name = match self.peek() {
-                        Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
+                        Some(t) if t.kind == TokenKind::Identifier => {
+                            self.advance().map(|t| t.value).unwrap()
+                        }
                         _ => bail!("Expected field name"),
                     };
                     self.expect(TokenKind::Colon)?;
@@ -345,7 +366,7 @@ impl Parser {
             if self.check(TokenKind::Comma) {
                 self.advance();
             }
-            
+
             self.skip_trivia();
         }
 
@@ -369,27 +390,27 @@ impl Parser {
 
     fn parse_type_with_bounds(&mut self, min_prec: u8) -> Result<Type> {
         // Parse primary type
-        let mut lhs = match self.peek() {
-            Some(t) if t.kind == TokenKind::Identifier => {
+        let mut lhs = match self.peek().map(|t| &t.kind) {
+            Some(t) if *t == TokenKind::Identifier => {
                 let name = self.advance().map(|t| t.value).unwrap();
-                
+
                 // Check for generic arguments
-                if self.check(TokenKind::Lt) {
+                if self.check(TokenKind::OpLt) {
                     self.advance();
                     let mut args = Vec::new();
-                    while !self.check(TokenKind::Gt) {
+                    while !self.check(TokenKind::OpGt) {
                         args.push(self.parse_type()?);
                         if self.check(TokenKind::Comma) {
                             self.advance();
                         }
                     }
-                    self.expect(TokenKind::Gt)?;
+                    self.expect(TokenKind::OpGt)?;
                     Type::Generic(name, args)
                 } else {
                     Type::Name(name)
                 }
             }
-            Some(TokenKind::LParen) => {
+            Some(t) if *t == TokenKind::LParen => {
                 self.advance();
                 let mut types = Vec::new();
                 while !self.check(TokenKind::RParen) {
@@ -401,17 +422,18 @@ impl Parser {
                 self.expect(TokenKind::RParen)?;
                 Type::Tuple(types)
             }
-            Some(TokenKind::LBracket) => {
+            Some(t) if *t == TokenKind::LBracket => {
                 self.advance();
                 let inner = self.parse_type()?;
-                
+
                 if self.check(TokenKind::Semicolon) {
                     // Array type: [T; N]
                     self.advance();
-                    let size = match self.peek() {
-                        Some(t) if t.kind == TokenKind::Integer => {
-                            self.advance().map(|t| t.value.parse::<usize>().unwrap_or(0)).unwrap()
-                        }
+                    let size = match self.peek().map(|t| &t.kind) {
+                        Some(t) if *t == TokenKind::Integer => self
+                            .advance()
+                            .map(|t| t.value.parse::<usize>().unwrap_or(0))
+                            .unwrap(),
                         _ => bail!("Expected array size"),
                     };
                     self.expect(TokenKind::RBracket)?;
@@ -422,7 +444,7 @@ impl Parser {
                     Type::Slice(Box::new(inner))
                 }
             }
-            Some(TokenKind::OpMul) => {
+            Some(t) if *t == TokenKind::OpMul => {
                 // Pointer type
                 self.advance();
                 let mutable = self.check(TokenKind::KwMut);
@@ -432,7 +454,7 @@ impl Parser {
                 let inner = self.parse_type()?;
                 Type::Pointer(Box::new(inner), mutable)
             }
-            Some(TokenKind::Ampersand) => {
+            Some(t) if *t == TokenKind::OpBitAnd => {
                 // Reference type
                 self.advance();
                 let mutable = self.check(TokenKind::KwMut);
@@ -462,7 +484,7 @@ impl Parser {
                 };
                 Type::Function(param_types, return_type)
             }
-            Some(TokenKind::Question) => {
+            Some(t) if *t == TokenKind::Question => {
                 self.advance();
                 let inner = self.parse_type()?;
                 Type::Option(Box::new(inner))
@@ -473,7 +495,7 @@ impl Parser {
         // Handle postfix operators
         while !self.is_eof() {
             match self.peek().map(|t| &t.kind) {
-                Some(TokenKind::Pipe) => {
+                Some(t) if *t == TokenKind::OpBitOr => {
                     // Function type shorthand: T | U
                     self.advance();
                     let rhs = self.parse_type_with_bounds(0)?;
@@ -496,17 +518,26 @@ impl Parser {
 
     fn parse_expression_with_prec(&mut self, min_prec: u8) -> Result<Expr> {
         // Parse unary operators
-        let mut lhs = match self.peek() {
-            Some(TokenKind::OpSub) | TokenKind::OpLogNot | TokenKind::OpBitNot | TokenKind::OpMul | TokenKind::Ampersand => {
+        let mut lhs = match self.peek().map(|t| &t.kind) {
+            Some(t)
+                if matches!(
+                    t,
+                    TokenKind::OpSub
+                        | TokenKind::OpLogNot
+                        | TokenKind::OpBitNot
+                        | TokenKind::OpMul
+                        | TokenKind::OpBitAnd
+                ) =>
+            {
                 let op = self.advance().unwrap();
                 let rhs = self.parse_expression_with_prec(11)?;
                 Expr::Unary {
                     op: match op.kind {
                         TokenKind::OpSub => UnaryOp::Neg,
-                        TokenKind::OpLogNot => Not,
-                        TokenKind::OpBitNot => BitNot,
-                        TokenKind::OpMul => Deref,
-                        TokenKind::Ampersand => Ref,
+                        TokenKind::OpLogNot => UnaryOp::Not,
+                        TokenKind::OpBitNot => UnaryOp::BitNot,
+                        TokenKind::OpMul => UnaryOp::Deref,
+                        TokenKind::OpBitAnd => UnaryOp::Ref,
                         _ => bail!("Unexpected unary operator"),
                     },
                     expr: Box::new(rhs),
@@ -539,25 +570,25 @@ impl Parser {
 
             lhs = Expr::Binary {
                 op: match op.kind {
-                    TokenKind::OpAdd => Add,
-                    TokenKind::OpSub => Sub,
-                    TokenKind::OpMul => Mul,
-                    TokenKind::OpDiv => Div,
-                    TokenKind::OpRem => Rem,
-                    TokenKind::OpEq => Eq,
-                    TokenKind::OpNe => Ne,
-                    TokenKind::OpLt => Lt,
-                    TokenKind::OpGt => Gt,
-                    TokenKind::OpLe => Le,
-                    TokenKind::OpGe => Ge,
-                    TokenKind::OpLogAnd => And,
-                    TokenKind::OpLogOr => Or,
-                    TokenKind::OpBitAnd => BitAnd,
-                    TokenKind::OpBitOr => BitOr,
-                    TokenKind::OpBitXor => BitXor,
-                    TokenKind::OpShl => Shl,
-                    TokenKind::OpShr => Shr,
-                    TokenKind::OpPipeline => Pipeline,
+                    TokenKind::OpAdd => BinaryOp::Add,
+                    TokenKind::OpSub => BinaryOp::Sub,
+                    TokenKind::OpMul => BinaryOp::Mul,
+                    TokenKind::OpDiv => BinaryOp::Div,
+                    TokenKind::OpRem => BinaryOp::Rem,
+                    TokenKind::OpEq => BinaryOp::Eq,
+                    TokenKind::OpNe => BinaryOp::Ne,
+                    TokenKind::OpLt => BinaryOp::Lt,
+                    TokenKind::OpGt => BinaryOp::Gt,
+                    TokenKind::OpLe => BinaryOp::Le,
+                    TokenKind::OpGe => BinaryOp::Ge,
+                    TokenKind::OpLogAnd => BinaryOp::And,
+                    TokenKind::OpLogOr => BinaryOp::Or,
+                    TokenKind::OpBitAnd => BinaryOp::BitAnd,
+                    TokenKind::OpBitOr => BinaryOp::BitOr,
+                    TokenKind::OpBitXor => BinaryOp::BitXor,
+                    TokenKind::OpShl => BinaryOp::Shl,
+                    TokenKind::OpShr => BinaryOp::Shr,
+                    TokenKind::OpPipeline => BinaryOp::Or,
                     _ => bail!("Unexpected binary operator"),
                 },
                 left: Box::new(lhs),
@@ -570,20 +601,35 @@ impl Parser {
     }
 
     fn is_binary_op(kind: &TokenKind) -> bool {
-        matches!(kind,
-            TokenKind::OpAdd | TokenKind::OpSub | TokenKind::OpMul | TokenKind::OpDiv |
-            TokenKind::OpRem | TokenKind::OpEq | TokenKind::OpNe | TokenKind::OpLt |
-            TokenKind::OpGt | TokenKind::OpLe | TokenKind::OpGe | TokenKind::OpLogAnd |
-            TokenKind::OpLogOr | TokenKind::OpBitAnd | TokenKind::OpBitOr | TokenKind::OpBitXor |
-            TokenKind::OpShl | TokenKind::OpShr | TokenKind::OpPipeline
+        matches!(
+            kind,
+            TokenKind::OpAdd
+                | TokenKind::OpSub
+                | TokenKind::OpMul
+                | TokenKind::OpDiv
+                | TokenKind::OpRem
+                | TokenKind::OpEq
+                | TokenKind::OpNe
+                | TokenKind::OpLt
+                | TokenKind::OpGt
+                | TokenKind::OpLe
+                | TokenKind::OpGe
+                | TokenKind::OpLogAnd
+                | TokenKind::OpLogOr
+                | TokenKind::OpBitAnd
+                | TokenKind::OpBitOr
+                | TokenKind::OpBitXor
+                | TokenKind::OpShl
+                | TokenKind::OpShr
+                | TokenKind::OpPipeline
         )
     }
 
     fn precedence(kind: &TokenKind) -> u8 {
         match kind {
             TokenKind::OpPipeline => 2,
-            TokenKind::OpOr => 3,
-            TokenKind::OpAnd => 4,
+            TokenKind::OpLogOr => 3,
+            TokenKind::OpLogAnd => 4,
             TokenKind::OpBitOr => 5,
             TokenKind::OpBitXor => 6,
             TokenKind::OpBitAnd => 7,
@@ -597,11 +643,13 @@ impl Parser {
     }
 
     fn is_right_assoc(kind: &TokenKind) -> bool {
-        matches!(kind, TokenKind::OpPipeline | TokenKind::OpAssign)
+        matches!(kind, TokenKind::OpPipeline | TokenKind::Assign)
     }
 
     fn parse_primary(&mut self) -> Result<Expr> {
-        let token = self.advance().ok_or_else(|| anyhow::anyhow!("Unexpected end of input"))?;
+        let token = self
+            .advance()
+            .ok_or_else(|| anyhow::anyhow!("Unexpected end of input"))?;
 
         match token.kind {
             TokenKind::Identifier => {
@@ -626,7 +674,9 @@ impl Parser {
                     // Field access or method call
                     self.advance();
                     let field = match self.peek() {
-                        Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
+                        Some(t) if t.kind == TokenKind::Identifier => {
+                            self.advance().map(|t| t.value).unwrap()
+                        }
                         _ => bail!("Expected field name"),
                     };
                     Ok(Expr::Field {
@@ -638,22 +688,23 @@ impl Parser {
                     Ok(Expr::Ident(token.value, token.span))
                 }
             }
-            TokenKind::Integer => {
-                Ok(Expr::Literal(Literal::Int(token.value.parse().unwrap_or(0)), token.span))
-            }
-            TokenKind::Float => {
-                Ok(Expr::Literal(Literal::Float(token.value.parse().unwrap_or(0.0)), token.span))
-            }
-            TokenKind::String => {
-                Ok(Expr::Literal(Literal::String(token.value), token.span))
-            }
+            TokenKind::Integer => Ok(Expr::Literal(
+                Literal::Int(token.value.parse().unwrap_or(0)),
+                token.span,
+            )),
+            TokenKind::Float => Ok(Expr::Literal(
+                Literal::Float(token.value.parse().unwrap_or(0.0)),
+                token.span,
+            )),
+            TokenKind::StrLiteral => Ok(Expr::Literal(Literal::String(token.value), token.span)),
             TokenKind::Char => {
                 let c = token.value.chars().next().unwrap_or('\0');
                 Ok(Expr::Literal(Literal::Char(c), token.span))
             }
-            TokenKind::KwTrue | TokenKind::KwFalse => {
-                Ok(Expr::Literal(Literal::Bool(token.kind == TokenKind::KwTrue), token.span))
-            }
+            TokenKind::KwTrue | TokenKind::KwFalse => Ok(Expr::Literal(
+                Literal::Bool(token.kind == TokenKind::KwTrue),
+                token.span,
+            )),
             TokenKind::LParen => {
                 // Tuple or parenthesized expression
                 let expr = self.parse_expression()?;
@@ -675,26 +726,14 @@ impl Parser {
             }
             TokenKind::LBrace => {
                 // Block or struct literal
-                self.parse_block_like()?
+                self.parse_block_like()
             }
-            TokenKind::KwIf => {
-                self.parse_if_expr(token.span)
-            }
-            TokenKind::KwMatch => {
-                self.parse_match_expr(token.span)
-            }
-            TokenKind::KwLoop => {
-                self.parse_loop_expr(token.span)
-            }
-            TokenKind::KwWhile => {
-                self.parse_while_expr(token.span)
-            }
-            TokenKind::KwFor => {
-                self.parse_for_expr(token.span)
-            }
-            TokenKind::KwFn => {
-                self.parse_lambda(token.span)
-            }
+            TokenKind::KwIf => self.parse_if_expr(token.span),
+            TokenKind::KwMatch => self.parse_match_expr(token.span),
+            TokenKind::KwLoop => self.parse_loop_expr(token.span),
+            TokenKind::KwWhile => self.parse_while_expr(token.span),
+            TokenKind::KwFor => self.parse_for_expr(token.span),
+            TokenKind::KwFn => self.parse_lambda(token.span),
             _ => bail!("Unexpected token: {:?}", token.kind),
         }
     }
@@ -702,13 +741,13 @@ impl Parser {
     fn parse_if_expr(&mut self, span: Span) -> Result<Expr> {
         let condition = self.parse_expression()?;
         let then_branch = self.parse_block()?;
-        
+
         let else_branch = if self.check(TokenKind::KwElse) {
             self.advance();
             Some(Box::new(if self.check(TokenKind::KwIf) {
                 self.parse_if_expr(span)?
             } else {
-                self.parse_block()?
+                Expr::Block(self.parse_block()?)
             }))
         } else {
             None
@@ -716,39 +755,42 @@ impl Parser {
 
         Ok(Expr::If {
             condition: Box::new(condition),
-            then: Box::new(then_branch),
-            else: else_branch,
+            then: Box::new(Expr::Block(then_branch)),
+            else_branch: else_branch,
             span,
         })
     }
 
     fn parse_match_expr(&mut self, span: Span) -> Result<Expr> {
         let scrutinee = self.parse_expression()?;
-        
+
         self.expect(TokenKind::LBrace)?;
-        
+
         let mut arms = Vec::new();
         while !self.check(TokenKind::RBrace) {
             let pattern = self.parse_pattern()?;
-            
+
             self.expect(TokenKind::OpArrow)?;
-            
+
             let guard = if self.check(TokenKind::KwIf) {
                 self.advance();
                 Some(self.parse_expression()?)
             } else {
                 None
             };
-            
+
             let body = if self.check(TokenKind::LBrace) {
                 self.parse_block()?
             } else {
                 let expr = self.parse_expression()?;
                 let mut stmts = Vec::new();
                 stmts.push(Stmt::Expr(expr));
-                Block { stmts, span: expr.span }
+                Block {
+                    stmts,
+                    span: Span::default(),
+                }
             };
-            
+
             arms.push(MatchArm {
                 pattern,
                 guard,
@@ -759,7 +801,7 @@ impl Parser {
                 self.advance();
             }
         }
-        
+
         self.expect(TokenKind::RBrace)?;
 
         Ok(Expr::Match {
@@ -770,12 +812,15 @@ impl Parser {
     }
 
     fn parse_pattern(&mut self) -> Result<Pattern> {
-        let token = self.peek().ok_or_else(|| anyhow::anyhow!("Unexpected end of input"))?;
-        
+        let token = self
+            .peek()
+            .ok_or_else(|| anyhow::anyhow!("Unexpected end of input"))?
+            .clone();
+
         match token.kind {
             TokenKind::Identifier => {
                 let name = self.advance().map(|t| t.value).unwrap();
-                
+
                 if self.check(TokenKind::LParen) {
                     // Enum variant
                     self.advance();
@@ -794,15 +839,17 @@ impl Parser {
                     let mut fields = Vec::new();
                     while !self.check(TokenKind::RBrace) {
                         let field_name = match self.peek() {
-                            Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
+                            Some(t) if t.kind == TokenKind::Identifier => {
+                                self.advance().map(|t| t.value).unwrap()
+                            }
                             _ => bail!("Expected field name"),
                         };
-                        
+
                         self.expect(TokenKind::Colon)?;
                         let field_pattern = self.parse_pattern()?;
-                        
+
                         fields.push((field_name, field_pattern));
-                        
+
                         if self.check(TokenKind::Comma) {
                             self.advance();
                         }
@@ -819,10 +866,13 @@ impl Parser {
                 Ok(Pattern::Wildcard(token.span))
             }
             TokenKind::Integer => {
-                let val = self.advance().map(|t| t.value.parse::<i64>().unwrap_or(0)).unwrap();
+                let val = self
+                    .advance()
+                    .map(|t| t.value.parse::<i64>().unwrap_or(0))
+                    .unwrap();
                 Ok(Pattern::Int(val, token.span))
             }
-            TokenKind::String => {
+            TokenKind::StrLiteral => {
                 let val = self.advance().map(|t| t.value).unwrap();
                 Ok(Pattern::String(val, token.span))
             }
@@ -843,7 +893,7 @@ impl Parser {
 
         Ok(Expr::Loop {
             label,
-            body: Box::new(body),
+            body: Box::new(Expr::Block(body)),
             span,
         })
     }
@@ -863,7 +913,7 @@ impl Parser {
         Ok(Expr::While {
             label,
             condition: Box::new(condition),
-            body: Box::new(body),
+            body: Box::new(Expr::Block(body)),
             span,
         })
     }
@@ -883,7 +933,7 @@ impl Parser {
         Ok(Expr::For {
             pattern,
             iter: Box::new(iter),
-            body: Box::new(body),
+            body: Box::new(Expr::Block(body)),
             span,
         })
     }
@@ -894,7 +944,9 @@ impl Parser {
         let mut params = Vec::new();
         while !self.check(TokenKind::RParen) {
             let name = match self.peek() {
-                Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
+                Some(t) if t.kind == TokenKind::Identifier => {
+                    self.advance().map(|t| t.value).unwrap()
+                }
                 _ => bail!("Expected parameter name"),
             };
             params.push(name);
@@ -916,12 +968,12 @@ impl Parser {
         let body = if self.check(TokenKind::OpArrow) {
             // Expression body
             let expr = self.parse_expression()?;
-            Block {
+            Expr::Block(Block {
                 stmts: vec![Stmt::Expr(expr)],
-                span: expr.span,
-            }
+                span: Span::default(),
+            })
         } else {
-            self.parse_block()?
+            Expr::Block(self.parse_block()?)
         };
 
         Ok(Expr::Lambda {
@@ -934,7 +986,11 @@ impl Parser {
 
     fn parse_block(&mut self) -> Result<Block> {
         self.expect(TokenKind::LBrace)?;
-        self.parse_block_like()
+        match self.parse_block_like() {
+            Ok(Expr::Block(block)) => Ok(block),
+            Ok(_) => bail!("Expected block expression"),
+            Err(e) => Err(e),
+        }
     }
 
     fn parse_block_like(&mut self) -> Result<Expr> {
@@ -950,8 +1006,9 @@ impl Parser {
         }
 
         let end = if let Some(t) = self.peek() {
+            let end_pos = t.span.end;
             self.expect(TokenKind::RBrace)?;
-            t.span.end
+            end_pos
         } else {
             Position::default()
         };
@@ -967,7 +1024,9 @@ impl Parser {
     // =========================================================================
 
     fn parse_statement(&mut self) -> Result<Stmt> {
-        let token = self.peek().ok_or_else(|| anyhow::anyhow!("Unexpected end of input"))?;
+        let token = self
+            .peek()
+            .ok_or_else(|| anyhow::anyhow!("Unexpected end of input"))?;
 
         match token.kind {
             TokenKind::KwLet => self.parse_let_stmt(),
@@ -990,7 +1049,7 @@ impl Parser {
 
     fn parse_let_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwLet)?;
-        
+
         let pattern = match self.peek() {
             Some(t) if t.kind == TokenKind::Identifier => {
                 let name = self.advance().map(|t| t.value).unwrap();
@@ -1015,16 +1074,12 @@ impl Parser {
 
         self.expect(TokenKind::Semicolon)?;
 
-        Ok(Stmt::Let {
-            pattern,
-            ty,
-            init,
-        })
+        Ok(Stmt::Let { pattern, ty, init })
     }
 
     fn parse_var_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwVar)?;
-        
+
         let pattern = match self.peek() {
             Some(t) if t.kind == TokenKind::Identifier => {
                 let name = self.advance().map(|t| t.value).unwrap();
@@ -1049,16 +1104,12 @@ impl Parser {
 
         self.expect(TokenKind::Semicolon)?;
 
-        Ok(Stmt::Var {
-            pattern,
-            ty,
-            init,
-        })
+        Ok(Stmt::Var { pattern, ty, init })
     }
 
     fn parse_return_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwReturn)?;
-        
+
         let value = if self.check(TokenKind::Semicolon) {
             None
         } else {
@@ -1072,7 +1123,7 @@ impl Parser {
 
     fn parse_break_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwBreak)?;
-        
+
         let label = if self.check(TokenKind::Identifier) {
             Some(self.advance().map(|t| t.value).unwrap())
         } else {
@@ -1092,7 +1143,7 @@ impl Parser {
 
     fn parse_continue_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwContinue)?;
-        
+
         let label = if self.check(TokenKind::Identifier) {
             Some(self.advance().map(|t| t.value).unwrap())
         } else {
@@ -1106,25 +1157,29 @@ impl Parser {
 
     fn parse_defer_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwDefer)?;
-        
+
         let expr = self.parse_expression()?;
-        
+
         self.expect(TokenKind::Semicolon)?;
 
-        Ok(Stmt::Defer { expr: Box::new(expr) })
+        Ok(Stmt::Defer {
+            expr: Box::new(expr),
+        })
     }
 
     fn parse_unsafe_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwUnsafe)?;
-        
+
         let block = self.parse_block()?;
 
-        Ok(Stmt::Unsafe { block: Box::new(block) })
+        Ok(Stmt::Unsafe {
+            block: Box::new(Stmt::Expr(Expr::Block(block))),
+        })
     }
 
     fn parse_asm_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwAsm)?;
-        
+
         // Optional syntax (intel/att)
         let syntax = if self.check(TokenKind::Identifier) {
             Some(self.advance().map(|t| t.value).unwrap())
@@ -1133,7 +1188,7 @@ impl Parser {
         };
 
         let code = match self.peek() {
-            Some(t) if t.kind == TokenKind::String => self.advance().map(|t| t.value).unwrap(),
+            Some(t) if t.kind == TokenKind::StrLiteral => self.advance().map(|t| t.value).unwrap(),
             _ => bail!("Expected assembly code string"),
         };
 
@@ -1144,16 +1199,16 @@ impl Parser {
 
     fn parse_syscall_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwSyscall)?;
-        
+
         let mut args = Vec::new();
-        
+
         while !self.check(TokenKind::Semicolon) {
             args.push(self.parse_expression()?);
             if self.check(TokenKind::Comma) {
                 self.advance();
             }
         }
-        
+
         self.expect(TokenKind::Semicolon)?;
 
         Ok(Stmt::Syscall { args })
@@ -1161,10 +1216,12 @@ impl Parser {
 
     fn parse_comptime_stmt(&mut self) -> Result<Stmt> {
         self.expect(TokenKind::KwComptime)?;
-        
+
         let block = self.parse_block()?;
 
-        Ok(Stmt::Comptime { block: Box::new(block) })
+        Ok(Stmt::Comptime {
+            block: Box::new(Stmt::Expr(Expr::Block(block))),
+        })
     }
 
     // =========================================================================

@@ -1,5 +1,5 @@
 //! Knull Lexer - Tokenizer
-//! 
+//!
 //! This module handles lexical analysis, converting source code into a stream of tokens.
 
 use anyhow::{bail, Result};
@@ -61,7 +61,11 @@ pub struct Position {
 
 impl Position {
     pub fn new(line: usize, column: usize, offset: usize) -> Self {
-        Position { line, column, offset }
+        Position {
+            line,
+            column,
+            offset,
+        }
     }
 }
 
@@ -71,7 +75,7 @@ pub enum TokenKind {
     // Literals
     Integer,
     Float,
-    String,
+    StrLiteral,
     Char,
     Boolean,
     Identifier,
@@ -125,30 +129,30 @@ pub enum TokenKind {
     KwSuper,
 
     // Operators
-    OpAdd,         // +
-    OpSub,         // -
-    OpMul,         // *
-    OpDiv,         // /
-    OpRem,         // %
-    OpPow,         // **
-    OpShl,         // <<
-    OpShr,         // >>
-    OpBitAnd,      // &
-    OpBitOr,       // |
-    OpBitXor,      // ^
-    OpBitNot,      // ~
-    OpEq,          // ==
-    OpNe,          // !=
-    OpLt,          // <
-    OpGt,          // >
-    OpLe,          // <=
-    OpGe,          // >=
-    OpLogAnd,      // &&
-    OpLogOr,       // ||
-    OpLogNot,      // !
+    OpAdd,    // +
+    OpSub,    // -
+    OpMul,    // *
+    OpDiv,    // /
+    OpRem,    // %
+    OpPow,    // **
+    OpShl,    // <<
+    OpShr,    // >>
+    OpBitAnd, // &
+    OpBitOr,  // |
+    OpBitXor, // ^
+    OpBitNot, // ~
+    OpEq,     // ==
+    OpNe,     // !=
+    OpLt,     // <
+    OpGt,     // >
+    OpLe,     // <=
+    OpGe,     // >=
+    OpLogAnd, // &&
+    OpLogOr,  // ||
+    OpLogNot, // !
 
     // Assignment
-    Assign,        // =
+    Assign,       // =
     AddAssign,    // +=
     SubAssign,    // -=
     MulAssign,    // *=
@@ -161,15 +165,17 @@ pub enum TokenKind {
     BitXorAssign, // ^=
 
     // Special operators
-    Op Elvis,         // ?:
-    Op SafeNav,       // ?.
-    Op Pipeline,       // |>
-    Op Range,         // ..
-    Op RangeIncl,     // ..=
-    Op ScopeRes,      // ::
-    Op Arrow,         // ->
-    Op At,            // @
-    Op Dollar,        // $
+    OpElvis,     // ?:
+    OpSafeNav,   // ?.
+    OpPipeline,  // |>
+    OpRange,     // ..
+    OpRangeIncl, // ..=
+    OpScopeRes,  // ::
+    OpArrow,     // ->
+    OpAt,        // @
+    OpDollar,    // $
+    Question,    // ?
+    Underscore,  // _
 
     // Delimiters
     LParen,    // (
@@ -258,18 +264,18 @@ impl TokenKind {
 }
 
 /// The Knull Lexer
-pub struct Lexer {
-    source: String,
-    chars: Peekable<Chars<'>>,
+pub struct Lexer<'a> {
+    source: &'a str,
+    chars: Peekable<Chars<'a>>,
     position: Position,
     tokens: Vec<Token>,
 }
 
-impl Lexer {
+impl<'a> Lexer<'a> {
     /// Create a new lexer from source code
-    pub fn new(source: &str) -> Self {
+    pub fn new(source: &'a str) -> Self {
         Lexer {
-            source: source.to_string(),
+            source: source,
             chars: source.chars().peekable(),
             position: Position::new(1, 0, 0),
             tokens: Vec::new(),
@@ -326,10 +332,8 @@ impl Lexer {
         }
 
         // Add EOF token
-        self.tokens.push(Token::new(
-            Eof,
-            Span::new(self.position, self.position),
-        ));
+        self.tokens
+            .push(Token::new(Eof, Span::new(self.position, self.position)));
 
         Ok(self.tokens)
     }
@@ -444,7 +448,9 @@ impl Lexer {
             if !ch.is_alphanumeric() && ch != '_' {
                 break;
             }
-            value.push(self.next());
+            if let Some(ch) = self.next() {
+                value.push(ch);
+            }
         }
 
         let kind = match value.as_str() {
@@ -495,6 +501,7 @@ impl Lexer {
             "false" => KwFalse,
             "self" => KwSelf,
             "super" => KwSuper,
+            "_" => Underscore,
             _ => Identifier,
         };
 
@@ -512,39 +519,57 @@ impl Lexer {
             if let Some(&next) = self.peek() {
                 match next {
                     'x' | 'X' => {
-                        value.push(self.next()); // consume 'x'
+                        if let Some(ch) = self.next() {
+                            value.push(ch);
+                        } // consume 'x'
                         while let Some(&ch) = self.peek() {
                             if ch.is_ascii_hexdigit() || ch == '_' {
-                                value.push(self.next());
+                                if let Some(ch) = self.next() {
+                                    value.push(ch);
+                                }
                             } else {
                                 break;
                             }
                         }
-                        self.emit(Token::new(Integer, Span::new(start, self.position)).with_value(value));
+                        self.emit(
+                            Token::new(Integer, Span::new(start, self.position)).with_value(value),
+                        );
                         return Ok(());
                     }
                     'o' | 'O' => {
-                        value.push(self.next());
+                        if let Some(ch) = self.next() {
+                            value.push(ch);
+                        }
                         while let Some(&ch) = self.peek() {
-                            if ch.is_ascii_octdigit() || ch == '_' {
-                                value.push(self.next());
+                            if ('0' <= ch && ch <= '7') || ch == '_' {
+                                if let Some(ch) = self.next() {
+                                    value.push(ch);
+                                }
                             } else {
                                 break;
                             }
                         }
-                        self.emit(Token::new(Integer, Span::new(start, self.position)).with_value(value));
+                        self.emit(
+                            Token::new(Integer, Span::new(start, self.position)).with_value(value),
+                        );
                         return Ok(());
                     }
                     'b' | 'B' => {
-                        value.push(self.next());
+                        if let Some(ch) = self.next() {
+                            value.push(ch);
+                        }
                         while let Some(&ch) = self.peek() {
                             if ch == '0' || ch == '1' || ch == '_' {
-                                value.push(self.next());
+                                if let Some(ch) = self.next() {
+                                    value.push(ch);
+                                }
                             } else {
                                 break;
                             }
                         }
-                        self.emit(Token::new(Integer, Span::new(start, self.position)).with_value(value));
+                        self.emit(
+                            Token::new(Integer, Span::new(start, self.position)).with_value(value),
+                        );
                         return Ok(());
                     }
                     _ => {}
@@ -555,24 +580,34 @@ impl Lexer {
         // Decimal number
         while let Some(&ch) = self.peek() {
             if ch.is_ascii_digit() || ch == '_' {
-                value.push(self.next());
+                if let Some(ch) = self.next() {
+                    value.push(ch);
+                }
             } else if ch == '.' && !is_float {
                 // Check if it's a float (e.g., 1.2) or range operator (1..2)
                 is_float = true;
-                value.push(self.next());
-                
+                if let Some(ch) = self.next() {
+                    value.push(ch);
+                }
+
                 // Handle exponent
                 if let Some(&exp) = self.peek() {
                     if exp == 'e' || exp == 'E' {
-                        value.push(self.next());
+                        if let Some(ch) = self.next() {
+                            value.push(ch);
+                        }
                         if let Some(&sign) = self.peek() {
                             if sign == '+' || sign == '-' {
-                                value.push(self.next());
+                                if let Some(ch) = self.next() {
+                                    value.push(ch);
+                                }
                             }
                         }
                         while let Some(&ch) = self.peek() {
                             if ch.is_ascii_digit() {
-                                value.push(self.next());
+                                if let Some(ch) = self.next() {
+                                    value.push(ch);
+                                }
                             } else {
                                 break;
                             }
@@ -582,15 +617,21 @@ impl Lexer {
             } else if ch == 'e' || ch == 'E' {
                 // Exponent without decimal
                 is_float = true;
-                value.push(self.next());
+                if let Some(ch) = self.next() {
+                    value.push(ch);
+                }
                 if let Some(&sign) = self.peek() {
                     if sign == '+' || sign == '-' {
-                        value.push(self.next());
+                        if let Some(ch) = self.next() {
+                            value.push(ch);
+                        }
                     }
                 }
                 while let Some(&ch) = self.peek() {
                     if ch.is_ascii_digit() {
-                        value.push(self.next());
+                        if let Some(ch) = self.next() {
+                            value.push(ch);
+                        }
                     } else {
                         break;
                     }
@@ -612,7 +653,9 @@ impl Lexer {
             match c {
                 '"' => {
                     // End of string
-                    self.emit(Token::new(String, Span::new(start, self.position)).with_value(value));
+                    self.emit(
+                        Token::new(StrLiteral, Span::new(start, self.position)).with_value(value),
+                    );
                     return Ok(());
                 }
                 '\\' => {
@@ -839,7 +882,7 @@ impl Lexer {
                     self.emit(Token::new(OpSafeNav, Span::new(start, self.position)));
                 } else if self.peek() == Some(&':') {
                     self.next();
-                    self.emit(Token::new(Op Elvis, Span::new(start, self.position)));
+                    self.emit(Token::new(OpElvis, Span::new(start, self.position)));
                 } else {
                     // Could be part of pattern matching
                     self.emit(Token::new(Question, Span::new(start, self.position)));
@@ -860,9 +903,6 @@ impl Lexer {
     }
 }
 
-/// Question mark token (for pattern matching)
-const Question: TokenKind = TokenKind::OpLogNot;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -871,7 +911,7 @@ mod tests {
     fn test_lexer_keywords() {
         let source = "fn let var struct enum";
         let tokens = Lexer::new(source).lex().unwrap();
-        
+
         assert_eq!(tokens[0].kind, KwFn);
         assert_eq!(tokens[1].kind, KwLet);
         assert_eq!(tokens[2].kind, KwVar);
@@ -883,7 +923,7 @@ mod tests {
     fn test_lexer_numbers() {
         let source = "42 3.14 0xFF 0o77 0b1010";
         let tokens = Lexer::new(source).lex().unwrap();
-        
+
         assert_eq!(tokens[0].kind, Integer);
         assert_eq!(tokens[1].kind, Float);
         assert_eq!(tokens[2].kind, Integer);
@@ -895,8 +935,8 @@ mod tests {
     fn test_lexer_strings() {
         let source = "\"hello world\"";
         let tokens = Lexer::new(source).lex().unwrap();
-        
-        assert_eq!(tokens[0].kind, String);
+
+        assert_eq!(tokens[0].kind, StrLiteral);
         assert_eq!(tokens[0].value, "hello world");
     }
 
@@ -904,7 +944,7 @@ mod tests {
     fn test_lexer_operators() {
         let source = "== != <= >= && || |> ..";
         let tokens = Lexer::new(source).lex().unwrap();
-        
+
         assert_eq!(tokens[0].kind, OpEq);
         assert_eq!(tokens[1].kind, OpNe);
         assert_eq!(tokens[2].kind, OpLe);
