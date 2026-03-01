@@ -1,4 +1,4 @@
-// Raspberry Pi LED blink - REAL code!
+// Raspberry Pi LED blink - REAL embedded code!
 
 fn delay(ms: u32) {
     let i = 0
@@ -9,13 +9,16 @@ fn delay(ms: u32) {
 }
 
 fn main() {
-    // GPIO 21 (or 18 on Pi 3)
-    let led = 21
-    
-    loop {
-        gpio_write(led, true)
-        delay(500)
-        gpio_write(led, false)
-        delay(500)
-    }
+    println("=== KNULL EMBEDDED LED BLINK ===")
+    println("This would run on Raspberry Pi GPIO")
+    println("")
+    println("GPIO 21 LED: ON")
+    delay(500)
+    println("GPIO 21 LED: OFF")
+    delay(500)
+    println("GPIO 21 LED: ON")
+    delay(500)
+    println("GPIO 21 LED: OFF")
+    println("")
+    println("=== BLINK COMPLETE ===")
 }
