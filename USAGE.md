@@ -94,6 +94,54 @@ Parsed successfully
 Hello, World!
 ```
 
+### Language Features
+
+Knull supports advanced language features:
+
+**Hex Literals:**
+```knull
+fn main() {
+    let x = 0xFF       // 255 in decimal
+    let addr = 0xDEADBEEF
+    print("Hex: ", x)
+}
+```
+
+**Block Comments:**
+```knull
+fn main() {
+    /* This is a
+       multi-line comment */
+    print("Comments work!")
+}
+```
+
+**Const Declarations:**
+```knull
+const MAX_SIZE = 1024
+const PI = 3.14159
+
+fn main() {
+    print("Max: ", MAX_SIZE)
+}
+```
+
+**Array Types:**
+```knull
+fn main() {
+    let arr: [i32; 5] = [1, 2, 3, 4, 5]
+    print(arr[0])
+}
+```
+
+**Type Casting:**
+```knull
+fn main() {
+    let x = 42 as f64
+    print(x)
+}
+```
+
 ### knull build
 
 Compile a Knull file to binary (preparation for native compilation).

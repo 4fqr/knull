@@ -81,6 +81,30 @@ self        // Current instance
 Super       // Parent module
 ```
 
+### 1.2.1a Comments
+
+Knull supports both single-line and multi-line comments:
+
+```
+comment → // (any_except_newline)*
+         | /* block_comment */
+block_comment → /* (block_comment | any_char)* */
+```
+
+- **Single-line comments**: Start with `//` and extend to end of line
+- **Block comments**: Start with `/*` and end with `*/`. Block comments are nesting aware.
+
+```knull
+// This is a single-line comment
+
+/*
+ * This is a
+ * multi-line comment
+ */
+
+/* Nested /* block */ comments */ are supported
+```
+
 ### 1.2.2 Literals
 
 ```

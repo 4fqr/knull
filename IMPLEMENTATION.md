@@ -9,6 +9,11 @@
 - [x] Arrays and array operations
 - [x] Boolean operations and comparisons
 - [x] Null literal support
+- [x] Hex literals (0xFF, 0xDEADBEEF)
+- [x] Block comments (/* */)
+- [x] Const declarations (const X = 42)
+- [x] Array types ([u64; 512])
+- [x] Type casting (as keyword)
 
 ### File I/O ✓
 - [x] file_read(path) - Read entire file
