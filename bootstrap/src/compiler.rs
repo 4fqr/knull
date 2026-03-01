@@ -350,6 +350,19 @@ impl Compiler {
                 });
                 Ok(())
             }
+            Expr::Call { func, args, .. } => {
+                if let Expr::Ident(name, _) = func.as_ref() {
+                    for arg in args {
+                        self.generate_expression(arg, ir_fn)?;
+                    }
+                    ir_fn.emit(IrInstruction::Call {
+                        dest: "%result".to_string(),
+                        func: name.clone(),
+                        args: vec![],
+                    });
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }

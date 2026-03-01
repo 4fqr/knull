@@ -40,7 +40,12 @@ pub fn run_file(path: &Path, verbose: bool) -> Result<(), String> {
 }
 
 /// Build a Knull file to native binary
-pub fn build_file(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(), String> {
+pub fn build_file(
+    path: &Path,
+    output: Option<&Path>,
+    verbose: bool,
+    target: &str,
+) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
     let out_path = output
@@ -49,14 +54,35 @@ pub fn build_file(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(
 
     if verbose {
         println!(
-            "{} {} → {}",
+            "{} {} → {} (target: {})",
             "Building".bright_yellow().bold(),
             path.display(),
-            out_path.display()
+            out_path.display(),
+            target
         );
     }
 
     let _options = CompileOptions::default();
+
+    match target {
+        "wasm32" => {
+            let wasm_path = out_path.with_extension("wasm");
+            crate::wasm_codegen::compile_to_wasm(&source, wasm_path.to_str().unwrap())
+                .map_err(|e| format!("WASM compilation failed: {}", e))?;
+
+            if verbose {
+                println!("  WASM file: {}", wasm_path.display());
+            }
+
+            println!(
+                "{} Build successful: {}",
+                "✓".green().bold(),
+                wasm_path.display()
+            );
+            return Ok(());
+        }
+        _ => {}
+    }
 
     #[cfg(feature = "llvm-backend")]
     {
@@ -78,7 +104,6 @@ pub fn build_file(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(
 
     #[cfg(not(feature = "llvm-backend"))]
     {
-        // Use C backend as fallback
         crate::c_codegen::compile_to_binary(&source, out_path.to_str().unwrap())
             .map_err(|e| format!("Compilation failed: {}", e))?;
 
@@ -93,8 +118,13 @@ pub fn build_file(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(
 }
 
 /// Build in release mode (optimized)
-pub fn build_release(path: &Path, output: Option<&Path>, verbose: bool) -> Result<(), String> {
-    build_file(path, output, verbose)
+pub fn build_release(
+    path: &Path,
+    output: Option<&Path>,
+    verbose: bool,
+    target: &str,
+) -> Result<(), String> {
+    build_file(path, output, verbose, target)
 }
 
 /// Generate assembly output

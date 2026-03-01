@@ -686,7 +686,7 @@ impl<'a> Lexer<'a> {
                     }
                 }
                 '\n' => {
-                    bail!("Unterminated string literal");
+                    value.push('\n');
                 }
                 c => {
                     value.push(c);
@@ -893,6 +893,33 @@ impl<'a> Lexer<'a> {
             }
             '$' => {
                 self.emit(Token::new(OpDollar, Span::new(start, self.position)));
+            }
+            '(' => {
+                self.emit(Token::new(LParen, Span::new(start, self.position)));
+            }
+            ')' => {
+                self.emit(Token::new(RParen, Span::new(start, self.position)));
+            }
+            '[' => {
+                self.emit(Token::new(LBracket, Span::new(start, self.position)));
+            }
+            ']' => {
+                self.emit(Token::new(RBracket, Span::new(start, self.position)));
+            }
+            '{' => {
+                self.emit(Token::new(LBrace, Span::new(start, self.position)));
+            }
+            '}' => {
+                self.emit(Token::new(RBrace, Span::new(start, self.position)));
+            }
+            ',' => {
+                self.emit(Token::new(Comma, Span::new(start, self.position)));
+            }
+            ';' => {
+                self.emit(Token::new(Semicolon, Span::new(start, self.position)));
+            }
+            '~' => {
+                self.emit(Token::new(OpBitNot, Span::new(start, self.position)));
             }
             _ => {
                 bail!("Unexpected character: {}", c);

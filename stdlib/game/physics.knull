@@ -1,0 +1,24 @@
+// Vector math
+struct Vec2 { x: f32, y: f32 }
+
+fn vec2_add(a: Vec2, b: Vec2) -> Vec2
+fn vec2_sub(a: Vec2, b: Vec2) -> Vec2
+fn vec2_mul(v: Vec2, s: f32) -> Vec2
+fn vec2_dot(a: Vec2, b: Vec2) -> f32
+fn vec2_length(v: Vec2) -> f32
+fn vec2_normalize(v: Vec2) -> Vec2
+
+// Physics body
+struct Body {
+    pos: Vec2,
+    vel: Vec2,
+    acc: Vec2,
+    mass: f32,
+}
+
+fn body_apply_force(b: *Body, force: Vec2)
+fn body_update(b: *Body, dt: f32)
+fn body_collision(a: *Body, b: *Body) -> bool
+
+// AABB Collision
+fn aabb_collide(a_min: Vec2, a_max: Vec2, b_min: Vec2, b_max: Vec2) -> bool

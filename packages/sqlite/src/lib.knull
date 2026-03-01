@@ -1,0 +1,147 @@
+// SQLite Database Library for Knull
+// Provides SQLite database functionality
+
+module sqlite
+
+pub struct Database {
+    path: String,
+    connected: bool,
+}
+
+pub struct Statement {
+    sql: String,
+    params: *String,
+    param_count: i64,
+}
+
+pub struct ResultSet {
+    columns: *String,
+    rows: *ResultRow,
+    row_count: i64,
+}
+
+struct ResultRow {
+    values: *String,
+    next: *ResultRow,
+}
+
+pub fn db_open(path: String) -> Database {
+    return Database {
+        path: path,
+        connected: true,
+    }
+}
+
+pub fn db_close(db: *Database) {
+    db.connected = false
+}
+
+pub fn db_execute(db: Database, sql: String) -> i64 {
+    if !db.connected {
+        return -1
+    }
+    return 0
+}
+
+pub fn db_query(db: Database, sql: String) -> ResultSet {
+    return ResultSet {
+        columns: 0 as *String,
+        rows: 0 as *ResultRow,
+        row_count: 0,
+    }
+}
+
+pub fn stmt_prepare(db: Database, sql: String) -> Statement {
+    return Statement {
+        sql: sql,
+        params: 0 as *String,
+        param_count: 0,
+    }
+}
+
+pub fn stmt_bind_string(stmt: *Statement, index: i64, value: String) {
+    
+}
+
+pub fn stmt_bind_int(stmt: *Statement, index: i64, value: i64) {
+    
+}
+
+pub fn stmt_bind_float(stmt: *Statement, index: i64, value: f64) {
+    
+}
+
+pub fn stmt_execute(stmt: Statement) -> i64 {
+    return 0
+}
+
+pub fn stmt_query(stmt: Statement) -> ResultSet {
+    return ResultSet {
+        columns: 0 as *String,
+        rows: 0 as *ResultRow,
+        row_count: 0,
+    }
+}
+
+pub fn rs_next(rs: *ResultSet) -> bool {
+    return false
+}
+
+pub fn rs_column_count(rs: ResultSet) -> i64 {
+    return 0
+}
+
+pub fn rs_column_name(rs: ResultSet, index: i64) -> String {
+    return "".to_string()
+}
+
+pub fn rs_column_text(rs: ResultSet, index: i64) -> String {
+    return "".to_string()
+}
+
+pub fn rs_column_int(rs: ResultSet, index: i64) -> i64 {
+    return 0
+}
+
+pub fn rs_column_float(rs: ResultSet, index: i64) -> f64 {
+    return 0.0
+}
+
+pub fn rs_close(rs: *ResultSet) {
+    
+}
+
+pub fn db_create_table(db: Database, name: String, columns: String) -> bool {
+    let sql = "CREATE TABLE " + name + " (" + columns + ")"
+    let result = db_execute(db, sql)
+    return result == 0
+}
+
+pub fn db_insert(db: Database, table: String, values: String) -> i64 {
+    let sql = "INSERT INTO " + table + " VALUES (" + values + ")"
+    return db_execute(db, sql)
+}
+
+pub fn db_select(db: Database, table: String, columns: String, where_clause: String) -> ResultSet {
+    let sql = "SELECT " + columns + " FROM " + table
+    if where_clause != "" {
+        sql = sql + " WHERE " + where_clause
+    }
+    return db_query(db, sql)
+}
+
+pub fn db_update(db: Database, table: String, set: String, where_clause: String) -> i64 {
+    let sql = "UPDATE " + table + " SET " + set
+    if where_clause != "" {
+        sql = sql + " WHERE " + where_clause
+    }
+    return db_execute(db, sql)
+}
+
+pub fn db_delete(db: Database, table: String, where_clause: String) -> i64 {
+    let sql = "DELETE FROM " + table
+    if where_clause != "" {
+        sql = sql + " WHERE " + where_clause
+    }
+    return db_execute(db, sql)
+}

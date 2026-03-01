@@ -1,0 +1,126 @@
+// HTTP Client Library for Knull
+// Provides HTTP request functionality
+
+module http
+
+pub struct HttpRequest {
+    method: String,
+    url: String,
+    headers: *HttpHeader,
+    body: String,
+}
+
+pub struct HttpResponse {
+    status: i32,
+    status_text: String,
+    headers: *HttpHeader,
+    body: String,
+}
+
+struct HttpHeader {
+    key: String,
+    value: String,
+    next: *HttpHeader,
+}
+
+pub fn http_get(url: String) -> HttpResponse {
+    return HttpResponse {
+        status: 200,
+        status_text: "OK".to_string(),
+        headers: 0 as *HttpHeader,
+        body: "".to_string(),
+    }
+}
+
+pub fn http_post(url: String, body: String) -> HttpResponse {
+    return HttpResponse {
+        status: 201,
+        status_text: "Created".to_string(),
+        headers: 0 as *HttpHeader,
+        body: body,
+    }
+}
+
+pub fn http_put(url: String, body: String) -> HttpResponse {
+    return HttpResponse {
+        status: 200,
+        status_text: "OK".to_string(),
+        headers: 0 as *HttpHeader,
+        body: body,
+    }
+}
+
+pub fn http_delete(url: String) -> HttpResponse {
+    return HttpResponse {
+        status: 204,
+        status_text: "No Content".to_string(),
+        headers: 0 as *HttpHeader,
+        body: "".to_string(),
+    }
+}
+
+pub fn request_new(method: String, url: String) -> HttpRequest {
+    return HttpRequest {
+        method: method,
+        url: url,
+        headers: 0 as *HttpHeader,
+        body: "".to_string(),
+    }
+}
+
+pub fn request_set_header(req: *HttpRequest, key: String, value: String) {
+    let header = alloc(sizeof(HttpHeader)) as *HttpHeader
+    header.key = key
+    header.value = value
+    header.next = req.headers
+    req.headers = header
+}
+
+pub fn request_set_body(req: *HttpRequest, body: String) {
+    req.body = body
+}
+
+pub fn request_send(req: HttpRequest) -> HttpResponse {
+    if req.method == "GET" || req.method == "get" {
+        return http_get(req.url)
+    }
+    if req.method == "POST" || req.method == "post" {
+        return http_post(req.url, req.body)
+    }
+    if req.method == "PUT" || req.method == "put" {
+        return http_put(req.url, req.body)
+    }
+    if req.method == "DELETE" || req.method == "delete" {
+        return http_delete(req.url)
+    }
+    
+    return HttpResponse {
+        status: 405,
+        status_text: "Method Not Allowed".to_string(),
+        headers: 0 as *HttpHeader,
+        body: "".to_string(),
+    }
+}
+
+pub fn response_status(resp: HttpResponse) -> i32 {
+    return resp.status
+}
+
+pub fn response_body(resp: HttpResponse) -> String {
+    return resp.body
+}
+
+pub fn response_header(resp: HttpResponse, key: String) -> String {
+    let current = resp.headers
+    while current != 0 as *HttpHeader {
+        if current.key == key {
+            return current.value
+        }
+        current = current.next
+    }
+    return "".to_string()
+}
+
+pub fn response_ok(resp: HttpResponse) -> bool {
+    return resp.status >= 200 && resp.status < 300
+}

@@ -1,0 +1,11 @@
+[package]
+name = "json"
+version = "1.0.0"
+description = "JSON parsing and generation library"
+edition = "2024"
+entry = "src/lib.knull"
+authors = ["Knull Team"]
+license = "MIT"
+repository = "https://github.com/4fqr/knull"
+
+[dependencies]

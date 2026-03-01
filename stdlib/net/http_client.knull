@@ -1,0 +1,297 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - HTTP CLIENT
+// =============================================================================
+// HTTP client using TCP sockets
+
+use net
+
+// -----------------------------------------------------------------------------
+// HTTP RESPONSE
+// -----------------------------------------------------------------------------
+
+struct HttpResponse {
+    status: i32,
+    status_text: *i8,
+    headers: *i8,
+    body: *i8,
+}
+
+// -----------------------------------------------------------------------------
+// URL PARSING
+// -----------------------------------------------------------------------------
+
+struct Url {
+    scheme: i8[16],
+    host: i8[256],
+    port: i32,
+    path: i8[1024],
+}
+
+fn url_parse(url_str: *i8) -> Url {
+    let url: Url
+    url.port = 80
+    url.path[0] = '/'
+    url.path[1] = 0
+
+    let colon = strstr(url_str, "://")
+    if colon != 0 as *i8 {
+        let scheme_len = colon - url_str
+        memcpy(&url.scheme, url_str, scheme_len)
+        url.scheme[scheme_len] = 0
+        colon = colon + 3
+    } else {
+        strcpy(&url.scheme, "http")
+        colon = url_str
+    }
+
+    let slash = strchr(colon, '/')
+    let port_colon = strchr(colon, ':')
+
+    if port_colon != 0 as *i8 && (slash == 0 as *i8 || port_colon < slash) {
+        let host_len = port_colon - colon
+        memcpy(&url.host, colon, host_len)
+        url.host[host_len] = 0
+        url.port = atoi(port_colon + 1)
+    } else {
+        let host_len = 0
+        if slash != 0 as *i8 {
+            host_len = slash - colon
+        } else {
+            host_len = strlen(colon)
+        }
+        memcpy(&url.host, colon, host_len)
+        url.host[host_len] = 0
+    }
+
+    if slash != 0 as *i8 {
+        let path_len = strlen(slash)
+        memcpy(&url.path, slash, path_len)
+        url.path[path_len] = 0
+    }
+
+    if url.port == 0 {
+        if strcmp(&url.scheme, "https") == 0 {
+            url.port = 443
+        } else {
+            url.port = 80
+        }
+    }
+
+    return url
+}
+
+// -----------------------------------------------------------------------------
+// HTTP REQUEST BUILDING
+// -----------------------------------------------------------------------------
+
+fn build_get_request(url: *Url) -> *i8 {
+    let request_buf: i8[2048]
+    
+    if url.path[0] == 0 {
+        strcpy(&url.path, "/")
+    }
+    
+    sprintf(&request_buf, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
+            &url.path, &url.host)
+    
+    return strdup(&request_buf)
+}
+
+fn build_post_request(url: *Url, body: *i8) -> *i8 {
+    let request_buf: i8[4096]
+    let body_len = strlen(body)
+    let len_str: i8[32]
+    ltoa(body_len, &len_str)
+    
+    if url.path[0] == 0 {
+        strcpy(&url.path, "/")
+    }
+    
+    sprintf(&request_buf, "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: %s\r\nConnection: close\r\n\r\n%s",
+            &url.path, &url.host, &len_str, body)
+    
+    return strdup(&request_buf)
+}
+
+// -----------------------------------------------------------------------------
+// HTTP RESPONSE PARSING
+// -----------------------------------------------------------------------------
+
+fn parse_http_response(buf: *i8, len: i64) -> HttpResponse {
+    let resp: HttpResponse
+    resp.status = 0
+    resp.status_text = "" as *i8
+    resp.headers = "" as *i8
+    resp.body = "" as *i8
+
+    let p = buf
+    while *p != ' ' && *p != 0 {
+        p = p + 1
+    }
+    if *p == ' ' {
+        p = p + 1
+        resp.status = atoi(p)
+    }
+
+    while *p != ' ' && *p != 0 && *p != '\r' && *p != '\n' {
+        p = p + 1
+    }
+    if *p == ' ' || *p == '\r' || *p == '\n' {
+        let start = p
+        while *p != '\r' && *p != '\n' && *p != 0 {
+            p = p + 1
+        }
+        let status_len = p - start
+        if status_len > 0 && status_len < 128 {
+            let status_text: i8[128]
+            memcpy(&status_text, start, status_len)
+            status_text[status_len] = 0
+            resp.status_text = strdup(&status_text)
+        }
+    }
+
+    let header_end = strstr(buf, "\r\n\r\n")
+    if header_end != 0 as *i8 {
+        let header_len = header_end - buf
+        resp.headers = strndup(buf, header_len)
+        
+        let body_start = header_end + 4
+        let body_len = len - (body_start - buf)
+        if body_len > 0 {
+            resp.body = strndup(body_start, body_len)
+        }
+    }
+
+    return resp
+}
+
+// -----------------------------------------------------------------------------
+// HTTP CLIENT FUNCTIONS
+// -----------------------------------------------------------------------------
+
+fn http_get(url: *i8) -> HttpResponse {
+    let parsed_url = url_parse(url)
+    
+    let stream = net.tcp_connect(&parsed_url.host, parsed_url.port)
+    if !stream.connected {
+        return HttpResponse {
+            status: -1,
+            status_text: "Connection failed" as *i8,
+            headers: "" as *i8,
+            body: "" as *i8,
+        }
+    }
+    
+    let request = build_get_request(&parsed_url)
+    net.tcp_write_str(&stream, request)
+    free(request)
+    
+    let response_buf: i8[16384]
+    let total = 0
+    let n = 0
+    let last_read = 0
+    while last_read < 100 {
+        n = net.tcp_read(&stream, &response_buf[total], 16384 - total - 1)
+        if n <= 0 {
+            break
+        }
+        total = total + n
+        last_read = last_read + 1
+    }
+    response_buf[total] = 0
+    
+    net.tcp_close(&stream)
+    
+    if total == 0 {
+        return HttpResponse {
+            status: -2,
+            status_text: "No response" as *i8,
+            headers: "" as *i8,
+            body: "" as *i8,
+        }
+    }
+    
+    return parse_http_response(&response_buf, total)
+}
+
+fn http_post(url: *i8, body: *i8) -> HttpResponse {
+    let parsed_url = url_parse(url)
+    
+    let stream = net.tcp_connect(&parsed_url.host, parsed_url.port)
+    if !stream.connected {
+        return HttpResponse {
+            status: -1,
+            status_text: "Connection failed" as *i8,
+            headers: "" as *i8,
+            body: "" as *i8,
+        }
+    }
+    
+    let request = build_post_request(&parsed_url, body)
+    net.tcp_write_str(&stream, request)
+    free(request)
+    
+    let response_buf: i8[16384]
+    let total = 0
+    let n = 0
+    let last_read = 0
+    while last_read < 100 {
+        n = net.tcp_read(&stream, &response_buf[total], 16384 - total - 1)
+        if n <= 0 {
+            break
+        }
+        total = total + n
+        last_read = last_read + 1
+    }
+    response_buf[total] = 0
+    
+    net.tcp_close(&stream)
+    
+    if total == 0 {
+        return HttpResponse {
+            status: -2,
+            status_text: "No response" as *i8,
+            headers: "" as *i8,
+            body: "" as *i8,
+        }
+    }
+    
+    return parse_http_response(&response_buf, total)
+}
+
+// -----------------------------------------------------------------------------
+// EXAMPLE
+// -----------------------------------------------------------------------------
+
+fn main() {
+    println("=== KNULL HTTP CLIENT ===")
+    println("")
+    
+    let resp = http_get("http://example.com")
+    println("GET http://example.com")
+    println("Status: " + resp.status)
+    if resp.status > 0 {
+        println("Status Text: " + resp.status_text)
+    }
+    if resp.body != 0 as *i8 && strlen(resp.body) > 0 {
+        let body_preview = strndup(resp.body, 200)
+        println("Body (first 200 chars): " + body_preview)
+        free(body_preview)
+    }
+    println("")
+    
+    let post_resp = http_post("http://httpbin.org/post", "name=test&value=123")
+    println("POST http://httpbin.org/post")
+    println("Status: " + post_resp.status)
+    if post_resp.status > 0 {
+        println("Status Text: " + post_resp.status_text)
+    }
+    if post_resp.body != 0 as *i8 && strlen(post_resp.body) > 0 {
+        let body_preview = strndup(post_resp.body, 200)
+        println("Body (first 200 chars): " + body_preview)
+        free(body_preview)
+    }
+    
+    println("")
+    println("=== HTTP CLIENT TEST COMPLETE ===")
+}

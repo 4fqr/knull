@@ -1,0 +1,13 @@
+// Sprite - image that can be drawn
+struct Sprite {
+    x: f32,
+    y: f32,
+    width: i32,
+    height: i32,
+    texture: *void,
+}
+
+fn sprite_load(path: String) -> Sprite
+fn sprite_draw(s: Sprite, renderer: *void)
+fn sprite_set_pos(s: *Sprite, x: f32, y: f32)
+fn sprite_collision(a: Sprite, b: Sprite) -> bool

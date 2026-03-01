@@ -1,0 +1,202 @@
+fn main() {
+    let source = "fn main() {
+    let x = 42
+    println(x)
+}"
+    
+    println "=== Knull Self-Hosted Compiler ==="
+    println source
+    println ""
+    
+    compile source
+    
+    println "Compiling with gcc..."
+}
+
+fn compile(source) {
+    let output_file = "/home/foufqr/Documents/knull-lang/self_hosted/output.c"
+    
+    file_write(output_file, "#include <stdio.h>")
+    file_append(output_file, "
+")
+    file_append(output_file, "int main() {")
+    file_append(output_file, "
+")
+    
+    let has_string = has_quotes(source)
+    let has_let = has_let(source)
+    let has_println = has_print(source)
+    
+    if has_let {
+        let var_name = extract_var_name(source)
+        let var_value = extract_var_value(source)
+        
+        file_append(output_file, "    int ")
+        file_append(output_file, var_name)
+        file_append(output_file, " = ")
+        file_append(output_file, var_value)
+        file_append(output_file, ";")
+        file_append(output_file, "
+")
+    }
+    
+    if has_println {
+        if has_string {
+            let str = extract_string(source)
+            file_append(output_file, "    printf(\"")
+            file_append(output_file, str)
+            file_append(output_file, "\\n\");")
+            file_append(output_file, "
+")
+        } else {
+            if has_let {
+                let var_name = extract_var_name(source)
+                file_append(output_file, "    printf(\"%d\\n\", ")
+                file_append(output_file, var_name)
+                file_append(output_file, ");")
+                file_append(output_file, "
+")
+            }
+        }
+    }
+    
+    file_append(output_file, "    return 0;")
+    file_append(output_file, "
+")
+    file_append(output_file, "}")
+    
+    let content = file_read(output_file)
+    println content
+}
+
+fn has_quotes(s) {
+    let i = 0
+    while i < len(s) {
+        if s[i] == "\"" {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn has_let(s) {
+    let i = 0
+    while i < len(s) - 3 {
+        if s[i] == "l" {
+            if s[i + 1] == "e" {
+                if s[i + 2] == "t" {
+                    if s[i + 3] == " " {
+                        return true
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn has_print(s) {
+    let i = 0
+    while i < len(s) - 5 {
+        if s[i] == "p" {
+            if s[i + 1] == "r" {
+                if s[i + 2] == "i" {
+                    if s[i + 3] == "n" {
+                        if s[i + 4] == "t" {
+                            if s[i + 5] == "l" {
+                                return true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn extract_var_name(s) {
+    let i = 0
+    while i < len(s) - 4 {
+        if s[i] == "l" {
+            if s[i + 1] == "e" {
+                if s[i + 2] == "t" {
+                    if s[i + 3] == " " {
+                        let j = i + 4
+                        let name = ""
+                        while j < len(s) {
+                            if s[j] == " " {
+                                return name
+                            }
+                            if s[j] == "=" {
+                                return name
+                            }
+                            name = name + s[j]
+                            j = j + 1
+                        }
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return "x"
+}
+
+fn extract_var_value(s) {
+    let i = 0
+    while i < len(s) - 1 {
+        if s[i] == "=" {
+            let j = i + 1
+            while j < len(s) {
+                if s[j] == " " {
+                    j = j + 1
+                }
+                if j < len(s) {
+                    if s[j] == " " {
+                        j = j + 1
+                    } else {
+                        let val = ""
+                        while j < len(s) {
+                            if s[j] == " " {
+                                return val
+                            }
+                            if s[j] == "\n" {
+                                return val
+                            }
+                            val = val + s[j]
+                            j = j + 1
+                        }
+                        return val
+                    }
+                }
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    return "0"
+}
+
+fn extract_string(s) {
+    let in_string = false
+    let result = ""
+    let i = 0
+    while i < len(s) {
+        if s[i] == "\"" {
+            if in_string {
+                return result
+            }
+            in_string = true
+        } else {
+            if in_string {
+                result = result + s[i]
+            }
+        }
+        i = i + 1
+    }
+    return "Hello"
+}

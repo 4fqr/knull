@@ -646,6 +646,27 @@ impl Parser {
         matches!(kind, TokenKind::OpPipeline | TokenKind::Assign)
     }
 
+    fn is_arg_start(&self) -> bool {
+        matches!(
+            self.peek().map(|t| &t.kind),
+            Some(
+                TokenKind::StrLiteral
+                    | TokenKind::Integer
+                    | TokenKind::Float
+                    | TokenKind::Char
+                    | TokenKind::KwTrue
+                    | TokenKind::KwFalse
+                    | TokenKind::Identifier
+                    | TokenKind::LParen
+                    | TokenKind::LBracket
+                    | TokenKind::LBrace
+                    | TokenKind::OpSub
+                    | TokenKind::OpLogNot
+                    | TokenKind::OpBitNot
+            )
+        )
+    }
+
     fn parse_primary(&mut self) -> Result<Expr> {
         let token = self
             .advance()
@@ -655,7 +676,7 @@ impl Parser {
             TokenKind::Identifier => {
                 // Could be a variable, function call, or method call
                 if self.check(TokenKind::LParen) {
-                    // Function call
+                    // Function call with parentheses
                     self.advance();
                     let mut args = Vec::new();
                     while !self.check(TokenKind::RParen) {
@@ -682,6 +703,14 @@ impl Parser {
                     Ok(Expr::Field {
                         expr: Box::new(Expr::Ident(token.value, token.span)),
                         field,
+                        span: token.span,
+                    })
+                } else if self.is_arg_start() {
+                    // Function call without parentheses: fn arg
+                    let arg = self.parse_expression()?;
+                    Ok(Expr::Call {
+                        func: Box::new(Expr::Ident(token.value, token.span)),
+                        args: vec![arg],
                         span: token.span,
                     })
                 } else {
@@ -1241,7 +1270,29 @@ impl Parser {
     }
 
     fn parse_const(&mut self) -> Result<Item> {
-        todo!("Parse const")
+        self.expect(TokenKind::KwConst)?;
+
+        let name = match self.peek() {
+            Some(t) if t.kind == TokenKind::Identifier => self.advance().map(|t| t.value).unwrap(),
+            _ => bail!("Expected constant name"),
+        };
+
+        self.expect(TokenKind::Colon)?;
+        let ty = self.parse_type()?;
+
+        self.expect(TokenKind::Assign)?;
+        let value = self.parse_expression()?;
+
+        if self.check(TokenKind::Semicolon) {
+            self.advance();
+        }
+
+        Ok(Item::Const(ConstItem {
+            name,
+            ty,
+            value,
+            span: Span::default(),
+        }))
     }
 
     fn parse_static(&mut self) -> Result<Item> {

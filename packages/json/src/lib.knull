@@ -1,0 +1,202 @@
+// JSON Library for Knull
+// Provides JSON parsing and generation
+
+module json
+
+pub enum JsonValue {
+    Null,
+    Bool(bool),
+    Number(f64),
+    String(String),
+    Array(*JsonValue),
+    Object(*JsonMapEntry),
+}
+
+struct JsonMapEntry {
+    key: String,
+    value: JsonValue,
+    next: *JsonMapEntry,
+}
+
+pub fn json_parse(json_str: String) -> JsonValue {
+    let i = 0
+    let len = strlen(json_str)
+    
+    if json_str[i] == 'n' as u8 {
+        return JsonValue.Null
+    }
+    if json_str[i] == 't' as u8 || json_str[i] == 'f' as u8 {
+        if json_str[i] == 't' as u8 {
+            return JsonValue.Bool(true)
+        }
+        return JsonValue.Bool(false)
+    }
+    if json_str[i] == '"' as u8 {
+        return parse_string(json_str, 1)
+    }
+    if json_str[i] == '[' as u8 {
+        return parse_array(json_str, 1)
+    }
+    if json_str[i] == '{' as u8 {
+        return parse_object(json_str, 1)
+    }
+    
+    return parse_number(json_str, 0)
+}
+
+fn parse_string(s: String, start: i64) -> JsonValue {
+    let result = ""
+    let i = start
+    let len = strlen(s)
+    
+    while i < len {
+        let c = s[i]
+        if c == '"' as u8 {
+            return JsonValue.String(result)
+        }
+        if c == '\\' as u8 {
+            i = i + 1
+            let escaped = s[i]
+            if escaped == 'n' as u8 {
+                result = result + "\n"
+            } else if escaped == 't' as u8 {
+                result = result + "\t"
+            } else if escaped == 'r' as u8 {
+                result = result + "\r"
+            } else if escaped == '\\' as u8 {
+                result = result + "\\"
+            } else if escaped == '"' as u8 {
+                result = result + "\""
+            } else {
+                result = result + escaped as String
+            }
+        } else {
+            result = result + c as String
+        }
+        i = i + 1
+    }
+    
+    return JsonValue.String(result)
+}
+
+fn parse_number(s: String, start: i64) -> JsonValue {
+    let num_str = ""
+    let i = start
+    let len = strlen(s)
+    let has_dot = false
+    
+    while i < len {
+        let c = s[i]
+        if c >= '0' as u8 && c <= '9' as u8 {
+            num_str = num_str + c as String
+        } else if c == '.' as u8 && !has_dot {
+            num_str = num_str + c as String
+            has_dot = true
+        } else if c == '-' as u8 && i == start {
+            num_str = num_str + c as String
+        } else if c == 'e' as u8 || c == 'E' as u8 {
+            num_str = num_str + c as String
+        } else if c == '+' as u8 || c == '-' as u8 {
+            num_str = num_str + c as String
+        } else {
+            break
+        }
+        i = i + 1
+    }
+    
+    let n = strtof(num_str)
+    return JsonValue.Number(n)
+}
+
+fn parse_array(s: String, start: i64) -> JsonValue {
+    return JsonValue.Array(0 as *JsonValue)
+}
+
+fn parse_object(s: String, start: i64) -> JsonValue {
+    return JsonValue.Object(0 as *JsonMapEntry)
+}
+
+pub fn json_stringify(value: JsonValue) -> String {
+    match value {
+        JsonValue.Null => return "null",
+        JsonValue.Bool(b) => if b { return "true" } else { return "false" },
+        JsonValue.Number(n) => return ftos(n),
+        JsonValue.String(s) => return "\"" + escape_string(s) + "\"",
+        JsonValue.Array(arr) => return "[]",
+        JsonValue.Object(obj) => return "{}",
+    }
+}
+
+fn escape_string(s: String) -> String {
+    let result = ""
+    let i = 0
+    let len = strlen(s)
+    
+    while i < len {
+        let c = s[i]
+        if c == '"' as u8 {
+            result = result + "\\\""
+        } else if c == '\\' as u8 {
+            result = result + "\\\\"
+        } else if c == '\n' as u8 {
+            result = result + "\\n"
+        } else if c == '\t' as u8 {
+            result = result + "\\t"
+        } else if c == '\r' as u8 {
+            result = result + "\\r"
+        } else {
+            result = result + c as String
+        }
+        i = i + 1
+    }
+    
+    return result
+}
+
+pub fn json_get_object(value: JsonValue, key: String) -> JsonValue {
+    match value {
+        JsonValue.Object(obj) => {
+            let current = obj
+            while current != 0 as *JsonMapEntry {
+                if current.key == key {
+                    return current.value
+                }
+                current = current.next
+            }
+            return JsonValue.Null
+        },
+        _ => return JsonValue.Null,
+    }
+}
+
+pub fn json_get_array(value: JsonValue, index: i64) -> JsonValue {
+    return JsonValue.Null
+}
+
+pub fn json_get_string(value: JsonValue) -> String {
+    match value {
+        JsonValue.String(s) => return s,
+        _ => return "",
+    }
+}
+
+pub fn json_get_number(value: JsonValue) -> f64 {
+    match value {
+        JsonValue.Number(n) => return n,
+        _ => return 0.0,
+    }
+}
+
+pub fn json_get_bool(value: JsonValue) -> bool {
+    match value {
+        JsonValue.Bool(b) => return b,
+        _ => return false,
+    }
+}
+
+pub fn json_is_null(value: JsonValue) -> bool {
+    match value {
+        JsonValue.Null => return true,
+        _ => return false,
+    }
+}

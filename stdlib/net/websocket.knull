@@ -1,0 +1,328 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - WEBSOCKET MODULE
+// =============================================================================
+// WebSocket client implementation using TCP
+
+use net
+
+// -----------------------------------------------------------------------------
+// WEBSOCKET CONSTANTS
+// -----------------------------------------------------------------------------
+
+const WS_TEXT: i32 = 0x1
+const WS_BINARY: i32 = 0x2
+const WS_CLOSE: i32 = 0x8
+const WS_PING: i32 = 0x9
+const WS_PONG: i32 = 0xA
+
+const WS_FIN: i32 = 0x80
+const WS_MASK: i32 = 0x80
+
+// -----------------------------------------------------------------------------
+// WEBSOCKET STRUCT
+// -----------------------------------------------------------------------------
+
+struct WebSocket {
+    stream: TcpStream,
+    connected: bool,
+}
+
+// -----------------------------------------------------------------------------
+// WEBSOCKET CONNECT
+// -----------------------------------------------------------------------------
+
+fn ws_connect(url: *i8) -> WebSocket {
+    let ws: WebSocket
+    ws.connected = false
+
+    let parsed = url_parse(url)
+    
+    let port = parsed.port
+    if port == 0 {
+        if strcmp(&parsed.scheme, "wss") == 0 {
+            port = 443
+        } else {
+            port = 80
+        }
+    }
+
+    let stream = tcp_connect(&parsed.host, port)
+    if !stream.connected {
+        return ws
+    }
+
+    let key = ws_generate_key()
+    let request: i8[512]
+    
+    let path_ptr = &parsed.path
+    if parsed.path[0] == 0 {
+        path_ptr = "/"
+    }
+    
+    let host_port: i8[300]
+    if (port == 80 && strcmp(&parsed.scheme, "ws") == 0) || (port == 443 && strcmp(&parsed.scheme, "wss") == 0) {
+        sprintf(&host_port, "%s", &parsed.host)
+    } else {
+        sprintf(&host_port, "%s:%d", &parsed.host, port)
+    }
+    
+    sprintf(&request, 
+        "GET %s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n",
+        path_ptr, &host_port, key)
+    
+    tcp_write_str(&stream, &request)
+    
+    let response: i8[1024]
+    let total = 0
+    let n = 0
+    while (n = tcp_read(&stream, &response[total], 1024 - total - 1)) > 0 {
+        total = total + n
+        if total > 512 {
+            break
+        }
+    }
+    response[total] = 0
+    
+    if !ws_check_handshake(&response) {
+        tcp_close(&stream)
+        return ws
+    }
+    
+    ws.stream = stream
+    ws.connected = true
+    return ws
+}
+
+fn ws_generate_key() -> *i8 {
+    let key: i8[25]
+    let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    
+    let i: i32 = 0
+    while i < 16 {
+        let idx = ((((i * 7 + 3) * 11) % 64) as i32)
+        key[i] = chars[idx]
+        i = i + 1
+    }
+    key[16] = 0
+    
+    return &key
+}
+
+fn ws_check_handshake(response: *i8) -> bool {
+    if strstr(response, "HTTP/1.1 101") == 0 as *i8 && strstr(response, "HTTP/1.0 101") == 0 as *i8 {
+        if strstr(response, "Upgrade: websocket") == 0 as *i8 {
+            return false
+        }
+        if strstr(response, "Connection: Upgrade") == 0 as *i8 {
+            return false
+        }
+    }
+    return true
+}
+
+// -----------------------------------------------------------------------------
+// WEBSOCKET SEND
+// -----------------------------------------------------------------------------
+
+fn ws_send(ws: *WebSocket, msg: *i8) {
+    if !ws.connected {
+        return
+    }
+    
+    let msg_len = strlen(msg)
+    ws_send_frame(ws, WS_TEXT, msg, msg_len)
+}
+
+fn ws_send_binary(ws: *WebSocket, data: *i8, len: i64) {
+    if !ws.connected {
+        return
+    }
+    ws_send_frame(ws, WS_BINARY, data, len)
+}
+
+fn ws_send_frame(ws: *WebSocket, opcode: i32, data: *i8, len: i64) {
+    let frame: i8[16]
+    let frame_len = 2
+    
+    frame[0] = (WS_FIN | opcode) as i8
+    frame[1] = len as i8
+    
+    if len > 125 {
+        if len > 65535 {
+            frame[1] = 127 as i8
+            frame[2] = 0 as i8
+            frame[3] = 0 as i8
+            frame[4] = 0 as i8
+            frame[5] = 0 as i8
+            frame[6] = ((len >> 24) & 0xFF) as i8
+            frame[7] = ((len >> 16) & 0xFF) as i8
+            frame[8] = ((len >> 8) & 0xFF) as i8
+            frame[9] = (len & 0xFF) as i8
+            frame_len = 10
+        } else {
+            frame[1] = 126 as i8
+            frame[2] = ((len >> 8) & 0xFF) as i8
+            frame[3] = (len & 0xFF) as i8
+            frame_len = 4
+        }
+    }
+    
+    tcp_write(&ws.stream, &frame, frame_len)
+    tcp_write(&ws.stream, data, len)
+}
+
+// -----------------------------------------------------------------------------
+// WEBSOCKET RECEIVE
+// -----------------------------------------------------------------------------
+
+fn ws_recv(ws: *WebSocket) -> *i8 {
+    if !ws.connected {
+        return ""
+    }
+    
+    let header: i8[16]
+    let n = tcp_read(&ws.stream, &header, 2)
+    if n < 2 {
+        return ""
+    }
+    
+    let first_byte = header[0] as i32
+    let opcode = first_byte & 0xF
+    
+    if opcode == WS_CLOSE {
+        ws.connected = false
+        return ""
+    }
+    
+    if opcode == WS_PING {
+        ws_send_pong(ws)
+        return ws_recv(ws)
+    }
+    
+    let second_byte = header[1] as i32
+    let masked = (second_byte & WS_MASK) != 0
+    let payload_len = second_byte & 0x7F
+    
+    var read_offset = 2
+    
+    var actual_len = payload_len as i64
+    if payload_len == 126 {
+        let ext: i8[2]
+        tcp_read(&ws.stream, &ext, 2)
+        actual_len = ((ext[0] as i64 & 0xFF) << 8) | (ext[1] as i64 & 0xFF)
+        read_offset = 4
+    } else if payload_len == 127 {
+        let ext: i8[8]
+        tcp_read(&ws.stream, &ext, 8)
+        actual_len = 0
+        let i = 0
+        while i < 8 {
+            actual_len = (actual_len << 8) | (ext[i] as i64 & 0xFF)
+            i = i + 1
+        }
+        read_offset = 10
+    }
+    
+    var mask_key: i8[4]
+    if masked {
+        tcp_read(&ws.stream, &mask_key, 4)
+    }
+    
+    if actual_len <= 0 || actual_len > 65536 {
+        return ""
+    }
+    
+    let payload = alloc(actual_len + 1) as *i8
+    tcp_read(&ws.stream, payload, actual_len)
+    payload[actual_len] = 0
+    
+    if masked {
+        let i: i64 = 0
+        while i < actual_len {
+            payload[i] = (payload[i] as i32 ^ mask_key[i as i32 & 3] as i32) as i8
+            i = i + 1
+        }
+    }
+    
+    return payload
+}
+
+fn ws_recv_binary(ws: *WebSocket, max_len: i64) -> *i8 {
+    return ws_recv(ws)
+}
+
+// -----------------------------------------------------------------------------
+// WEBSOCKET PING/PONG
+// -----------------------------------------------------------------------------
+
+fn ws_ping(ws: *WebSocket, data: *i8) {
+    if !ws.connected {
+        return
+    }
+    let len = strlen(data)
+    ws_send_frame(ws, WS_PING, data, len)
+}
+
+fn ws_send_pong(ws: *WebSocket) {
+    if !ws.connected {
+        return
+    }
+    let pong_frame: i8[2]
+    pong_frame[0] = (WS_FIN | WS_PONG) as i8
+    pong_frame[1] = 0 as i8
+    tcp_write(&ws.stream, &pong_frame, 2)
+}
+
+// -----------------------------------------------------------------------------
+// WEBSOCKET CLOSE
+// -----------------------------------------------------------------------------
+
+fn ws_close(ws: *WebSocket) {
+    if !ws.connected {
+        return
+    }
+    
+    let close_frame: i8[2]
+    close_frame[0] = (WS_FIN | WS_CLOSE) as i8
+    close_frame[1] = 0 as i8
+    tcp_write(&ws.stream, &close_frame, 2)
+    
+    tcp_close(&ws.stream)
+    ws.connected = false
+}
+
+// -----------------------------------------------------------------------------
+// WEBSOCKET STATUS
+// -----------------------------------------------------------------------------
+
+fn ws_is_connected(ws: *WebSocket) -> bool {
+    return ws.connected
+}
+
+// -----------------------------------------------------------------------------
+// EXAMPLE
+// -----------------------------------------------------------------------------
+
+fn main() {
+    println("=== KNULL WEBSOCKET DEMO ===")
+    println("")
+    
+    println("WebSocket module loaded successfully!")
+    println("")
+    println("Usage:")
+    println("  let ws = ws_connect(\"wss://example.com/ws\")")
+    println("  ws_send(ws, \"Hello!\")")
+    println("  let response = ws_recv(ws)")
+    println("  ws_close(ws)")
+    println("")
+    println("Functions:")
+    println("  ws_connect(url)     - Connect to WebSocket server")
+    println("  ws_send(ws, msg)   - Send text message")
+    println("  ws_send_binary()   - Send binary data")
+    println("  ws_recv(ws)        - Receive message (blocking)")
+    println("  ws_ping(ws, data)  - Send ping frame")
+    println("  ws_close(ws)       - Close connection")
+    println("  ws_is_connected()  - Check connection status")
+    println("")
+    println("=== DEMO COMPLETE ===")
+}

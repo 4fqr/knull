@@ -1,0 +1,10 @@
+fn main() {
+    test_strings()
+}
+
+fn test_strings() {
+    let a = "hello"
+    let b = "world"
+    let c = a + b
+    println c
+}

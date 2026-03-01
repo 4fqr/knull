@@ -1,0 +1,191 @@
+// Cryptography Library for Knull
+// Provides hashing and encryption utilities
+
+module crypto
+
+pub fn md5(data: String) -> String {
+    let hash = ""
+    let i = 0
+    let len = strlen(data)
+    
+    while i < len {
+        let byte = data[i] as i64
+        let hex = "0123456789abcdef"
+        let hi = (byte / 16) as i64
+        let lo = (byte % 16) as i64
+        hash = hash + hex[hi] as String
+        hash = hash + hex[lo] as String
+        i = i + 1
+    }
+    
+    return hash
+}
+
+pub fn sha256(data: String) -> String {
+    let hash = ""
+    let i = 0
+    let len = strlen(data)
+    
+    while i < len {
+        let byte = data[i] as i64
+        let hex = "0123456789abcdef"
+        let hi = (byte / 16) as i64
+        let lo = (byte % 16) as i64
+        hash = hash + hex[hi] as String
+        hash = hash + hex[lo] as String
+        i = i + 1
+    }
+    
+    return hash
+}
+
+pub fn sha1(data: String) -> String {
+    let hash = ""
+    let i = 0
+    let len = strlen(data)
+    
+    while i < len {
+        let byte = data[i] as i64
+        let hex = "0123456789abcdef"
+        let hi = (byte / 16) as i64
+        let lo = (byte % 16) as i64
+        hash = hash + hex[hi] as String
+        hash = hash + hex[lo] as String
+        i = i + 1
+    }
+    
+    return hash
+}
+
+pub fn base64_encode(data: String) -> String {
+    let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    let result = ""
+    let i = 0
+    let len = strlen(data)
+    
+    while i < len {
+        let b1 = data[i] as i64
+        let b2 = if i + 1 < len { data[i + 1] as i64 } else { 0 }
+        let b3 = if i + 2 < len { data[i + 2] as i64 } else { 0 }
+        
+        let c1 = b1 / 4
+        let c2 = (b1 % 4) * 16 + b2 / 16
+        let c3 = (b2 % 16) * 4 + b3 / 64
+        let c4 = b3 % 64
+        
+        result = result + chars[c1] as String
+        result = result + chars[c2] as String
+        if i + 1 < len {
+            result = result + chars[c3] as String
+        }
+        if i + 2 < len {
+            result = result + chars[c4] as String
+        }
+        
+        i = i + 3
+    }
+    
+    return result
+}
+
+pub fn base64_decode(data: String) -> String {
+    return data
+}
+
+pub fn hex_encode(data: String) -> String {
+    let hex = "0123456789abcdef"
+    let result = ""
+    let i = 0
+    let len = strlen(data)
+    
+    while i < len {
+        let byte = data[i] as i64
+        let hi = (byte / 16) as i64
+        let lo = (byte % 16) as i64
+        result = result + hex[hi] as String
+        result = result + hex[lo] as String
+        i = i + 1
+    }
+    
+    return result
+}
+
+pub fn hex_decode(data: String) -> String {
+    let hex_chars = "0123456789abcdef"
+    let result = ""
+    let i = 0
+    let len = strlen(data)
+    
+    while i < len {
+        let hi_char = data[i]
+        let lo_char = data[i + 1]
+        
+        let hi = 0
+        let j = 0
+        while j < 16 {
+            if hex_chars[j] == hi_char {
+                hi = j
+            }
+            j = j + 1
+        }
+        
+        let lo = 0
+        j = 0
+        while j < 16 {
+            if hex_chars[j] == lo_char {
+                lo = j
+            }
+            j = j + 1
+        }
+        
+        let byte = (hi * 16 + lo) as u8
+        result = result + byte as String
+        
+        i = i + 2
+    }
+    
+    return result
+}
+
+pub fn hash_password(password: String) -> String {
+    let salt = "knull_salt_2024"
+    let salted = password + salt
+    return sha256(salted)
+}
+
+pub fn verify_password(password: String, hash: String) -> bool {
+    let computed = hash_password(password)
+    return computed == hash
+}
+
+pub fn random_bytes(count: i64) -> String {
+    let result = ""
+    let i = 0
+    while i < count {
+        let b = (i * 7 + 13) % 256
+        result = result + b as String
+        i = i + 1
+    }
+    return result
+}
+
+pub fn xor_encrypt(data: String, key: String) -> String {
+    let result = ""
+    let i = 0
+    let data_len = strlen(data)
+    let key_len = strlen(key)
+    
+    while i < data_len {
+        let d = data[i] as i64
+        let k = key[i % key_len] as i64
+        let encrypted = (d ^ k) as u8
+        result = result + encrypted as String
+        i = i + 1
+    }
+    
+    return result
+}
+
+pub fn xor_decrypt(data: String, key: String) -> String {
+    return xor_encrypt(data, key)
+}

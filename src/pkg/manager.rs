@@ -11,6 +11,36 @@ use std::process::Command;
 use crate::pkg::lockfile::{Lockfile, ResolvedDep, LOCKFILE_NAME};
 use crate::pkg::semver;
 
+/// Get the local packages directory path
+fn get_local_packages_dir() -> Option<PathBuf> {
+    // Check for packages directory relative to the knull binary
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let packages_dir = exe_dir.join("packages");
+            if packages_dir.exists() {
+                return Some(packages_dir);
+            }
+        }
+    }
+
+    // Also check in project directory relative to current working dir
+    let project_packages = std::env::current_dir().ok().map(|p| p.join("packages"));
+
+    if let Some(ref dir) = project_packages {
+        if dir.exists() {
+            return project_packages;
+        }
+    }
+
+    // Check in the knull-lang source directory
+    let source_packages = PathBuf::from("/home/foufqr/Documents/knull-lang/packages");
+    if source_packages.exists() {
+        return Some(source_packages);
+    }
+
+    None
+}
+
 /// Package manifest (knull.toml)
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PackageManifest {
@@ -241,15 +271,46 @@ knull.lock
         println!("Updating {}...", name);
 
         // Resolve the latest version matching constraint
-        let resolved_version = crate::pkg::http_registry::resolve_version(name, constraint)
-            .or_else(|_| {
+        // First try local packages directory
+        let resolved_version = if let Some(packages_dir) = get_local_packages_dir() {
+            let package_path = packages_dir.join(name);
+            if package_path.exists() {
+                // Load version from local package
+                let manifest_path = package_path.join("knull.toml");
+                if let Ok(manifest) = PackageManifest::load(&manifest_path) {
+                    if semver::satisfies(&manifest.package.version, constraint) {
+                        Ok(manifest.package.version)
+                    } else {
+                        Err(format!(
+                            "Version {} does not satisfy {}",
+                            manifest.package.version, constraint
+                        ))
+                    }
+                } else {
+                    Err("Could not load manifest".to_string())
+                }
+            } else {
+                // Try HTTP registry
+                crate::pkg::http_registry::resolve_version(name, constraint).or_else(|_| {
+                    // If HTTP fails, try local registry
+                    crate::pkg::local_registry::list_local_versions(name)?
+                        .into_iter()
+                        .filter(|v| semver::satisfies(v, constraint))
+                        .max_by(|a, b| semver::compare_versions(a, b))
+                        .ok_or_else(|| format!("No version of {} satisfies {}", name, constraint))
+                })
+            }
+        } else {
+            // Try HTTP registry
+            crate::pkg::http_registry::resolve_version(name, constraint).or_else(|_| {
                 // If HTTP fails, try local registry
                 crate::pkg::local_registry::list_local_versions(name)?
                     .into_iter()
                     .filter(|v| semver::satisfies(v, constraint))
                     .max_by(|a, b| semver::compare_versions(a, b))
                     .ok_or_else(|| format!("No version of {} satisfies {}", name, constraint))
-            })?;
+            })
+        }?;
 
         println!("  Resolved {} to {}", name, resolved_version);
 
@@ -289,7 +350,16 @@ knull.lock
 
     /// Fetch single package - tries local first, then HTTP registry
     pub fn fetch_package(&self, name: &str, version: &str) -> Result<PathBuf, String> {
-        // Try local registry first
+        // Try local packages directory first
+        if let Some(packages_dir) = get_local_packages_dir() {
+            let package_path = packages_dir.join(name);
+            if package_path.exists() {
+                println!("  {} {} (from local packages)", name, version);
+                return Ok(package_path);
+            }
+        }
+
+        // Try local registry
         if let Ok(path) = crate::pkg::local_registry::fetch_from_local(name, version) {
             println!("  {} {} (from local registry)", name, version);
             return Ok(path);
@@ -301,6 +371,20 @@ knull.lock
 
     /// Resolve version with semver constraint
     pub fn resolve_version(&self, name: &str, constraint: &str) -> Result<String, String> {
+        // First check local packages directory
+        if let Some(packages_dir) = get_local_packages_dir() {
+            let package_path = packages_dir.join(name);
+            if package_path.exists() {
+                let manifest_path = package_path.join("knull.toml");
+                if let Ok(manifest) = PackageManifest::load(&manifest_path) {
+                    if semver::satisfies(&manifest.package.version, constraint) {
+                        return Ok(manifest.package.version);
+                    }
+                }
+            }
+        }
+
+        // Fall back to HTTP registry
         crate::pkg::http_registry::resolve_version(name, constraint)
     }
 

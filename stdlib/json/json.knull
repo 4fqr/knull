@@ -1,0 +1,727 @@
+// =============================================================================
+// KNULL STANDARD LIBRARY - JSON MODULE
+// =============================================================================
+// JSON parsing and serialization for Knull
+
+module std.json
+
+// =============================================================================
+// JSON TYPES (must be defined before JsonValue enum)
+// =============================================================================
+
+pub struct JsonArray {
+    data: *JsonValue,
+    len: i64,
+    capacity: i64,
+}
+
+pub struct JsonMap {
+    buckets: **JsonMapEntry,
+    len: i64,
+    capacity: i64,
+}
+
+struct JsonMapEntry {
+    key: String,
+    value: JsonValue,
+    hash: i64,
+    next: *JsonMapEntry,
+}
+
+// =============================================================================
+// JSON VALUE TYPE
+// =============================================================================
+
+pub enum JsonValue {
+    Null,
+    Bool(bool),
+    Number(f64),
+    String(String),
+    Array(JsonArray),
+    Object(JsonMap),
+}
+
+// =============================================================================
+// ARRAY FUNCTIONS
+// =============================================================================
+
+pub fn json_array_new() -> JsonArray {
+    return JsonArray {
+        data: 0 as *JsonValue,
+        len: 0,
+        capacity: 0,
+    }
+}
+
+fn json_array_push(arr: *JsonArray, val: JsonValue) {
+    if arr.len >= arr.capacity {
+        let new_cap = if arr.capacity == 0 { 4 } else { arr.capacity * 2 }
+        let new_data = alloc(new_cap * sizeof(JsonValue)) as *JsonValue
+        
+        let i = 0
+        while i < arr.len {
+            new_data[i] = arr.data[i]
+            i = i + 1
+        }
+        
+        if arr.data != 0 as *JsonValue {
+            free(arr.data as *void)
+        }
+        
+        arr.data = new_data
+        arr.capacity = new_cap
+    }
+    
+    arr.data[arr.len] = val
+    arr.len = arr.len + 1
+}
+
+// =============================================================================
+// MAP FUNCTIONS
+// =============================================================================
+
+pub fn json_map_new() -> JsonMap {
+    let buckets = alloc(16 * sizeof(*JsonMapEntry)) as **JsonMapEntry
+    memset(buckets as *mut u8, 0, 16 * sizeof(*JsonMapEntry))
+    
+    return JsonMap {
+        buckets: buckets,
+        len: 0,
+        capacity: 16,
+    }
+}
+
+fn hash_string(key: String) -> i64 {
+    let h: i64 = 5381
+    let i = 0
+    let key_len = strlen(key)
+    
+    while i < key_len {
+        h = h * 33 + key[i] as i64
+        i = i + 1
+    }
+    
+    return h
+}
+
+fn json_map_insert(m: *JsonMap, key: String, value: JsonValue) {
+    let h = hash_string(key)
+    let idx = (h & (m.capacity - 1)) as i64
+    
+    let entry = m.buckets[idx]
+    while entry != 0 as *JsonMapEntry {
+        if entry.key == key {
+            entry.value = value
+            return
+        }
+        entry = entry.next
+    }
+    
+    let new_entry = alloc(sizeof(JsonMapEntry)) as *JsonMapEntry
+    new_entry.key = key
+    new_entry.value = value
+    new_entry.hash = h
+    new_entry.next = m.buckets[idx]
+    m.buckets[idx] = new_entry
+    m.len = m.len + 1
+}
+
+fn json_map_get(m: *JsonMap, key: String) -> Option<JsonValue> {
+    let h = hash_string(key)
+    let idx = (h & (m.capacity - 1)) as i64
+    
+    let entry = m.buckets[idx]
+    while entry != 0 as *JsonMapEntry {
+        if entry.key == key {
+            return Some(entry.value)
+        }
+        entry = entry.next
+    }
+    
+    return None
+}
+
+// =============================================================================
+// PARSING STATE
+// =============================================================================
+
+struct Parser {
+    s: String,
+    pos: i64,
+    len: i64,
+}
+
+fn parser_new(s: String) -> Parser {
+    return Parser {
+        s: s,
+        pos: 0,
+        len: strlen(s),
+    }
+}
+
+fn parser_eof(p: *Parser) -> bool {
+    return p.pos >= p.len
+}
+
+fn parser_peek(p: *Parser) -> u8 {
+    if parser_eof(p) {
+        return 0 as u8
+    }
+    return p.s[p.pos]
+}
+
+fn parser_next(p: *Parser) -> u8 {
+    if parser_eof(p) {
+        return 0 as u8
+    }
+    let c = p.s[p.pos]
+    p.pos = p.pos + 1
+    return c
+}
+
+fn parser_skip_whitespace(p: *Parser) {
+    while !parser_eof(p) {
+        let c = parser_peek(p)
+        if c == 32 || c == 9 || c == 10 || c == 13 {
+            parser_next(p)
+        } else {
+            break
+        }
+    }
+}
+
+fn parser_expect(p: *Parser, expected: u8) -> bool {
+    parser_skip_whitespace(p)
+    let c = parser_peek(p)
+    if c == expected {
+        parser_next(p)
+        return true
+    }
+    return false
+}
+
+// =============================================================================
+// JSON PARSER
+// =============================================================================
+
+pub fn json_parse(s: String) -> JsonValue {
+    let p = parser_new(s)
+    parser_skip_whitespace(&p)
+    return parse_value(&p)
+}
+
+fn parse_value(p: *Parser) -> JsonValue {
+    parser_skip_whitespace(p)
+    let c = parser_peek(p)
+    
+    if c == 123 {
+        return parse_object(p)
+    }
+    if c == 91 {
+        return parse_array(p)
+    }
+    if c == 34 {
+        return parse_string(p)
+    }
+    if c == 116 {
+        return parse_true(p)
+    }
+    if c == 102 {
+        return parse_false(p)
+    }
+    if c == 110 {
+        return parse_null(p)
+    }
+    
+    return parse_number(p)
+}
+
+fn parse_object(p: *Parser) -> JsonValue {
+    parser_next(p)
+    
+    let map = json_map_new()
+    
+    parser_skip_whitespace(p)
+    if parser_peek(p) == 125 {
+        parser_next(p)
+        return Object(map)
+    }
+    
+    while true {
+        parser_skip_whitespace(p)
+        
+        let c = parser_peek(p)
+        if c != 34 {
+            break
+        }
+        
+        let key = parse_string(p)
+        
+        parser_skip_whitespace(p)
+        if !parser_expect(p, 58) {
+            break
+        }
+        
+        let value = parse_value(p)
+        json_map_insert(&map, key, value)
+        
+        parser_skip_whitespace(p)
+        c = parser_peek(p)
+        if c == 125 {
+            parser_next(p)
+            break
+        }
+        if c == 44 {
+            parser_next(p)
+        } else {
+            break
+        }
+    }
+    
+    return Object(map)
+}
+
+fn parse_array(p: *Parser) -> JsonValue {
+    parser_next(p)
+    
+    let arr = json_array_new()
+    
+    parser_skip_whitespace(p)
+    if parser_peek(p) == 93 {
+        parser_next(p)
+        return Array(arr)
+    }
+    
+    while true {
+        let value = parse_value(p)
+        json_array_push(&arr, value)
+        
+        parser_skip_whitespace(p)
+        let c = parser_peek(p)
+        if c == 93 {
+            parser_next(p)
+            break
+        }
+        if c == 44 {
+            parser_next(p)
+        } else {
+            break
+        }
+    }
+    
+    return Array(arr)
+}
+
+fn parse_string(p: *Parser) -> String {
+    parser_next(p)
+    
+    let result = ""
+    
+    while !parser_eof(p) {
+        let c = parser_peek(p)
+        
+        if c == 34 {
+            parser_next(p)
+            break
+        }
+        
+        if c == 92 {
+            parser_next(p)
+            let escaped = parser_peek(p)
+            parser_next(p)
+            
+            if escaped == 34 {
+                result = result + "\""
+            } else if escaped == 92 {
+                result = result + "\\"
+            } else if escaped == 47 {
+                result = result + "/"
+            } else if escaped == 98 {
+                result = result + "\b"
+            } else if escaped == 102 {
+                result = result + "\f"
+            } else if escaped == 110 {
+                result = result + "\n"
+            } else if escaped == 114 {
+                result = result + "\r"
+            } else if escaped == 116 {
+                result = result + "\t"
+            }
+        } else {
+            result = result + c
+            parser_next(p)
+        }
+    }
+    
+    return result
+}
+
+fn parse_number(p: *Parser) -> JsonValue {
+    let has_dot = false
+    let num_str = ""
+    
+    let c = parser_peek(p)
+    if c == 45 {
+        num_str = num_str + "-"
+        parser_next(p)
+    }
+    
+    while !parser_eof(p) {
+        let c = parser_peek(p)
+        
+        if c >= 48 && c <= 57 {
+            num_str = num_str + c
+            parser_next(p)
+        } else if c == 46 && !has_dot {
+            num_str = num_str + "."
+            has_dot = true
+            parser_next(p)
+        } else {
+            break
+        }
+    }
+    
+    return Number(string_to_f64(num_str))
+}
+
+fn string_to_f64(s: String) -> f64 {
+    let result: f64 = 0.0
+    let negative = false
+    let has_decimal = false
+    let decimal_div: f64 = 1.0
+    let i = 0
+    let len = strlen(s)
+    
+    if len == 0 {
+        return 0.0
+    }
+    
+    let c = s[0]
+    if c == 45 {
+        negative = true
+        i = 1
+    }
+    
+    while i < len {
+        c = s[i]
+        
+        if c == 46 {
+            has_decimal = true
+            i = i + 1
+            continue
+        }
+        
+        if c >= 48 && c <= 57 {
+            let digit = (c - 48) as f64
+            result = result * 10.0 + digit
+            if has_decimal {
+                decimal_div = decimal_div * 10.0
+            }
+        }
+        
+        i = i + 1
+    }
+    
+    if has_decimal {
+        result = result / decimal_div
+    }
+    
+    if negative {
+        return -result
+    }
+    
+    return result
+}
+
+fn parse_true(p: *Parser) -> JsonValue {
+    if p.pos + 3 <= p.len {
+        if p.s[p.pos] == 116 &&
+           p.s[p.pos + 1] == 114 &&
+           p.s[p.pos + 2] == 117 &&
+           p.s[p.pos + 3] == 101 {
+            p.pos = p.pos + 4
+            return Bool(true)
+        }
+    }
+    return Null
+}
+
+fn parse_false(p: *Parser) -> JsonValue {
+    if p.pos + 4 <= p.len {
+        if p.s[p.pos] == 102 &&
+           p.s[p.pos + 1] == 97 &&
+           p.s[p.pos + 2] == 108 &&
+           p.s[p.pos + 3] == 115 &&
+           p.s[p.pos + 4] == 101 {
+            p.pos = p.pos + 5
+            return Bool(false)
+        }
+    }
+    return Null
+}
+
+fn parse_null(p: *Parser) -> JsonValue {
+    if p.pos + 3 <= p.len {
+        if p.s[p.pos] == 110 &&
+           p.s[p.pos + 1] == 117 &&
+           p.s[p.pos + 2] == 108 &&
+           p.s[p.pos + 3] == 108 {
+            p.pos = p.pos + 4
+            return Null
+        }
+    }
+    return Null
+}
+
+// =============================================================================
+// STRINGIFY
+// =============================================================================
+
+pub fn json_stringify(v: JsonValue) -> String {
+    match v {
+        Null => return "null",
+        Bool(b) => if b { return "true" } else { return "false" },
+        Number(n) => return f64_to_string(n),
+        String(s) => return "\"" + escape_string(s) + "\"",
+        Array(arr) => return stringify_array(arr),
+        Object(obj) => return stringify_object(obj),
+    }
+}
+
+fn escape_string(s: String) -> String {
+    let result = ""
+    let i = 0
+    let s_len = strlen(s)
+    
+    while i < s_len {
+        let c = s[i]
+        
+        if c == 34 {
+            result = result + "\\\""
+        } else if c == 92 {
+            result = result + "\\\\"
+        } else if c == 8 {
+            result = result + "\\b"
+        } else if c == 12 {
+            result = result + "\\f"
+        } else if c == 10 {
+            result = result + "\\n"
+        } else if c == 13 {
+            result = result + "\\r"
+        } else if c == 9 {
+            result = result + "\\t"
+        } else if c < 32 {
+            result = result + "\\u" + to_hex4(c)
+        } else {
+            result = result + c
+        }
+        
+        i = i + 1
+    }
+    
+    return result
+}
+
+fn to_hex4(n: u8) -> String {
+    let hex = "0123456789abcdef"
+    let hi = hex[(n >> 4) as i64]
+    let lo = hex[(n & 15) as i64]
+    return hi + lo
+}
+
+fn stringify_array(arr: JsonArray) -> String {
+    let result = "["
+    let i = 0
+    
+    while i < arr.len {
+        if i > 0 {
+            result = result + ", "
+        }
+        result = result + json_stringify(arr.data[i])
+        i = i + 1
+    }
+    
+    result = result + "]"
+    return result
+}
+
+fn stringify_object(obj: JsonMap) -> String {
+    let result = "{"
+    let first = true
+    let i = 0
+    
+    while i < obj.capacity {
+        let entry = obj.buckets[i]
+        while entry != 0 as *JsonMapEntry {
+            if !first {
+                result = result + ", "
+            }
+            result = result + "\"" + escape_string(entry.key) + "\": " + json_stringify(entry.value)
+            first = false
+            entry = entry.next
+        }
+        i = i + 1
+    }
+    
+    result = result + "}"
+    return result
+}
+
+fn f64_to_string(n: f64) -> String {
+    if n == 0.0 {
+        return "0"
+    }
+    
+    let negative = false
+    let mut n = n
+    if n < 0.0 {
+        negative = true
+        n = -n
+    }
+    
+    let int_part = n as i64
+    let result = i64_to_string(int_part)
+    
+    if negative {
+        return "-" + result
+    }
+    return result
+}
+
+fn i64_to_string(n: i64) -> String {
+    if n == 0 {
+        return "0"
+    }
+    
+    let negative = false
+    let mut n = n
+    if n < 0 {
+        negative = true
+        n = -n
+    }
+    
+    let digits = "0123456789"
+    let result = ""
+    
+    while n > 0 {
+        let digit = digits[n % 10 as i64]
+        result = digit + result
+        n = n / 10
+    }
+    
+    if negative {
+        return "-" + result
+    }
+    return result
+}
+
+// =============================================================================
+// JSON GET
+// =============================================================================
+
+pub fn json_get(obj: JsonValue, key: String) -> Option<JsonValue> {
+    match obj {
+        Object(map) => return json_map_get(&map, key),
+        _ => return None,
+    }
+}
+
+// =============================================================================
+// JSON VALUE HELPERS
+// =============================================================================
+
+pub fn json_is_null(v: JsonValue) -> bool {
+    match v {
+        Null => return true,
+        _ => return false,
+    }
+}
+
+pub fn json_is_bool(v: JsonValue) -> bool {
+    match v {
+        Bool(_) => return true,
+        _ => return false,
+    }
+}
+
+pub fn json_is_number(v: JsonValue) -> bool {
+    match v {
+        Number(_) => return true,
+        _ => return false,
+    }
+}
+
+pub fn json_is_string(v: JsonValue) -> bool {
+    match v {
+        String(_) => return true,
+        _ => return false,
+    }
+}
+
+pub fn json_is_array(v: JsonValue) -> bool {
+    match v {
+        Array(_) => return true,
+        _ => return false,
+    }
+}
+
+pub fn json_is_object(v: JsonValue) -> bool {
+    match v {
+        Object(_) => return true,
+        _ => return false,
+    }
+}
+
+pub fn json_as_bool(v: JsonValue) -> Option<bool> {
+    match v {
+        Bool(b) => return Some(b),
+        _ => return None,
+    }
+}
+
+pub fn json_as_number(v: JsonValue) -> Option<f64> {
+    match v {
+        Number(n) => return Some(n),
+        _ => return None,
+    }
+}
+
+pub fn json_as_string(v: JsonValue) -> Option<String> {
+    match v {
+        String(s) => return Some(s),
+        _ => return None,
+    }
+}
+
+pub fn json_array_len(v: JsonValue) -> i64 {
+    match v {
+        Array(arr) => return arr.len,
+        _ => return 0,
+    }
+}
+
+pub fn json_array_get(v: JsonValue, idx: i64) -> Option<JsonValue> {
+    match v {
+        Array(arr) => if idx >= 0 && idx < arr.len { return Some(arr.data[idx]) },
+        _ => return None,
+    }
+    return None
+}
+
+// =============================================================================
+// EXAMPLE
+// =============================================================================
+
+fn main() {
+    let data = "{\"name\": \"John\", \"age\": 30}"
+    let parsed = json_parse(data)
+    let name = json_get(parsed, "name")
+    
+    match name {
+        Some(n) => println(json_stringify(n)),
+        None => println("null"),
+    }
+    
+    let str = json_stringify(parsed)
+    println(str)
+}

@@ -1,0 +1,63 @@
+// WASI - WebAssembly System Interface
+// Provides system call interface for WebAssembly programs
+
+// Exit the process with a given exit code
+fn wasi_proc_exit(code: i32)
+
+// Write data to a file descriptor
+// fd: file descriptor (1 = stdout, 2 = stderr)
+// data: pointer to data buffer
+// len: length of data to write
+// Returns: number of bytes written or error code
+fn wasi_fd_write(fd: i32, data: *u8, len: i32) -> i32
+
+// Read data from a file descriptor
+// fd: file descriptor (0 = stdin)
+// buf: pointer to buffer to store read data
+// len: maximum bytes to read
+// Returns: number of bytes read or error code
+fn wasi_fd_read(fd: i32, buf: *u8, len: i32) -> i32
+
+// Open a file
+// path: null-terminated string path
+// oflags: open flags
+// Returns: file descriptor or error code
+fn wasi_fd_open(path: *u8, oflags: i32) -> i32
+
+// Close a file descriptor
+// fd: file descriptor
+// Returns: 0 on success, error code on failure
+fn wasi_fd_close(fd: i32) -> i32
+
+// Seek within a file
+// fd: file descriptor
+// offset: seek offset
+// whence: seek base (0 = start, 1 = current, 2 = end)
+// Returns: new file position or error code
+fn wasi_fd_seek(fd: i32, offset: i64, whence: i32) -> i64
+
+// Get file metadata
+// fd: file descriptor
+// buf: pointer to stat buffer
+// Returns: 0 on success, error code on failure
+fn wasi_fd_stat(fd: i32, buf: *u8) -> i32
+
+// Create a directory
+// path: null-terminated string path
+// Returns: 0 on success, error code on failure
+fn wasi_path_create_directory(path: *u8) -> i32
+
+// Remove a file
+// path: null-terminated string path
+// Returns: 0 on success, error code on failure
+fn wasi_path_unlink_file(path: *u8) -> i32
+
+// Get current time
+// clock_id: clock type (0 = realtime, 1 = monotonic)
+// Returns: timestamp in nanoseconds
+fn wasi_clock_time_get(clock_id: i32) -> i64
+
+// Sleep for specified nanoseconds
+// ns: nanoseconds to sleep
+// Returns: 0 on success, error code on failure
+fn wasi_sleep(ns: i64) -> i32

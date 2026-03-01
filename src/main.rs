@@ -24,6 +24,7 @@ mod pkg;
 #[cfg(feature = "debugger")]
 mod debugger;
 mod type_system;
+mod wasm_codegen;
 
 #[cfg(feature = "llvm-backend")]
 mod llvm_codegen;
@@ -74,6 +75,9 @@ enum Commands {
         /// Release mode (optimized)
         #[arg(short, long)]
         release: bool,
+        /// Target architecture (e.g., wasm32, x86_64)
+        #[arg(short, long, default_value = "native")]
+        target: String,
     },
     /// Generate assembly output
     #[command(alias = "a")]
@@ -130,8 +134,8 @@ enum Commands {
     #[command(alias = "v")]
     Version,
     /// Show help information
-    #[command(alias = "h")]
-    Help,
+    #[command(name = "show-help")]
+    ShowHelp,
     /// Start LSP server for IDE integration
     #[cfg(feature = "lsp")]
     Lsp {
@@ -165,12 +169,13 @@ fn main() {
             file,
             output,
             release,
+            target,
         }) => {
             if release {
                 println!("{}", "Building in release mode...".bright_yellow());
-                cli::build_release(&file, output.as_deref(), cli.verbose)
+                cli::build_release(&file, output.as_deref(), cli.verbose, &target)
             } else {
-                cli::build_file(&file, output.as_deref(), cli.verbose)
+                cli::build_file(&file, output.as_deref(), cli.verbose, &target)
             }
         }
         Some(Commands::Asm { file, output }) => cli::generate_asm(&file, output.as_deref()),
@@ -200,7 +205,7 @@ fn main() {
             show_version();
             Ok(())
         }
-        Some(Commands::Help) | None => {
+        Some(Commands::ShowHelp) | None => {
             show_help();
             Ok(())
         }
