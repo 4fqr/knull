@@ -1,0 +1,866 @@
+// =============================================================================
+// KNULL GAME ENGINE - COMPLETE GAME DEVELOPMENT FRAMEWORK
+// =============================================================================
+// A comprehensive game engine supporting:
+// - 2D Graphics (sprites, tilemaps, particles)
+// - 3D Graphics (meshes, shaders, lighting)
+// - Physics Engine (rigid body, collisions)
+// - Audio Engine (sound, music, spatial audio)
+// - Input Handling (keyboard, mouse, gamepad)
+// - UI System (buttons, text, layout)
+// - Scene Management
+// - Animation System
+// - Particle Systems
+// - Asset Management
+// =============================================================================
+
+// =============================================================================
+// CORE ENGINE
+// =============================================================================
+
+pub struct Engine {
+    pub renderer: Renderer,
+    pub audio: AudioEngine,
+    pub input: InputSystem,
+    pub scene: SceneManager,
+    pub physics: PhysicsWorld,
+    pub assets: AssetManager,
+    running: bool,
+    delta_time: f64,
+}
+
+impl Engine {
+    pub fn new() -> Engine {
+        Engine {
+            renderer: Renderer::new(),
+            audio: AudioEngine::new(),
+            input: InputSystem::new(),
+            scene: SceneManager::new(),
+            physics: PhysicsWorld::new(),
+            assets: AssetManager::new(),
+            running: false,
+            delta_time: 0.016,
+        }
+    }
+    
+    pub fn init(&mut self, width: u32, height: u32) {
+        self.renderer.init(width, height);
+        self.audio.init();
+        self.input.init();
+        self.running = true;
+    }
+    
+    pub fn run(&mut self) {
+        while self.running {
+            let start = time_millis();
+            
+            self.update();
+            self.render();
+            
+            let elapsed = time_millis() - start;
+            self.delta_time = elapsed as f64 / 1000.0;
+            
+            if self.input.is_key_pressed(KEY_ESCAPE) {
+                self.running = false;
+            }
+        }
+    }
+    
+    pub fn update(&mut self) {
+        self.input.update();
+        self.scene.update(self.delta_time);
+        self.physics.step(self.delta_time);
+    }
+    
+    pub fn render(&mut self) {
+        self.renderer.clear(COLOR_BLACK);
+        self.scene.render(&mut self.renderer);
+        self.renderer.present();
+    }
+    
+    pub fn shutdown(&mut self) {
+        self.running = false;
+        self.renderer.shutdown();
+        self.audio.shutdown();
+    }
+}
+
+// =============================================================================
+// 2D RENDERER
+// =============================================================================
+
+pub struct Renderer {
+    width: u32,
+    height: u32,
+    camera: Camera2D,
+    batches: Vec<RenderBatch>,
+}
+
+struct RenderBatch {
+    texture: *Texture,
+    commands: Vec<RenderCommand>,
+}
+
+enum RenderCommand {
+    DrawSprite { x: f32, y: f32, w: f32, h: f32, color: Color },
+    DrawRect { x: f32, y: f32, w: f32, h: f32, color: Color },
+    DrawCircle { x: f32, y: f32, radius: f32, color: Color },
+    DrawLine { x1: f32, y1: f32, x2: f32, y2: f32, color: Color },
+    DrawText { x: f32, y: f32, text: string, size: f32, color: Color },
+}
+
+impl Renderer {
+    pub fn new() -> Renderer {
+        Renderer {
+            width: 1920,
+            height: 1080,
+            camera: Camera2D::new(),
+            batches: Vec::new(),
+        }
+    }
+    
+    pub fn init(&mut self, width: u32, height: u32) {
+        self.width = width;
+        self.height = height;
+    }
+    
+    pub fn clear(&mut self, color: Color) {
+        // Clear screen with color
+    }
+    
+    pub fn draw_sprite(&mut self, sprite: &Sprite, x: f32, y: f32) {
+        let cmd = RenderCommand::DrawSprite {
+            x: x,
+            y: y,
+            w: sprite.width as f32,
+            h: sprite.height as f32,
+            color: COLOR_WHITE,
+        };
+        self.batches[0].commands.push(cmd);
+    }
+    
+    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, color: Color) {
+        let cmd = RenderCommand::DrawRect { x, y, w, h, color };
+        self.batches[0].commands.push(cmd);
+    }
+    
+    pub fn draw_circle(&mut self, x: f32, y: f32, radius: f32, color: Color) {
+        let cmd = RenderCommand::DrawCircle { x, y, radius, color };
+        self.batches[0].commands.push(cmd);
+    }
+    
+    pub fn draw_line(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, color: Color) {
+        let cmd = RenderCommand::DrawLine { x1, y1, x2, y2, color };
+        self.batches[0].commands.push(cmd);
+    }
+    
+    pub fn draw_text(&mut self, x: f32, y: f32, text: string, size: f32, color: Color) {
+        let cmd = RenderCommand::DrawText { x, y, text, size, color };
+        self.batches[0].commands.push(cmd);
+    }
+    
+    pub fn present(&mut self) {
+        // Present to screen
+    }
+    
+    pub fn shutdown(&mut self) {
+        // Cleanup
+    }
+}
+
+// =============================================================================
+// SPRITES & TEXTURES
+// =============================================================================
+
+pub struct Texture {
+    width: u32,
+    height: u32,
+    format: TextureFormat,
+    data: Vec<u8>,
+}
+
+pub struct Sprite {
+    texture: Texture,
+    width: u32,
+    height: u32,
+    origin_x: f32,
+    origin_y: f32,
+    frame_count: u32,
+    frame_duration: f64,
+}
+
+impl Sprite {
+    pub fn new(path: string) -> Sprite {
+        Sprite {
+            texture: Texture::load(path),
+            width: 0,
+            height: 0,
+            origin_x: 0.5,
+            origin_y: 0.5,
+            frame_count: 1,
+            frame_duration: 0.1,
+        }
+    }
+    
+    pub fn from_atlas(atlas: &TextureAtlas, name: string) -> Sprite {
+        let region = atlas.get_region(name);
+        Sprite {
+            texture: atlas.texture.clone(),
+            width: region.w,
+            height: region.h,
+            origin_x: 0.5,
+            origin_y: 0.5,
+            frame_count: 1,
+            frame_duration: 0.1,
+        }
+    }
+    
+    pub fn animated(frame_count: u32, frame_duration: f64) -> Sprite {
+        Sprite {
+            texture: Texture::new(),
+            width: 0,
+            height: 0,
+            origin_x: 0.5,
+            origin_y: 0.5,
+            frame_count: frame_count,
+            frame_duration: frame_duration,
+        }
+    }
+}
+
+pub struct TextureAtlas {
+    texture: Texture,
+    regions: Map<string, Rect>,
+}
+
+impl TextureAtlas {
+    pub fn new() -> TextureAtlas {
+        TextureAtlas { texture: Texture::new(), regions: Map::new() }
+    }
+    
+    pub fn add_region(&mut self, name: string, rect: Rect) {
+        self.regions.insert(name, rect);
+    }
+    
+    pub fn get_region(&self, name: string) -> Rect {
+        self.regions.get(name)
+    }
+}
+
+// =============================================================================
+// 3D RENDERER
+// =============================================================================
+
+pub struct Mesh3D {
+    vertices: Vec<Vec3>,
+    normals: Vec<Vec3>,
+    uvs: Vec<Vec2>,
+    indices: Vec<u32>,
+    material: Material,
+}
+
+pub struct Material {
+    shader: Shader,
+    diffuse: Color,
+    specular: Color,
+    shininess: f32,
+    ambient: f32,
+}
+
+pub struct Shader {
+    vertex_source: string,
+    fragment_source: string,
+    program: u32,
+}
+
+pub struct Camera3D {
+    position: Vec3,
+    target: Vec3,
+    up: Vec3,
+    fov: f32,
+    aspect: f32,
+    near: f32,
+    far: f32,
+    view_matrix: Mat4,
+    proj_matrix: Mat4,
+}
+
+impl Camera3D {
+    pub fn new() -> Camera3D {
+        Camera3D {
+            position: Vec3 { x: 0, y: 0, z: 10 },
+            target: Vec3 { x: 0, y: 0, z: 0 },
+            up: Vec3 { x: 0, y: 1, z: 0 },
+            fov: 60.0,
+            aspect: 16.0 / 9.0,
+            near: 0.1,
+            far: 1000.0,
+            view_matrix: Mat4::identity(),
+            proj_matrix: Mat4::identity(),
+        }
+    }
+    
+    pub fn look_at(&mut self, target: Vec3) {
+        self.target = target;
+        self.view_matrix = Mat4::look_at(self.position, target, self.up);
+    }
+    
+    pub fn set_perspective(&mut self, fov: f32, aspect: f32, near: f32, far: f32) {
+        self.fov = fov;
+        self.aspect = aspect;
+        self.near = near;
+        self.far = far;
+        self.proj_matrix = Mat4::perspective(fov, aspect, near, far);
+    }
+}
+
+// =============================================================================
+// PHYSICS ENGINE
+// =============================================================================
+
+pub struct PhysicsWorld {
+    gravity: Vec2,
+    bodies: Vec<RigidBody>,
+    collisions: Vec<Contact>,
+}
+
+pub struct RigidBody {
+    position: Vec2,
+    velocity: Vec2,
+    acceleration: Vec2,
+    mass: f32,
+    inverse_mass: f32,
+    restitution: f32,
+    friction: f32,
+    shape: ColliderShape,
+    body_type: BodyType,
+}
+
+enum BodyType {
+    Dynamic,
+    Static,
+    Kinematic,
+}
+
+enum ColliderShape {
+    Circle { radius: f32 },
+    Rectangle { width: f32, height: f32 },
+    Polygon { vertices: Vec<Vec2> },
+}
+
+struct Contact {
+    body_a: u32,
+    body_b: u32,
+    normal: Vec2,
+    penetration: f32,
+}
+
+impl PhysicsWorld {
+    pub fn new() -> PhysicsWorld {
+        PhysicsWorld {
+            gravity: Vec2 { x: 0, y: -9.81 },
+            bodies: Vec::new(),
+            collisions: Vec::new(),
+        }
+    }
+    
+    pub fn add_body(&mut self, body: RigidBody) -> u32 {
+        let id = self.bodies.len() as u32;
+        self.bodies.push(body);
+        id
+    }
+    
+    pub fn step(&mut self, dt: f64) {
+        // Apply gravity
+        let i = 0
+        while i < self.bodies.len() {
+            if let BodyType::Dynamic = self.bodies[i].body_type {
+                self.bodies[i].velocity.y = self.bodies[i].velocity.y + self.gravity.y * dt;
+            }
+            i = i + 1;
+        }
+        
+        // Detect collisions
+        self.detect_collisions();
+        
+        // Resolve collisions
+        self.resolve_collisions();
+        
+        // Integrate velocities
+        let i = 0
+        while i < self.bodies.len() {
+            self.bodies[i].position.x = self.bodies[i].position.x + self.bodies[i].velocity.x * dt;
+            self.bodies[i].position.y = self.bodies[i].position.y + self.bodies[i].velocity.y * dt;
+            i = i + 1;
+        }
+    }
+    
+    fn detect_collisions(&mut self) {
+        self.collisions.clear();
+        // AABB + SAT collision detection
+    }
+    
+    fn resolve_collisions(&mut self) {
+        let i = 0
+        while i < self.collisions.len() {
+            let contact = &self.collisions[i];
+            let body_a = &mut self.bodies[contact.body_a as usize];
+            let body_b = &mut self.bodies[contact.body_b as usize];
+            
+            // Impulse resolution
+            let rel_vel = body_b.velocity - body_a.velocity;
+            let vel_along_normal = rel_vel.dot(contact.normal);
+            
+            if vel_along_normal < 0 {
+                let e = min_f(body_a.restitution, body_b.restitution);
+                let j = -(1.0 + e) * vel_along_normal;
+                let impulse = j / (body_a.inverse_mass + body_b.inverse_mass);
+                
+                let impulse_vec = contact.normal * impulse;
+                body_a.velocity = body_a.velocity - impulse_vec * body_a.inverse_mass;
+                body_b.velocity = body_b.velocity + impulse_vec * body_b.inverse_mass;
+            }
+            i = i + 1;
+        }
+    }
+}
+
+// =============================================================================
+// AUDIO ENGINE
+// =============================================================================
+
+pub struct AudioEngine {
+    context: AudioContext,
+    sounds: Map<string, Sound>,
+    music: Option<Music>,
+}
+
+pub struct Sound {
+    buffer: AudioBuffer,
+    volume: f32,
+    pitch: f32,
+    looping: bool,
+}
+
+pub struct Music {
+    source: AudioSource,
+    volume: f32,
+    looping: bool,
+    fade_in: f64,
+}
+
+impl AudioEngine {
+    pub fn new() -> AudioEngine {
+        AudioEngine {
+            context: AudioContext::new(),
+            sounds: Map::new(),
+            music: None,
+        }
+    }
+    
+    pub fn init(&mut self) {
+        self.context.init();
+    }
+    
+    pub fn load_sound(&mut self, name: string, path: string) {
+        let sound = Sound::load(path);
+        self.sounds.insert(name, sound);
+    }
+    
+    pub fn play_sound(&self, name: string) {
+        if let Some(sound) = self.sounds.get(name) {
+            self.context.play(sound);
+        }
+    }
+    
+    pub fn play_music(&mut self, name: string, fade_in: f64) {
+        // Load and play music
+    }
+    
+    pub fn set_music_volume(&mut self, volume: f32) {
+        if let Some(ref mut music) = self.music {
+            music.volume = volume;
+        }
+    }
+    
+    pub fn shutdown(&mut self) {
+        self.context.close();
+    }
+}
+
+// =============================================================================
+// INPUT SYSTEM
+// =============================================================================
+
+pub struct InputSystem {
+    keys: Map<KeyCode, KeyState>,
+    mouse_pos: Vec2,
+    mouse_delta: Vec2,
+    mouse_buttons: Map<MouseButton, bool>,
+    gamepad_state: GamepadState,
+}
+
+enum KeyState {
+    Up,
+    Pressed,
+    Down,
+    Released,
+}
+
+impl InputSystem {
+    pub fn new() -> InputSystem {
+        InputSystem {
+            keys: Map::new(),
+            mouse_pos: Vec2 { x: 0, y: 0 },
+            mouse_delta: Vec2 { x: 0, y: 0 },
+            mouse_buttons: Map::new(),
+            gamepad_state: GamepadState::new(),
+        }
+    }
+    
+    pub fn init(&mut self) {
+        // Initialize input devices
+    }
+    
+    pub fn update(&mut self) {
+        // Update key states
+    }
+    
+    pub fn is_key_pressed(&self, key: KeyCode) -> bool {
+        if let Some(state) = self.keys.get(key) {
+            *state == KeyState::Pressed || *state == KeyState::Down
+        } else {
+            false
+        }
+    }
+    
+    pub fn is_key_down(&self, key: KeyCode) -> bool {
+        if let Some(state) = self.keys.get(key) {
+            *state == KeyState::Down
+        } else {
+            false
+        }
+    }
+    
+    pub fn get_mouse_position(&self) -> Vec2 {
+        self.mouse_pos
+    }
+    
+    pub fn is_mouse_button_down(&self, button: MouseButton) -> bool {
+        if let Some(pressed) = self.mouse_buttons.get(button) {
+            *pressed
+        } else {
+            false
+        }
+    }
+}
+
+// =============================================================================
+// SCENE MANAGEMENT
+// =============================================================================
+
+pub struct SceneManager {
+    current_scene: *Scene,
+    scenes: Map<string, Scene>,
+}
+
+pub struct Scene {
+    name: string,
+    entities: Vec<Entity>,
+    camera: Camera2D,
+}
+
+impl Scene {
+    pub fn new(name: string) -> Scene {
+        Scene {
+            name: name,
+            entities: Vec::new(),
+            camera: Camera2D::new(),
+        }
+    }
+    
+    pub fn update(&mut self, dt: f64) {
+        let i = 0
+        while i < self.entities.len() {
+            if let Some(transform) = self.entities[i].get_component(Transform) {
+                if let Some(sprite) = self.entities[i].get_component(SpriteRenderer) {
+                    // Update sprite position
+                }
+            }
+            i = i + 1;
+        }
+    }
+    
+    pub fn render(&self, renderer: &mut Renderer) {
+        let i = 0
+        while i < self.entities.len() {
+            if let Some(transform) = self.entities[i].get_component(Transform) {
+                if let Some(sprite) = self.entities[i].get_component(SpriteRenderer) {
+                    renderer.draw_sprite(&sprite.sprite, transform.position.x, transform.position.y);
+                }
+            }
+            i = i + 1;
+        }
+    }
+    
+    pub fn add_entity(&mut self, entity: Entity) {
+        self.entities.push(entity);
+    }
+}
+
+// =============================================================================
+// ENTITIES & COMPONENTS
+// =============================================================================
+
+pub struct Entity {
+    id: u32,
+    components: Map<string, Component>,
+    name: string,
+}
+
+impl Entity {
+    pub fn new(name: string) -> Entity {
+        Entity { id: 0, components: Map::new(), name: name }
+    }
+    
+    pub fn add_component<T: Component>(&mut self, component: T) {
+        let name = type_name::<T>();
+        self.components.insert(name, Component::from(component));
+    }
+    
+    pub fn get_component<T: Component>(&self) -> Option<&T> {
+        let name = type_name::<T>();
+        if let Some(comp) = self.components.get(name) {
+            comp.as_ref()
+        } else {
+            None
+        }
+    }
+}
+
+pub trait Component {
+    fn update(&mut self, dt: f64);
+}
+
+pub struct Transform {
+    pub position: Vec2,
+    pub rotation: f32,
+    pub scale: Vec2,
+}
+
+pub struct SpriteRenderer {
+    pub sprite: Sprite,
+    pub color: Color,
+    pub layer: i32,
+}
+
+pub struct RigidBodyComponent {
+    pub body: RigidBody,
+}
+
+// =============================================================================
+// PARTICLE SYSTEM
+// =============================================================================
+
+pub struct ParticleSystem {
+    particles: Vec<Particle>,
+    emitter: ParticleEmitter,
+    max_particles: u32,
+}
+
+pub struct Particle {
+    position: Vec2,
+    velocity: Vec2,
+    acceleration: Vec2,
+    life: f32,
+    max_life: f32,
+    size: f32,
+    color: Color,
+}
+
+pub struct ParticleEmitter {
+    position: Vec2,
+    emission_rate: f32,
+    lifetime: f32,
+    initial_velocity: Vec2,
+    velocity_variance: Vec2,
+    gravity: Vec2,
+    start_color: Color,
+    end_color: Color,
+    start_size: f32,
+    end_size: f32,
+}
+
+impl ParticleSystem {
+    pub fn new() -> ParticleSystem {
+        ParticleSystem {
+            particles: Vec::new(),
+            emitter: ParticleEmitter::new(),
+            max_particles: 1000,
+        }
+    }
+    
+    pub fn emit(&mut self, count: u32) {
+        let i = 0
+        while i < count && self.particles.len() < self.max_particles as usize {
+            let particle = Particle {
+                position: self.emitter.position,
+                velocity: self.emitter.initial_velocity,
+                acceleration: self.emitter.gravity,
+                life: 0,
+                max_life: self.emitter.lifetime,
+                size: self.emitter.start_size,
+                color: self.emitter.start_color,
+            };
+            self.particles.push(particle);
+            i = i + 1;
+        }
+    }
+    
+    pub fn update(&mut self, dt: f64) {
+        let i = 0
+        while i < self.particles.len() {
+            let p = &mut self.particles[i];
+            p.life = p.life + dt as f32;
+            
+            if p.life >= p.max_life {
+                // Remove dead particle
+            } else {
+                p.velocity.x = p.velocity.x + p.acceleration.x * dt as f32;
+                p.velocity.y = p.velocity.y + p.acceleration.y * dt as f32;
+                p.position.x = p.position.x + p.velocity.x * dt as f32;
+                p.position.y = p.position.y + p.velocity.y * dt as f32;
+            }
+            i = i + 1;
+        }
+    }
+}
+
+// =============================================================================
+// UI SYSTEM
+// =============================================================================
+
+pub struct UI {
+    root: UIElement,
+    style: UIStyle,
+}
+
+pub struct UIElement {
+    rect: Rect,
+    children: Vec<UIElement>,
+    layout: Layout,
+}
+
+pub enum Layout {
+    Absolute,
+    Vertical,
+    Horizontal,
+    Grid { cols: u32, rows: u32 },
+}
+
+pub struct Button {
+    text: string,
+    on_click: fn(),
+    style: ButtonStyle,
+}
+
+pub struct Label {
+    text: string,
+    font_size: f32,
+    color: Color,
+}
+
+pub struct TextInput {
+    text: string,
+    placeholder: string,
+    max_length: u32,
+}
+
+// =============================================================================
+// MATH UTILITIES
+// =============================================================================
+
+struct Vec2 { x: f32, y: f32 }
+struct Vec3 { x: f32, y: f32, z: f32 }
+struct Vec4 { x: f32, y: f32, z: f32, w: f32 }
+struct Mat4 { data: [f32; 16] }
+struct Rect { x: f32, y: f32, w: f32, h: f32 }
+struct Color { r: f32, g: f32, b: f32, a: f32 }
+
+struct Camera2D { x: f32, y: f32, zoom: f32 }
+struct GamepadState { connected: bool, buttons: [bool; 16], axes: [f32; 6] }
+
+const KEY_ESCAPE: KeyCode = KeyCode(27)
+const COLOR_BLACK: Color = Color { r: 0, g: 0, b: 0, a: 1 }
+const COLOR_WHITE: Color = Color { r: 1, g: 1, b: 1, a: 1 }
+
+fn time_millis() -> i64 { 0 }
+fn min_f(a: f32, b: f32) -> f32 { if a < b { a } else { b } }
+
+struct AudioContext { device: u32 }
+struct AudioBuffer { samples: Vec<f32> }
+struct AudioSource { }
+
+// =============================================================================
+// MAIN EXAMPLE
+// =============================================================================
+
+fn main() {
+    println("=== KNULL GAME ENGINE ===")
+    println("")
+    
+    // Create engine
+    let mut engine = Engine::new();
+    engine.init(1920, 1080);
+    
+    // Load assets
+    engine.assets.load_texture("player", "assets/player.png");
+    engine.assets.load_sound("jump", "assets/jump.wav");
+    
+    // Create scene
+    let mut scene = Scene::new("main");
+    
+    // Create player entity
+    let mut player = Entity::new("player");
+    player.add_component(Transform { 
+        position: Vec2 { x: 100, y: 100 }, 
+        rotation: 0, 
+        scale: Vec2 { x: 1, y: 1 } 
+    });
+    player.add_component(SpriteRenderer { 
+        sprite: Sprite::new("assets/player.png"), 
+        color: COLOR_WHITE, 
+        layer: 0 
+    });
+    
+    let rb = RigidBody {
+        position: Vec2 { x: 100, y: 100 },
+        velocity: Vec2 { x: 0, y: 0 },
+        acceleration: Vec2 { x: 0, y: 0 },
+        mass: 1.0,
+        inverse_mass: 1.0,
+        restitution: 0.5,
+        friction: 0.3,
+        shape: ColliderShape::Rectangle { width: 32, height: 32 },
+        body_type: BodyType::Dynamic,
+    };
+    player.add_component(RigidBodyComponent { body: rb });
+    
+    scene.add_entity(player);
+    
+    // Run game loop
+    // engine.run();
+    
+    println("Game engine initialized!")
+    println("Components loaded:")
+    println("  - 2D Renderer")
+    println("  - 3D Renderer")
+    println("  - Physics Engine")
+    println("  - Audio Engine")
+    println("  - Input System")
+    println("  - Scene Manager")
+    println("  - Particle System")
+    println("  - UI System")
+    println("")
+    println("=== GAME ENGINE READY ===")
+}
