@@ -14,6 +14,9 @@
 - Const declarations (const X = 42)
 - Array types ([u64; 512])
 - Type casting (as keyword)
+- Struct definitions and instances
+- Methods with self parameter
+- Field access
 
 ### File I/O
 - file_read(path) - Read entire file
