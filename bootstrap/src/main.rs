@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 use log::{error, info};
 use std::io::Read;
 use std::path::PathBuf;
-use std::process::exit;
+use std::process::{exit, Command};
 
 mod ast;
 mod ccodegen;
@@ -191,14 +191,58 @@ fn run_file(file: PathBuf, args: Vec<String>, cli: &Cli) -> Result<()> {
         info!("AST: {:#?}", ast);
     }
 
-    // Compile
-    let module = compiler::Compiler::new(&ast)
-        .compile()
-        .with_context(|| "Compilation failed")?;
+    // Generate C code
+    let mut cgen = ccodegen::CCodeGenerator::new();
+    let c_code = cgen.generate(&ast);
 
-    // Execute (JIT)
+    if cli.verbose {
+        info!("C Code:\n{}", c_code);
+    }
+
+    // Write C code to temp file
+    let c_path = std::env::temp_dir().join("knull_temp.c");
+    std::fs::write(&c_path, &c_code)?;
+
+    // Compile with gcc/clang
+    let exe_path = std::env::temp_dir().join("knull_temp");
+    let compiler = if Command::new("clang").output().is_ok() {
+        "clang"
+    } else {
+        "gcc"
+    };
+    let output = Command::new(compiler)
+        .args([
+            c_path.to_str().unwrap(),
+            "-o",
+            exe_path.to_str().unwrap(),
+            "-O2",
+        ])
+        .output()
+        .context(format!("Failed to run {}", compiler))?;
+
+    if !output.status.success() {
+        return Err(anyhow::anyhow!(
+            "Compilation failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    // Clean up C file
+    let _ = std::fs::remove_file(&c_path);
+
+    // Execute
     info!("Executing...");
-    codegen::JitExecutor::new().execute(&module, args)?;
+    let output = Command::new(&exe_path)
+        .args(&args)
+        .output()
+        .context("Failed to execute")?;
+
+    // Print output
+    print!("{}", String::from_utf8_lossy(&output.stdout));
+    eprint!("{}", String::from_utf8_lossy(&output.stderr));
+
+    // Clean up exe
+    let _ = std::fs::remove_file(&exe_path);
 
     Ok(())
 }

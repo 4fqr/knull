@@ -24,6 +24,14 @@ impl CCodeGenerator {
         self.emit("#include <string.h>");
         self.emit("");
 
+        // Runtime functions
+        self.emit("/* Knull Runtime */");
+        self.emit("void knull_println(char* s) { printf(\"%s\\n\", s); }");
+        self.emit("void knull_print(char* s) { printf(\"%s\", s); }");
+        self.emit("void knull_printi(long long n) { printf(\"%lld\\n\", n); }");
+        self.emit("char* knull_readline() { char* buf = malloc(1024); fgets(buf, 1024, stdin); buf[strlen(buf)-1] = 0; return buf; }");
+        self.emit("");
+
         for item in &ast.items {
             self.emit_item(item);
         }
