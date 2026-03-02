@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use crate::parser::{ASTNode, Literal};
+use crate::parser::{ASTNode, Literal, Type};
 
 // Global TCP stream registry
 lazy_static::lazy_static! {
@@ -91,15 +91,64 @@ fn tcp_listener_accept(handle: i64) -> Result<(i64, String), String> {
     }
 }
 
+/// Struct field definition
+#[derive(Debug, Clone)]
+pub struct StructDef {
+    pub name: String,
+    pub fields: Vec<(String, Type)>,
+}
+
+/// Struct instance
+#[derive(Debug, Clone)]
+pub struct StructInstance {
+    pub def: Box<StructDef>,
+    pub fields: HashMap<String, Value>,
+}
+
+/// Function object (for closures)
+#[derive(Debug, Clone)]
+pub struct FunctionObj {
+    pub name: String,
+    pub params: Vec<(String, Option<Type>)>,
+    pub body: Box<ASTNode>,
+    pub closure: HashMap<String, Value>,
+}
+
+/// Trait definition
+#[derive(Debug, Clone)]
+pub struct TraitDef {
+    pub name: String,
+    pub methods: Vec<(String, FunctionObj)>,
+}
+
 /// Runtime value
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Int(i64),
     Float(f64),
     Bool(bool),
     String(String),
     Array(Vec<Value>),
+    StructDef(Box<StructDef>),
+    StructInstance(Box<StructInstance>),
+    Function(Box<FunctionObj>),
+    Trait(Box<TraitDef>),
+    Reference(Box<Value>), // For Rc, Arc simulation
     Null,
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Array(a), Value::Array(b)) => a == b,
+            (Value::Null, Value::Null) => true,
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display for Value {
@@ -119,6 +168,11 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, "]")
             }
+            Value::StructDef(def) => write!(f, "<struct {}>", def.name),
+            Value::StructInstance(inst) => write!(f, "<{} instance>", inst.def.name),
+            Value::Function(func) => write!(f, "<fn {}>", func.name),
+            Value::Trait(tr) => write!(f, "<trait {}>", tr.name),
+            Value::Reference(val) => write!(f, "<ref {}>", val),
             Value::Null => write!(f, "null"),
         }
     }
@@ -132,7 +186,30 @@ impl Value {
             Value::Float(f) => *f != 0.0,
             Value::String(s) => !s.is_empty(),
             Value::Array(arr) => !arr.is_empty(),
+            Value::StructInstance(_) => true,
+            Value::Function(_) => true,
+            Value::Reference(val) => val.is_truthy(),
             Value::Null => false,
+            _ => false,
+        }
+    }
+
+    fn get_field(&self, field: &str) -> Option<Value> {
+        match self {
+            Value::StructInstance(inst) => inst.fields.get(field).cloned(),
+            Value::Reference(val) => val.get_field(field),
+            _ => None,
+        }
+    }
+
+    fn set_field(&mut self, field: &str, value: Value) -> bool {
+        match self {
+            Value::StructInstance(inst) => {
+                inst.fields.insert(field.to_string(), value);
+                true
+            }
+            Value::Reference(val) => val.set_field(field, value),
+            _ => false,
         }
     }
 
@@ -260,27 +337,61 @@ impl Interpreter {
     pub fn execute(&mut self, ast: &ASTNode) -> Result<(), String> {
         match ast {
             ASTNode::Program(items) => {
-                // First pass: collect function definitions
+                // First pass: collect function and struct definitions
                 for item in items {
-                    if let ASTNode::Function {
-                        name, params, body, ..
-                    } = item
-                    {
-                        self.functions.insert(
-                            name.clone(),
-                            FunctionDef {
+                    match item {
+                        ASTNode::Function {
+                            name, params, body, ..
+                        } => {
+                            self.functions.insert(
+                                name.clone(),
+                                FunctionDef {
+                                    name: name.clone(),
+                                    params: params.iter().map(|p| p.name.clone()).collect(),
+                                    body: *body.clone(),
+                                },
+                            );
+                        }
+                        ASTNode::StructDef { name, fields } => {
+                            let struct_def = StructDef {
                                 name: name.clone(),
-                                params: params.iter().map(|p| p.name.clone()).collect(),
-                                body: *body.clone(),
-                            },
-                        );
+                                fields: fields.clone(),
+                            };
+                            self.set_variable(name.clone(), Value::StructDef(Box::new(struct_def)));
+                        }
+                        ASTNode::Impl { ty, methods } => {
+                            // Collect impl methods
+                            for method in methods {
+                                if let ASTNode::Function {
+                                    name, params, body, ..
+                                } = method
+                                {
+                                    let method_name = format!("{}::{}", ty, name);
+                                    // Params already include self from parser
+                                    let method_params: Vec<String> =
+                                        params.iter().map(|p| p.name.clone()).collect();
+                                    self.functions.insert(
+                                        method_name,
+                                        FunctionDef {
+                                            name: name.clone(),
+                                            params: method_params,
+                                            body: *body.clone(),
+                                        },
+                                    );
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
 
-                // Second pass: execute non-function statements
+                // Second pass: execute non-definition statements
                 for item in items {
-                    if !matches!(item, ASTNode::Function { .. }) {
-                        self.execute_node(item)?;
+                    match item {
+                        ASTNode::Function { .. }
+                        | ASTNode::StructDef { .. }
+                        | ASTNode::Impl { .. } => {}
+                        _ => self.execute_node(item)?,
                     }
                 }
 
@@ -391,6 +502,34 @@ impl Interpreter {
                 self.call_function(&func_name, arg_values?)?;
                 Ok(())
             }
+            ASTNode::StructDef { name, fields } => {
+                let struct_def = StructDef {
+                    name: name.clone(),
+                    fields: fields.clone(),
+                };
+                self.set_variable(name.clone(), Value::StructDef(Box::new(struct_def)));
+                Ok(())
+            }
+            ASTNode::Impl { ty, methods } => {
+                // Store methods for this type
+                for method in methods {
+                    if let ASTNode::Function {
+                        name, params, body, ..
+                    } = method
+                    {
+                        let method_name = format!("{}::{}", ty, name);
+                        self.functions.insert(
+                            method_name,
+                            FunctionDef {
+                                name: name.clone(),
+                                params: params.iter().map(|p| p.name.clone()).collect(),
+                                body: *body.clone(),
+                            },
+                        );
+                    }
+                }
+                Ok(())
+            }
             other => {
                 // Try to evaluate as expression (ignore result)
                 let _ = self.evaluate(other)?;
@@ -456,6 +595,51 @@ impl Interpreter {
                 let values: Result<Vec<Value>, String> =
                     elements.iter().map(|e| self.evaluate(e)).collect();
                 Ok(Value::Array(values?))
+            }
+            ASTNode::StructLiteral { name, fields } => {
+                // Get struct definition
+                let struct_def = self
+                    .get_variable(name)
+                    .ok_or_else(|| format!("Unknown struct: {}", name))?;
+
+                if let Value::StructDef(def) = struct_def {
+                    let mut field_values = HashMap::new();
+                    for (field_name, field_expr) in fields {
+                        let val = self.evaluate(field_expr)?;
+                        field_values.insert(field_name.clone(), val);
+                    }
+                    Ok(Value::StructInstance(Box::new(StructInstance {
+                        def,
+                        fields: field_values,
+                    })))
+                } else {
+                    Err(format!("{} is not a struct", name))
+                }
+            }
+            ASTNode::MethodCall { obj, method, args } => {
+                let obj_val = self.evaluate(obj)?;
+                let arg_values: Result<Vec<Value>, String> =
+                    args.iter().map(|arg| self.evaluate(arg)).collect();
+
+                // Get the type name from the object
+                let type_name = match &obj_val {
+                    Value::StructInstance(inst) => inst.def.name.clone(),
+                    _ => return Err("Cannot call method on non-struct value".to_string()),
+                };
+
+                let method_name = format!("{}::{}", type_name, method);
+
+                // Call method with self as first argument
+                let mut full_args = vec![obj_val];
+                full_args.extend(arg_values?);
+
+                self.call_function(&method_name, full_args)
+            }
+            ASTNode::FieldAccess { obj, field } => {
+                let obj_val = self.evaluate(obj)?;
+                obj_val
+                    .get_field(field)
+                    .ok_or_else(|| format!("Field {} not found", field))
             }
             _ => Err(format!("Cannot evaluate: {:?}", node)),
         }
@@ -669,6 +853,11 @@ impl Interpreter {
                         Value::Bool(_) => "bool",
                         Value::String(_) => "string",
                         Value::Array(_) => "array",
+                        Value::StructDef(_) => "struct_def",
+                        Value::StructInstance(_) => "struct_instance",
+                        Value::Function(_) => "function",
+                        Value::Trait(_) => "trait",
+                        Value::Reference(_) => "reference",
                         Value::Null => "null",
                     };
                     Some(Ok(Value::String(type_name.to_string())))

@@ -175,6 +175,11 @@ fn value_to_embedded(val: &Value) -> EmbeddedValue {
         Value::Bool(b) => EmbeddedValue::Bool(*b),
         Value::String(s) => EmbeddedValue::String(s.clone()),
         Value::Array(arr) => EmbeddedValue::String(format!("{:?}", arr)),
+        Value::StructDef(_) => EmbeddedValue::String("<struct_def>".to_string()),
+        Value::StructInstance(_) => EmbeddedValue::String("<struct_instance>".to_string()),
+        Value::Function(_) => EmbeddedValue::String("<function>".to_string()),
+        Value::Trait(_) => EmbeddedValue::String("<trait>".to_string()),
+        Value::Reference(_) => EmbeddedValue::String("<reference>".to_string()),
         Value::Null => EmbeddedValue::Unit,
     }
 }

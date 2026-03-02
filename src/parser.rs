@@ -358,8 +358,13 @@ impl Parser {
             self.advance();
             while self.current().kind != TokenKind::RParen && self.current().kind != TokenKind::Eof
             {
-                // Parse parameter name
-                let param_name = self.parse_identifier()?;
+                // Parse parameter name (can be identifier or 'self')
+                let param_name = if self.current().kind == TokenKind::SelfValue {
+                    self.advance();
+                    "self".to_string()
+                } else {
+                    self.parse_identifier()?
+                };
 
                 // Check for type annotation
                 let ty = if self.current().kind == TokenKind::Colon {
@@ -802,6 +807,49 @@ impl Parser {
                     obj: Box::new(node),
                     field,
                 };
+            } else if self.current().kind == TokenKind::LBrace {
+                // Check for struct literal: must be a single identifier followed by { field: value, ... }
+                if let ASTNode::Identifier(name) = &node {
+                    // Try to parse as struct literal
+                    let checkpoint = self.pos;
+                    self.advance();
+                    let mut fields = Vec::new();
+                    let mut is_struct_literal = true;
+
+                    while self.current().kind != TokenKind::RBrace
+                        && self.current().kind != TokenKind::Eof
+                    {
+                        if let Ok(field_name) = self.parse_identifier() {
+                            if self.current().kind == TokenKind::Colon {
+                                self.advance();
+                                if let Ok(field_value) = self.parse_expression() {
+                                    fields.push((field_name, field_value));
+                                    if self.current().kind == TokenKind::Comma {
+                                        self.advance();
+                                    }
+                                    continue;
+                                }
+                            }
+                        }
+                        // Failed to parse as struct literal
+                        is_struct_literal = false;
+                        break;
+                    }
+
+                    if is_struct_literal && self.current().kind == TokenKind::RBrace {
+                        self.advance();
+                        node = ASTNode::StructLiteral {
+                            name: name.clone(),
+                            fields,
+                        };
+                    } else {
+                        // Not a struct literal, restore position
+                        self.pos = checkpoint;
+                        break;
+                    }
+                } else {
+                    break;
+                }
             } else if self.current().kind == TokenKind::As {
                 self.advance();
                 let target_type = self.parse_type()?;
@@ -869,6 +917,10 @@ impl Parser {
                 let expr = self.parse_expression()?;
                 self.expect(TokenKind::RParen)?;
                 Ok(expr)
+            }
+            TokenKind::SelfValue => {
+                self.advance();
+                Ok(ASTNode::Identifier("self".to_string()))
             }
             TokenKind::Identifier => {
                 self.advance();
