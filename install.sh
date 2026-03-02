@@ -15,35 +15,33 @@ yellow=$(printf '\033[1;33m')
 blue=$(printf '\033[0;34m')
 nc=$(printf '\033[0m')
 
-# Print functions
 print_header() {
     printf "%s\n" "${blue}"
     printf ".____/\ .______ .____     .___   .___\n"
     printf ":   /  \:      \|    |___ |   |  |   |\n"
     printf "|.  ___/|       ||    |   ||   |  |   |\n"
     printf "|     \ |   |   ||    :   ||   |/\|   |/\n"
-    printf "|      \|___|   ||        ||   /  \|   /  \\n"
+    printf "|      \|___|   ||        ||   /  \|   /  \\\n"
     printf "|___\  /    |___||. _____/ |______/|______/\n"
     printf "     \/           :/\n"
     printf "                  :\n"
     printf "%s\n" "${nc}"
-    printf "%sThe God Programming Language%s\n" "${green}" "${nc}"
+    printf "The Knull Programming Language%s\n" "${green}" "${nc}"
     printf "\n"
 }
 
 print_success() {
-    printf "%s✓%s %s\n" "${green}" "${nc}" "$1"
+    printf "[%sOK%s] %s\n" "${green}" "${nc}" "$1"
 }
 
 print_error() {
-    printf "%s✗%s %s\n" "${red}" "${nc}" "$1"
+    printf "[%sERROR%s] %s\n" "${red}" "${nc}" "$1" >&2
 }
 
 print_info() {
-    printf "%s→%s %s\n" "${yellow}" "${nc}" "$1"
+    printf "[%sINFO%s] %s\n" "${yellow}" "${nc}" "$1"
 }
 
-# Detect OS
 detect_os() {
     case "$(uname -s)" in
         Linux*)     echo "linux";;
@@ -53,7 +51,6 @@ detect_os() {
     esac
 }
 
-# Detect architecture
 detect_arch() {
     case "$(uname -m)" in
         x86_64|amd64)  echo "x86_64";;
@@ -63,16 +60,13 @@ detect_arch() {
     esac
 }
 
-# Check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Check dependencies
 check_deps() {
     print_info "Checking dependencies..."
     
-    # Check for Rust
     if ! command_exists cargo; then
         print_error "Rust not found"
         printf "\nPlease install Rust:\n"
@@ -82,7 +76,6 @@ check_deps() {
     fi
     print_success "Rust found: $(cargo --version)"
     
-    # Check for git
     if ! command_exists git; then
         print_error "Git not found"
         printf "Please install Git and try again.\n"
@@ -90,7 +83,6 @@ check_deps() {
     fi
     print_success "Git found"
     
-    # Check for C compiler (for linking)
     if command_exists cc || command_exists gcc || command_exists clang; then
         print_success "C compiler found"
     else
@@ -100,7 +92,6 @@ check_deps() {
     fi
 }
 
-# Get install directory
 get_install_dir() {
     if [ -n "$PREFIX" ]; then
         echo "$PREFIX/bin"
@@ -113,7 +104,6 @@ get_install_dir() {
     fi
 }
 
-# Clone repository
 clone_repo() {
     print_info "Cloning Knull repository..."
     
@@ -127,13 +117,11 @@ clone_repo() {
     print_success "Repository cloned"
 }
 
-# Build Knull
 build_knull() {
     print_info "Building Knull compiler..."
     
     cd "$TEMP_DIR/knull/src"
     
-    # Build release version
     cargo build --release --no-default-features 2>&1
     
     if [ ! -f "target/release/knull" ]; then
@@ -144,37 +132,30 @@ build_knull() {
     print_success "Build successful"
 }
 
-# Install binary
 install_binary() {
     local install_dir
     install_dir=$(get_install_dir)
     
     print_info "Installing to $install_dir..."
     
-    # Create directory if needed
     mkdir -p "$install_dir"
     
-    # Copy binary
     cp "$TEMP_DIR/knull/src/target/release/knull" "$install_dir/knull"
     chmod +x "$install_dir/knull"
     
-    # Create symlinks for common names
     if [ ! -e "$install_dir/kn" ]; then
         ln -sf "$install_dir/knull" "$install_dir/kn" 2>/dev/null || true
     fi
     
     print_success "Binary installed"
     
-    # Check if in PATH
     case ":$PATH:" in
         *":$install_dir:"*)
-            # Already in PATH
             ;;
         *)
             printf "\n"
             print_info "Adding to PATH..."
             
-            # Detect shell
             local shell_rc=""
             if [ -n "$ZSH_VERSION" ]; then
                 shell_rc="$HOME/.zshrc"
@@ -184,7 +165,6 @@ install_binary() {
                 shell_rc="$HOME/.profile"
             fi
             
-            # Add to shell rc
             printf "\n# Knull Programming Language\n" >> "$shell_rc"
             printf "export PATH=\"%s:\$PATH\"\n" "$install_dir" >> "$shell_rc"
             
@@ -194,7 +174,6 @@ install_binary() {
     esac
 }
 
-# Install stdlib
 install_stdlib() {
     local stdlib_dir="$HOME/.knull/stdlib"
     
@@ -202,20 +181,17 @@ install_stdlib() {
     
     mkdir -p "$stdlib_dir"
     
-    # Copy runtime files
-    if [ -d "$TEMP_DIR/knull/runtime" ]; then
-        cp -r "$TEMP_DIR/knull/runtime"/* "$stdlib_dir/" 2>/dev/null || true
+    if [ -d "$TEMP_DIR/knull/stdlib" ]; then
+        cp -r "$TEMP_DIR/knull/stdlib/"* "$stdlib_dir/" 2>/dev/null || true
     fi
     
-    # Copy std files
-    if [ -d "$TEMP_DIR/knull/src/std" ]; then
-        cp -r "$TEMP_DIR/knull/src/std" "$stdlib_dir/" 2>/dev/null || true
+    if [ -d "$TEMP_DIR/knull/runtime" ]; then
+        cp -r "$TEMP_DIR/knull/runtime/"* "$stdlib_dir/" 2>/dev/null || true
     fi
     
     print_success "Standard library installed"
 }
 
-# Create config
 create_config() {
     local config_dir="$HOME/.knull"
     
@@ -243,7 +219,6 @@ EOF
     print_success "Configuration created"
 }
 
-# Run tests
 run_tests() {
     print_info "Running tests..."
     
@@ -256,7 +231,6 @@ run_tests() {
     fi
 }
 
-# Verify installation
 verify_install() {
     local install_dir
     install_dir=$(get_install_dir)
@@ -273,28 +247,26 @@ verify_install() {
     fi
 }
 
-# Cleanup
 cleanup() {
     if [ -d "$TEMP_DIR" ]; then
         rm -rf "$TEMP_DIR"
     fi
 }
 
-# Print final message
 print_footer() {
     local install_dir
     install_dir=$(get_install_dir)
     
     printf "\n"
-    printf "%s╔════════════════════════════════════════════════════════╗%s\n" "${green}" "${nc}"
-    printf "%s║          Knull Installation Complete!                  ║%s\n" "${green}" "${nc}"
-    printf "%s╚════════════════════════════════════════════════════════╝%s\n" "${green}" "${nc}"
+    printf "=======================================\n"
+    printf "  Knull Installation Complete!\n"
+    printf "=======================================\n"
     printf "\n"
     printf "Quick start:\n"
-    printf "  knull --version          # Show version\n"
-    printf "  knull run hello.knull    # Run a program\n"
-    printf "  knull new myproject      # Create new project\n"
-    printf "  knull repl               # Interactive shell\n"
+    printf "  knull --version          Show version\n"
+    printf "  knull run hello.knull   Run a program\n"
+    printf "  knull new myproject     Create new project\n"
+    printf "  knull repl              Interactive shell\n"
     printf "\n"
     printf "Documentation:\n"
     printf "  https://github.com/4fqr/knull#readme\n"
@@ -304,7 +276,6 @@ print_footer() {
     printf "\n"
 }
 
-# Main installation
 main() {
     print_header
     
@@ -325,7 +296,6 @@ main() {
         exit 1
     fi
     
-    # Run installation steps
     check_deps
     clone_repo
     build_knull
@@ -339,8 +309,6 @@ main() {
     print_footer
 }
 
-# Handle interrupts
 trap cleanup EXIT INT TERM
 
-# Run main
 main

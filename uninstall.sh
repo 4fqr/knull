@@ -4,42 +4,39 @@
 
 set -e
 
-# Colors using printf for portability
 red=$(printf '\033[0;31m')
 green=$(printf '\033[0;32m')
 yellow=$(printf '\033[1;33m')
 blue=$(printf '\033[0;34m')
 nc=$(printf '\033[0m')
 
-# Print functions
 print_header() {
     printf "%s\n" "${blue}"
     printf ".____/\ .______ .____     .___   .___\n"
     printf ":   /  \:      \|    |___ |   |  |   |\n"
     printf "|.  ___/|       ||    |   ||   |  |   |\n"
     printf "|     \ |   |   ||    :   ||   |/\|   |/\n"
-    printf "|      \|___|   ||        ||   /  \|   /  \\n"
+    printf "|      \|___|   ||        ||   /  \|   /  \\\n"
     printf "|___\  /    |___||. _____/ |______/|______/\n"
     printf "     \/           :/\n"
     printf "                  :\n"
     printf "%s\n" "${nc}"
-    printf "%sUninstaller%s\n" "${yellow}" "${nc}"
+    printf "Knull Uninstaller\n"
     printf "\n"
 }
 
 print_success() {
-    printf "%s✓%s %s\n" "${green}" "${nc}" "$1"
+    printf "[%sOK%s] %s\n" "${green}" "${nc}" "$1"
 }
 
 print_error() {
-    printf "%s✗%s %s\n" "${red}" "${nc}" "$1"
+    printf "[%sERROR%s] %s\n" "${red}" "${nc}" "$1" >&2
 }
 
 print_info() {
-    printf "%s→%s %s\n" "${yellow}" "${nc}" "$1"
+    printf "[%sINFO%s] %s\n" "${yellow}" "${nc}" "$1"
 }
 
-# Find install directory
 find_install_dir() {
     local paths="$HOME/.local/bin/knull $HOME/.knull/bin/knull /usr/local/bin/knull /usr/bin/knull"
     
@@ -53,7 +50,6 @@ find_install_dir() {
     return 1
 }
 
-# Remove binary
 remove_binary() {
     local install_dir
     install_dir=$(find_install_dir)
@@ -70,7 +66,6 @@ remove_binary() {
     fi
 }
 
-# Remove stdlib
 remove_stdlib() {
     local stdlib_dir="$HOME/.knull"
     
@@ -81,7 +76,6 @@ remove_stdlib() {
     fi
 }
 
-# Remove from PATH
 remove_from_path() {
     print_info "Cleaning up PATH..."
     
@@ -89,7 +83,6 @@ remove_from_path() {
     
     for rc in $shell_rcs; do
         if [ -f "$rc" ]; then
-            # Remove Knull-related lines
             sed -i '/# Knull Programming Language/d' "$rc" 2>/dev/null || true
             sed -i '/export PATH=.*knull/d' "$rc" 2>/dev/null || true
         fi
@@ -98,7 +91,6 @@ remove_from_path() {
     print_success "PATH cleaned"
 }
 
-# Remove cache
 remove_cache() {
     print_info "Removing cache..."
     
@@ -108,11 +100,8 @@ remove_cache() {
     print_success "Cache removed"
 }
 
-# Confirm uninstall
 confirm_uninstall() {
-    # Check if running non-interactively (piped from curl)
     if [ ! -t 0 ]; then
-        # Auto-confirm when piped
         printf "\n"
         printf "Running non-interactively. Auto-confirming uninstall...\n"
         printf "\n"
@@ -136,36 +125,29 @@ confirm_uninstall() {
     esac
 }
 
-# Print final message
 print_footer() {
     printf "\n"
-    printf "%s╔════════════════════════════════════════════════════════╗%s\n" "${green}" "${nc}"
-    printf "%s║     Knull has been successfully uninstalled            ║%s\n" "${green}" "${nc}"
-    printf "%s╚════════════════════════════════════════════════════════╝%s\n" "${green}" "${nc}"
+    printf "=======================================\n"
+    printf "  Knull has been uninstalled\n"
+    printf "=======================================\n"
     printf "\n"
     printf "To reinstall:\n"
     printf "  curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash\n"
     printf "\n"
-    printf "Thanks for trying Knull!\n"
-    printf "\n"
 }
 
-# Main
 main() {
     print_header
     
-    # Check if installed
     if ! find_install_dir >/dev/null 2>&1; then
         print_error "Knull is not installed"
         exit 1
     fi
     
-    # Confirm
     if [ "$1" != "--force" ] && [ "$1" != "-f" ]; then
         confirm_uninstall
     fi
     
-    # Remove everything
     remove_binary
     remove_stdlib
     remove_from_path
