@@ -4,7 +4,7 @@
 
 set -e
 
-VERSION="1.0.0"
+VERSION="2.1.0"
 REPO_URL="https://github.com/4fqr/knull.git"
 TEMP_DIR="/tmp/knull-install-$$"
 

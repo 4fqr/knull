@@ -1,91 +1,74 @@
 // =============================================================================
-// KNULL SDL2 DEMO - Working Graphics Example
+// KNULL GUI DEMO - Graphics Example using built-in GUI primitives
 // =============================================================================
-
-use std.gui.sdl2
-use std.gui.draw
 
 fn main() {
     println("=====================================")
-    println("  KNULL SDL2 GRAPHICS DEMO")
+    println("  KNULL GUI GRAPHICS DEMO")
     println("=====================================")
     println("")
-    
-    // Initialize SDL2
-    if !sdl_init_video() {
-        println("ERROR: Failed to initialize SDL2!")
-        println("Error: " + sdl_get_error())
-        return
-    }
-    println("[OK] SDL2 initialized successfully")
-    
-    // Create window
-    let win = window_create_simple("Knull SDL2 Demo", 800, 600)
-    if !window_is_valid(win) {
-        println("ERROR: Failed to create window!")
-        println("Error: " + sdl_get_error())
-        SDL_Quit()
-        return
-    }
-    println("[OK] Window created (800x600)")
-    
-    // Create renderer
-    let rnd = renderer_create_auto(win)
-    if !renderer_is_valid(rnd) {
-        println("ERROR: Failed to create renderer!")
-        println("Error: " + sdl_get_error())
-        window_destroy(win)
-        SDL_Quit()
-        return
-    }
-    println("[OK] Renderer created")
-    
-    // Draw something
+
+    // Create a 640x480 window — returns a handle used for all ops
+    let win = gui_window("Knull GUI Demo", 640, 480)
+
+    println("[OK] Window created (640x480)")
+
+    // Colors
+    let red    = gui_rgb(220, 50, 50)
+    let green  = gui_rgb(50, 200, 80)
+    let blue   = gui_rgb(50, 100, 220)
+    let yellow = gui_rgb(240, 220, 50)
+    let white  = gui_rgb(255, 255, 255)
+    let gray   = gui_rgb(80, 80, 80)
+    let purple = gui_rgb(160, 50, 200)
+    let cyan   = gui_rgb(50, 200, 200)
+
+    println("Drawing shapes...")
+
+    // Clear background to dark gray
+    gui_fill(win, gray)
+
+    // Filled rectangles (row 1)
+    gui_rect(win, 50, 50, 120, 80, red)
+    gui_rect(win, 200, 50, 120, 80, green)
+    gui_rect(win, 350, 50, 120, 80, blue)
+    gui_rect(win, 500, 50, 120, 80, yellow)
+
+    // Outlined rectangles (row 2)
+    gui_rect_outline(win, 50, 160, 120, 80, white)
+    gui_rect_outline(win, 200, 160, 120, 80, cyan)
+    gui_rect_outline(win, 350, 160, 120, 80, purple)
+    gui_rect_outline(win, 500, 160, 120, 80, red)
+
+    // Filled circles
+    gui_circle(win, 110, 310, 50, red)
+    gui_circle(win, 260, 310, 50, green)
+    gui_circle(win, 410, 310, 50, blue)
+
+    // Outlined circle
+    gui_circle_outline(win, 530, 310, 50, white)
+
+    // Lines
+    gui_line(win, 50, 400, 590, 400, white)
+    gui_line(win, 50, 420, 590, 440, yellow)
+    gui_line(win, 50, 460, 590, 420, cyan)
+
+    println("[OK] Shapes drawn!")
+
+    gui_present(win)
+
     println("")
-    println("Drawing graphics...")
-    
-    // Clear to dark background
-    clear(rnd.ptr, DARK_GRAY)
-    
-    // Draw a grid
-    draw_grid(rnd.ptr, 50, 50, 700, 500, 50, GRAY)
-    
-    // Draw some shapes
-    draw_rect(rnd.ptr, 100, 100, 100, 100, RED)
-    fill_rect(rnd.ptr, 250, 100, 100, 100, GREEN)
-    
-    draw_circle(rnd.ptr, 550, 150, 50, YELLOW)
-    fill_circle(rnd.ptr, 550, 250, 50, CYAN)
-    
-    draw_triangle(rnd.ptr, 100, 350, 200, 450, 100, 450, MAGENTA)
-    fill_triangle(rnd.ptr, 250, 350, 350, 450, 250, 450, ORANGE)
-    
-    // Draw some lines
-    let i = 0
-    while i < 10 {
-        let y = 100 + i * 30
-        draw_line(rnd.ptr, 400, y, 700, y + 50, PURPLE)
-        i = i + 1
+    println("Window is open. Close it to exit.")
+
+    // Event loop — runs until window is closed
+    while gui_is_open(win) {
+        gui_get_keys(win)
+        gui_present(win)
     }
-    
-    // Present the renderer
-    renderer_present(rnd)
-    
-    println("[OK] Graphics rendered!")
-    println("")
-    println("A graphics window should be visible.")
-    println("It will close automatically in 5 seconds...")
-    
-    // Wait 5 seconds
-    delay_seconds(5)
-    
-    // Clean up
-    renderer_destroy(rnd)
-    window_destroy(win)
-    SDL_Quit()
-    
-    println("")
-    println("[OK] SDL2 shut down cleanly")
+
+    gui_close(win)
+
+    println("[OK] Window closed")
     println("=====================================")
     println("  DEMO COMPLETE!")
     println("=====================================")
