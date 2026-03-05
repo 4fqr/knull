@@ -86,9 +86,9 @@ println(fib(15))        // 610
 
 ```knull
 let nums    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-let evens   = nums.filter(fn(n) { n % 2 == 0 })
-let doubled = evens.map(fn(n) { n * 2 })
-let total   = doubled.reduce(fn(acc, n) { acc + n }, 0)
+let evens   = nums.filter(fn(n) { return n % 2 == 0 })
+let doubled = evens.map(fn(n) { return n * 2 })
+let total   = doubled.reduce(fn(acc, n) { return acc + n }, 0)
 
 println(total)  // 60
 ```
@@ -116,10 +116,10 @@ println(a.distance(b))  // 5
 ```knull
 fn describe(n) {
     match n {
-        0       => "zero",
-        1 | 2   => "one or two",
-        n if n < 0 => "negative",
-        _       => "other",
+        0         => "zero"
+        1 | 2     => "one or two"
+        n if n < 0 => "negative"
+        _         => "other"
     }
 }
 
@@ -132,7 +132,7 @@ println(describe(2))   // one or two
 ```knull
 fn safe_div(a, b) {
     if b == 0 { throw "division by zero" }
-    a / b
+    return a / b
 }
 
 try {
@@ -145,7 +145,7 @@ try {
 ### Closures & Currying
 
 ```knull
-fn make_adder(n) { fn(x) { x + n } }
+fn make_adder(n) { return fn(x) { return x + n } }
 
 let add5  = make_adder(5)
 let add10 = make_adder(10)

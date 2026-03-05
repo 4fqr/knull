@@ -111,6 +111,7 @@ impl CCodeGen {
         let decls: Vec<String> = self
             .functions
             .iter()
+            .filter(|(name, _)| *name != "main") // skip main — declared as int main(int, char**)
             .map(|(name, info)| {
                 let params_str = if info.params.is_empty() {
                     "void".to_string()

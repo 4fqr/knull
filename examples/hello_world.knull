@@ -1,9 +1,3 @@
-// =============================================================================
-// HELLO WORLD - THE NOVICE
-// =============================================================================
-// This is Knull at its simplest. One line. No boilerplate.
-// The absolute minimum needed to write to the console.
-
 fn main() {
     println("Hello, World!")
 }

@@ -1373,6 +1373,47 @@ impl Parser {
             TokenKind::Try => {
                 self.parse_try_catch()
             }
+            // ── Anonymous function: fn(x, y) { body } ───────────────────────
+            TokenKind::Fn => {
+                self.advance(); // consume `fn`
+                // Skip optional name (e.g. `fn foo(x) { ... }` used inline)
+                if self.current().kind == TokenKind::Identifier {
+                    self.advance();
+                }
+                let mut params = Vec::new();
+                if self.current().kind == TokenKind::LParen {
+                    self.advance();
+                    while self.current().kind != TokenKind::RParen
+                        && self.current().kind != TokenKind::Eof
+                    {
+                        if self.current().kind == TokenKind::SelfValue {
+                            params.push("self".to_string());
+                            self.advance();
+                        } else {
+                            let pname = self.parse_identifier()?;
+                            params.push(pname);
+                            // skip optional type annotation
+                            if self.current().kind == TokenKind::Colon {
+                                self.advance();
+                                let _ = self.parse_type();
+                            }
+                        }
+                        if self.current().kind == TokenKind::Comma {
+                            self.advance();
+                        }
+                    }
+                    if self.current().kind == TokenKind::RParen {
+                        self.advance();
+                    }
+                }
+                // skip optional return type
+                if self.current().kind == TokenKind::Arrow {
+                    self.advance();
+                    let _ = self.parse_type();
+                }
+                let body = self.parse_block()?;
+                Ok(ASTNode::Lambda { params, body: Box::new(body) })
+            }
             // ── throw expr as expression ─────────────────────────────────────
             TokenKind::Throw => {
                 self.advance();

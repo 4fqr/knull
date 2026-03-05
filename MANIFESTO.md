@@ -1,6 +1,8 @@
 # THE KNULL MANIFESTO
 ## The Language That Ends All Language Wars
 
+> **Note:** This document is a vision manifesto describing Knull's long-term goals and design philosophy. The code examples below show aspirational syntax — some features (static types, `own` ownership annotations, inline assembly, `unsafe` raw pointers, `comptime`, `asm {}` blocks) are planned but not yet implemented in the current interpreter. For what works today, see the [README](../README.md), [USAGE guide](../USAGE.md), and working [examples/](../examples/).
+
 ---
 
 ## I. THE FUNDAMENTAL TRUTH
@@ -39,17 +41,19 @@ The magic: **one syntax serves all three layers**.
 
 ```knull
 // LAYER 1: The beginner writes this
-print "Hello, World!"
+println("Hello, World!")
 
-// LAYER 2: The engineer writes this
-fn factorial(n: u64) -> u64 {
-    if n <= 1 { 1 } else { n * factorial(n - 1) }
+// LAYER 2: The engineer writes this  (static types are aspirational — not yet in interpreter)
+fn factorial(n) {
+    if n <= 1 { return 1 }
+    return n * factorial(n - 1)
 }
 
-// LAYER 3: The hacker writes this
+// LAYER 3: The hacker writes this  (unsafe/raw_cast are planned features)
 unsafe {
-    let ptr = raw_cast::<*mut u8>(0x1000);
-    ptr.write(0xCC);
+    let ptr = mem_alloc(1024)
+    mem_write_u64(ptr, 0xCC)
+    mem_free(ptr, 1024)
 }
 ```
 

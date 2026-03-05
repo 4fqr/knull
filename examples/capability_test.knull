@@ -11,10 +11,10 @@ println("vec_sub = " + str(vec_sub(b, a)))
 println("vec_scale = " + str(vec_scale(a, 2.0)))
 
 // ── Matrix multiply (2x2 * 2x2) ──────────────────────────────────────────────
-let m1 = [1.0, 2.0, 3.0, 4.0]   // [[1,2],[3,4]]
-let m2 = [5.0, 6.0, 7.0, 8.0]   // [[5,6],[7,8]]
-let r = mat_mul(m1, m2, 2, 2, 2)
-println("mat_mul 2x2: " + str(r))  // [19,22,43,50]
+let m1 = [[1.0, 2.0], [3.0, 4.0]]
+let m2 = [[5.0, 6.0], [7.0, 8.0]]
+let r = mat_mul(m1, m2)
+println("mat_mul 2x2: " + str(r))  // [[19,22],[43,50]]
 
 // ── Raw memory ───────────────────────────────────────────────────────────────
 let ptr = mem_alloc(64)

@@ -31,11 +31,24 @@ ident ::= [a-zA-Z_][a-zA-Z0-9_]*
 
 ### Keywords
 
+Reserved words that cannot be used as identifiers:
+
 ```
-let  fn  if  else  while  for  in  return  break  continue
-match  struct  impl  self  spawn  channel  try  catch  throw
-true  false  null
+let   fn    if     else    while   for     in      return
+break continue match struct impl   self    pub     use
+spawn try    catch  throw   true   false   null
+
+// The following are accepted as aliases and are also reserved:
+val   var          -- alias for `let`
+func  def  fun     -- alias for `fn`
+import  from       -- alias for `use`
+mod   module       -- alias for... (note: module directive is NOT supported; do not use)
+nil   none         -- alias for `null`
+raise except       -- alias for `throw` / `catch`
+not   and   or     -- alias for `!` / `&&` / `||`
 ```
+
+**Note:** `val`, `var`, `func`, `def`, `fun`, `import`, `from`, `nil`, `none`, `raise`, `except` etc. cannot be used as variable names.
 
 ### Operators
 
@@ -140,9 +153,15 @@ No implicit coercion. Use `to_string()`, `to_int()`, `to_float()` explicitly.
 3. Collect top-level fn declarations
 4. Execute top-level statements in order
 
-Last expression in a block/function is the implicit return value.
+**Implicit return:** In named functions (`fn foo() { ... }`), the last expression in the body is the implicit return value if no `return` statement is reached.
 
-Truthiness: `false` and `null` are falsy; everything else (including 0, "", []) is truthy.
+**Lambda return:** Anonymous functions (`fn(x) { x * 2 }`) do NOT use implicit return — the last expression is silently discarded. Always use explicit `return` in lambdas:
+```knull
+let double = fn(x) { return x * 2 }   // correct
+let double = fn(x) { x * 2 }          // returns null!
+```
+
+Truthiness: `false` and `null` are falsy; everything else (including `0`, `""`, `[]`) is truthy. Use explicit comparison when needed: `x == 0`, `len(arr) == 0`.
 
 ---
 
@@ -157,11 +176,20 @@ Truthiness: `false` and `null` are falsy; everything else (including 0, "", []) 
 ## 7. Concurrency
 
 - `spawn { block }` → JoinHandle (new OS thread)
-- `handle.join()` → blocks, returns last value from thread
-- `channel()` → synchronous channel (rendezvous)
-- `ch.send(v)` / `ch.recv()` — blocking send/receive
+- `handle.join()` → blocks until thread completes, returns last value from thread
 
-Values sent over channels are deep-copied. No shared mutable state.
+**Channels** (synchronous rendezvous):
+```knull
+let ch = chan_create()      // returns a map: { "id": N }
+let id = ch["id"]           // extract the channel id
+chan_send(id, value)         // blocking send
+let v = chan_recv(id)        // blocking receive
+```
+
+**Important limitations:**
+- Closures passed to `spawn` capture values by copy at creation time, not by reference. Mutations inside the spawned thread are not visible to the parent thread.
+- Cross-thread channel communication works correctly only when the channel id is passed as a direct value argument (not via closure capture).
+- For simple parallel workloads without shared state, `spawn`/`join` works reliably.
 
 ---
 

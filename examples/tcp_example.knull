@@ -26,7 +26,7 @@ fn main() {
     println("Testing TCP connection to localhost:8080...")
     let handle = tcp_connect("127.0.0.1:8080")
     
-    if handle >= 0 {
+    if handle != null {
         println("Connected! Handle: " + handle)
         
         // Send HTTP request
