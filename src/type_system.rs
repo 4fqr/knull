@@ -170,7 +170,7 @@ impl TypeChecker {
                 self.pop_scope();
                 Ok(last_type)
             }
-            ASTNode::Let { name, value, ty } => {
+            ASTNode::Let { name, value, ty, .. } => {
                 let val_type = self.check_node(value)?;
                 // TODO: Check against declared type if present
                 let _ = ty;

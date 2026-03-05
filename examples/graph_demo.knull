@@ -1,0 +1,142 @@
+// ──────────────────────────────────────────────────────────────────────────────
+//  graph_demo.knull — Knull Petgraph Algorithms Demo
+//  Shows: Dijkstra, BFS/DFS, bellman-ford, topological sort,
+//         connected components, cycle detection, DOT export
+// ──────────────────────────────────────────────────────────────────────────────
+
+println("═══════════════════════════════════════════════")
+println("    KNULL GRAPH ALGORITHMS DEMO                 ")
+println("═══════════════════════════════════════════════")
+
+// ── 1. Directed Weighted Graph (Dijkstra) ────────────────────────────────────
+println("\n── Shortest Paths (Dijkstra) ──")
+let g = graph_new(true)   // directed
+let gid = g["id"]
+
+// City network
+let sf  = graph_add_node(gid, "San Francisco")
+let la  = graph_add_node(gid, "Los Angeles")
+let lv  = graph_add_node(gid, "Las Vegas")
+let den = graph_add_node(gid, "Denver")
+let dal = graph_add_node(gid, "Dallas")
+
+// Distances (hours driving)
+graph_add_edge(gid, sf,  la,  5.5)
+graph_add_edge(gid, la,  lv,  4.0)
+graph_add_edge(gid, la,  dal, 21.0)
+graph_add_edge(gid, lv,  den, 7.5)
+graph_add_edge(gid, den, dal, 14.0)
+graph_add_edge(gid, sf,  den, 19.0)
+
+println("  Nodes: " + graph_node_count(gid) + "  Edges: " + graph_edge_count(gid))
+
+let dists = graph_dijkstra(gid, sf)
+println("  Shortest hours from San Francisco:")
+println("    → LA:          " + dists[la])
+println("    → Las Vegas:   " + dists[lv])
+println("    → Denver:      " + dists[den])
+println("    → Dallas:      " + dists[dal])
+
+// ── 2. BFS / DFS Traversal ───────────────────────────────────────────────────
+println("\n── BFS & DFS Traversal ──")
+let bfs_order = graph_bfs(gid, sf)
+let dfs_order = graph_dfs(gid, sf)
+println("  BFS from SF: " + bfs_order)
+println("  DFS from SF: " + dfs_order)
+
+// ── 3. Shortest Path with Route ──────────────────────────────────────────────
+println("\n── A* Shortest Path ──")
+let path = graph_shortest_path(gid, sf, dal)
+println("  SF → Dallas shortest path: " + path["path"])
+println("  Distance: " + path["cost"] + " hrs")
+
+// ── 4. Bellman-Ford (handles negative weights) ──────────────────────────────
+println("\n── Bellman-Ford ──")
+let g2 = graph_new(true)
+let gid2 = g2["id"]
+let a = graph_add_node(gid2, "A")
+let b = graph_add_node(gid2, "B")
+let c = graph_add_node(gid2, "C")
+let d = graph_add_node(gid2, "D")
+graph_add_edge(gid2, a, b, 4.0)
+graph_add_edge(gid2, a, c, 2.0)
+graph_add_edge(gid2, b, d, 1.0)
+graph_add_edge(gid2, c, b, -1.0)   // negative weight!
+graph_add_edge(gid2, c, d, 5.0)
+
+let bf = graph_bellman_ford(gid2, a)
+println("  Bellman-Ford from A (with negative edges):")
+println("    → D: " + bf[d])
+graph_free(gid2)
+
+// ── 5. Cycle Detection ────────────────────────────────────────────────────────
+println("\n── Cycle Detection ──")
+let g3 = graph_new(true)
+let gid3 = g3["id"]
+let n1 = graph_add_node(gid3, "X")
+let n2 = graph_add_node(gid3, "Y")
+let n3 = graph_add_node(gid3, "Z")
+graph_add_edge(gid3, n1, n2, 1.0)
+graph_add_edge(gid3, n2, n3, 1.0)
+println("  Acyclic graph has cycle: " + graph_is_cyclic(gid3))
+graph_add_edge(gid3, n3, n1, 1.0)   // close the cycle
+println("  After adding back-edge:  " + graph_is_cyclic(gid3))
+graph_free(gid3)
+
+// ── 6. Topological Sort ───────────────────────────────────────────────────────
+println("\n── Topological Sort (task scheduler) ──")
+let g4 = graph_new(true)
+let gid4 = g4["id"]
+let setup    = graph_add_node(gid4, "setup")
+let compile  = graph_add_node(gid4, "compile")
+let test     = graph_add_node(gid4, "test")
+let package  = graph_add_node(gid4, "package")
+let deploy   = graph_add_node(gid4, "deploy")
+
+graph_add_edge(gid4, setup,   compile, 1.0)
+graph_add_edge(gid4, compile, test,    1.0)
+graph_add_edge(gid4, compile, package, 1.0)
+graph_add_edge(gid4, test,    deploy,  1.0)
+graph_add_edge(gid4, package, deploy,  1.0)
+
+let topo = graph_topo_sort(gid4)
+println("  Build pipeline order: " + topo)
+graph_free(gid4)
+
+// ── 7. Undirected: Connected Components + Spanning Tree ──────────────────────
+println("\n── Undirected Graph ──")
+let g5 = graph_new(false)  // undirected
+let gid5 = g5["id"]
+let nA = graph_add_node(gid5, "A")
+let nB = graph_add_node(gid5, "B")
+let nC = graph_add_node(gid5, "C")
+let nD = graph_add_node(gid5, "D")
+let nE = graph_add_node(gid5, "E")
+let nF = graph_add_node(gid5, "F")  // isolated
+
+// Two components: {A,B,C} and {D,E}
+graph_add_edge(gid5, nA, nB, 1.0)
+graph_add_edge(gid5, nB, nC, 2.0)
+graph_add_edge(gid5, nC, nA, 3.0)
+graph_add_edge(gid5, nD, nE, 1.5)
+// nF is isolated
+
+let comp_count = graph_connected_components(gid5)
+println("  Node count: " + graph_node_count(gid5))
+println("  Connected components: " + comp_count)
+
+let mst = graph_min_spanning_tree(gid5)
+println("  Min spanning tree edges: " + mst)
+
+// ── 8. DOT Export ─────────────────────────────────────────────────────────────
+println("\n── DOT Export (first graph) ──")
+let dot_str = graph_to_dot(gid)
+println(dot_str)
+
+// Cleanup
+graph_free(gid)
+graph_free(gid5)
+
+println("\n═══════════════════════════════════════════════")
+println("  Graph demo complete.")
+println("═══════════════════════════════════════════════")

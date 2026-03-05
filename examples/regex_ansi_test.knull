@@ -1,0 +1,16 @@
+// Regex
+println(str(regex_match("\\d+", "hello 42 world")))         // true
+println(str(regex_find("\\d+", "hello 42 world")))          // 42
+println(str(regex_findall("\\d+", "1 foo 22 bar 333")))     // [1,22,333]
+println(regex_replace("\\d+", "NUM", "a1b22c333"))          // aNUMbNUMcNUM
+let parts = regex_split(",", "a,b,c")
+println(str(parts))                                          // [a,b,c]
+let caps = regex_captures("(\\w+)@(\\w+)", "user@host")
+println(str(caps))                                           // full, user, host
+
+// ANSI terminal
+println(red("error!"))
+println(green("ok"))
+println(yellow("warn"))
+println(bold("BOLD"))
+println("width: " + str(term_width()))

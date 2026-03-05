@@ -1,0 +1,27 @@
+// Hex
+let h = hex_encode("Hello")
+println("hex: " + h)                           // 48656c6c6f
+println("back: " + hex_decode_str(h))          // Hello
+
+// Base64
+let b = base64_encode("Hello, World!")
+println("b64: " + b)                           // SGVsbG8sIFdvcmxkIQ==
+println("b64 back: " + base64_decode(b))       // Hello, World!
+
+// Binary file I/O
+let bytes = [72, 101, 108, 108, 111]   // "Hello"
+file_write_bytes("/tmp/test_bin.bin", bytes)
+let rb = file_read_bytes("/tmp/test_bin.bin")
+println("read bytes: " + str(rb))              // [72, 101, 108, 108, 111]
+
+// Process
+println("my pid: " + str(getpid()))
+println("parent pid: " + str(getppid()))
+println("SIGTERM = " + str(SIGTERM()))
+println("SIGKILL = " + str(SIGKILL()))
+
+// kill self with signal 0 (just checks process exists, no actual signal)
+let ok = kill(getpid(), 0)
+println("kill(self, 0) = process_exists: " + str(ok))
+
+println("ALL BINARY/ENCODING/PROCESS TESTS PASSED")

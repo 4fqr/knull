@@ -1,6 +1,6 @@
 fn main() {
-    println "Testing..."
+    println("Testing...")
     let x = 5
-    println x
-    println "Done"
+    println(x)
+    println("Done")
 }

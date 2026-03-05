@@ -1,198 +1,120 @@
-# Knull Library Index
+# Knull Built-in Library Index v2.0.0
 
-Complete index of all standard library modules and their use cases.
-
----
-
-## Core Modules
-
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std` | Root module, prelude | Everything |
-| `std.io` | Input/Output | File I/O, console |
-| `std.mem` | Memory operations | Allocation, pointers |
-| `std.sys` | System calls | OS interaction |
+Quick index of all built-in functions and methods. See `docs/STD_LIB.md` for full documentation.
 
 ---
 
-## Networking
+## By Category
 
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.net` | TCP/UDP sockets | Servers, clients |
-| `std.http` | HTTP protocol | REST APIs, web |
-| `std.json` | JSON parsing | Data exchange |
-| `std.url` | URL handling | URI parsing |
+### I/O
+`println` `print` `input` `eprintln` `eprint`
 
-### Example
+### Types & Conversion
+`type_of` `to_string` `to_int` `to_float` `parse_int` `parse_float`
+`is_null` `is_number` `is_string` `is_bool` `is_array` `is_map` `is_fn`
 
-```knull
-// HTTP server
-let server = std.net.tcp_bind(8080)
-```
+### Math
+`abs` `sqrt` `floor` `ceil` `round` `pow` `log` `log2` `log10`
+`sin` `cos` `tan` `asin` `acos` `atan` `atan2`
+`min` `max` `clamp` `random` `random_int`
+**Constants**: `PI` `E` `TAU` `INFINITY` `NAN`
 
----
+### Strings
+`len` `join` `format`
+**Methods**: `to_upper` `to_lower` `trim` `trim_start` `trim_end`
+`contains` `starts_with` `ends_with` `find` `replace`
+`split` `chars` `bytes` `slice` `repeat` `pad_start` `pad_end`
 
-## Web Development
+### Arrays
+`range` `zip` `min` `max`
+**Methods**: `len` `push` `pop` `shift` `unshift` `contains` `index_of`
+`map` `filter` `reduce` `for_each` `find` `any` `all`
+`sort` `sort_by` `reverse` `slice` `concat` `flat` `flatten`
+`unique` `sum` `join`
 
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.web` | Web framework | Full-stack apps |
-| `std.tmpl` | Templates | HTML rendering |
-| `std.cookie` | Cookie handling | Sessions |
-| `std.static` | Static files | Assets |
+### Maps
+**Methods**: `keys` `values` `has` `get` `remove` `len` `entries`
 
----
+### System
+`env` `env_set` `clock` `time` `sleep` `exit` `args`
 
-## Graphics & Games
+### File System
+`fs_read` `fs_write` `fs_append` `fs_exists` `fs_delete` `fs_mkdir` `fs_ls`
 
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.gfx` | Graphics | 2D/3D rendering |
-| `std.window` | Windowing | GUI applications |
-| `std.audio` | Audio | Sound playback |
-| `std.game` | Game engine | Game development |
+### JSON
+`json_parse` `json_stringify`
 
----
+### Network (HTTP)
+`http_get` `http_post` `http_post_json`
 
-## Systems Programming
+### Network (TCP)
+`tcp_connect` `tcp_listen`
+**Connection methods**: `send` `recv` `close`
+**Server methods**: `accept`
 
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.fs` | Filesystem | File operations |
-| `std.process` | Processes | Spawn, fork, exec |
-| `std.thread` | Threading | Concurrency |
-| `std.env` | Environment | ENV vars, args |
+### Concurrency
+`channel` `mutex`
+**spawn** `{ block }` → handle
+**Handle methods**: `join`
+**Channel methods**: `send` `recv`
+**Mutex methods**: `lock` `unlock`
 
----
-
-## Security & Hacking
-
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.crypto` | Cryptography | Encryption, hashing |
-| `std.sec` | Security | Permissions, capabilities |
-| `std.hack` | Hacking tools | Analysis, injection |
-| `std.net.raw` | Raw sockets | Packet crafting |
-
-### Example
-
-```knull
-// Port scanner
-fn scan_port(host: string, port: u16) -> bool {
-    let conn = std.net.tcp_connect(host, port)
-    conn.is_some()
-}
-```
+### Debug / Assert
+`debug` `assert` `assert_eq` `panic` `trace`
 
 ---
 
-## Mathematics
+## Alphabetical Index
 
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.math` | Basic math | Arithmetic, trig |
-| `std.rand` | Random numbers | RNG, seeding |
-| `std.complex` | Complex numbers | Scientific computing |
-| `std.matrix` | Matrices | Linear algebra |
-
----
-
-## Data Structures
-
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.vec` | Vector | Dynamic arrays |
-| `std.map` | Hash map | Key-value storage |
-| `std.set` | Hash set | Unique collections |
-| `std.tree` | Trees | Hierarchical data |
-
----
-
-## Text & Strings
-
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.str` | String operations | Manipulation |
-| `std.regex` | Regular expressions | Pattern matching |
-| `std.utf8` | UTF-8 handling | Unicode |
-| `std.format` | Formatting | String interpolation |
-
----
-
-## Time & Date
-
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.time` | Time operations | Timestamps |
-| `std.date` | Date handling | Calendars |
-| `std.tz` | Timezones | Internationalization |
-
----
-
-## Async & Concurrency
-
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.async` | Async runtime | Non-blocking I/O |
-| `std.channel` | Message passing | Actor model |
-| `std.sync` | Synchronization | Mutex, atomic |
-| `std.future` | Futures | Async computation |
-
----
-
-## Debugging
-
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.dbg` | Debug output | Logging |
-| `std.prof` | Profiling | Performance |
-| `std.trap` | Breakpoints | Debugging |
-
----
-
-## FFI (Foreign Function Interface)
-
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.ffi` | C interop | Calling C libraries |
-| `std.asm` | Inline assembly | CPU-specific code |
-
-### Example
-
-```knull
-// Call C function
-extern "C" {
-    fn printf(fmt: *const u8, ...) -> i32
-}
-```
-
----
-
-## God Mode (Bare Metal)
-
-| Module | Description | Use Case |
-|--------|-------------|----------|
-| `std.boot` | Bootloader | System startup |
-| `std.pic` | PIC interrupts | Hardware interrupts |
-| `std.paging` | Memory paging | Virtual memory |
-| `std.gdt` | GDT | Segmentation |
-
----
-
-## Summary by Application
-
-| Domain | Modules |
-|--------|---------|
-| **Web APIs** | `std.net`, `std.http`, `std.json`, `std.web` |
-| **CLI Tools** | `std.io`, `std.fs`, `std.process`, `std.args` |
-| **Systems** | `std.sys`, `std.thread`, `std.fs`, `std.process` |
-| **Games** | `std.gfx`, `std.audio`, `std.window`, `std.math` |
-| **Hacking** | `std.net.raw`, `std.hack`, `std.crypto`, `std.asm` |
-| **OS Dev** | `std.boot`, `std.paging`, `std.gdt`, `std.asm` |
-| **Science** | `std.math`, `std.matrix`, `std.complex` |
-| **Scripts** | `std.io`, `std.fs`, `std.str`, `std.regex` |
-
----
-
-For detailed API documentation, see [STD_LIB.md](STD_LIB.md)
+| Function | Category |
+|---------|---------|
+| `abs` | Math |
+| `acos` / `asin` / `atan` / `atan2` | Math |
+| `args` | System |
+| `assert` / `assert_eq` | Debug |
+| `channel` | Concurrency |
+| `ceil` | Math |
+| `clamp` | Math |
+| `clock` / `time` | System |
+| `cos` | Math |
+| `debug` | Debug |
+| `env` / `env_set` | System |
+| `eprintln` / `eprint` | I/O |
+| `exit` | System |
+| `floor` | Math |
+| `format` | String |
+| `fs_append` | Files |
+| `fs_delete` | Files |
+| `fs_exists` | Files |
+| `fs_ls` | Files |
+| `fs_mkdir` | Files |
+| `fs_read` | Files |
+| `fs_write` | Files |
+| `http_get` | Network |
+| `http_post` | Network |
+| `http_post_json` | Network |
+| `input` | I/O |
+| `is_array` / `is_bool` / `is_fn` / `is_map` / `is_null` / `is_number` / `is_string` | Types |
+| `join` | String |
+| `json_parse` / `json_stringify` | JSON |
+| `len` | String / Array |
+| `log` / `log2` / `log10` | Math |
+| `max` | Math / Array |
+| `min` | Math / Array |
+| `mutex` | Concurrency |
+| `panic` | Debug |
+| `parse_float` / `parse_int` | Types |
+| `pow` | Math |
+| `print` / `println` | I/O |
+| `random` / `random_int` | Math |
+| `range` | Array |
+| `round` | Math |
+| `sin` | Math |
+| `sleep` | System |
+| `sqrt` | Math |
+| `tan` | Math |
+| `tcp_connect` / `tcp_listen` | Network |
+| `to_float` / `to_int` / `to_string` | Types |
+| `trace` | Debug |
+| `type_of` | Types |
+| `zip` | Array |

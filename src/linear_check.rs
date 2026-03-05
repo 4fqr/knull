@@ -198,7 +198,7 @@ impl LinearChecker {
                 self.pop_scope();
                 Ok(())
             }
-            ASTNode::Let { name, value, ty } => {
+            ASTNode::Let { name, value, ty, .. } => {
                 self.check_node(value)?;
                 let is_linear = self.is_linear_type(ty.as_ref());
                 self.declare_linear(

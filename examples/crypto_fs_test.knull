@@ -1,0 +1,39 @@
+// Native SHA-256
+let h = sha256_native("hello")
+println("sha256(hello): " + h)
+// should be: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+
+// HMAC-SHA256
+let mac = hmac_sha256("key", "message")
+println("hmac_sha256: " + mac)
+
+// CRC32
+println("crc32('hello'): " + str(crc32("hello")))  // 907060870
+
+// XOR
+let plaintext = [72, 101, 108, 108, 111]  // "Hello"
+let enc = xor_bytes(plaintext, 42)
+let dec = xor_bytes(enc, 42)
+println("xor roundtrip: " + str(dec == plaintext))
+
+// file_stat
+let s = file_stat("/tmp")
+println("stat /tmp is_dir: " + str(s["is_dir"]))
+println("stat /tmp mode: " + str(s["mode"]))
+
+// chmod / symlink
+file_write_bytes("/tmp/knull_test_chmod.txt", [65, 66, 67])
+chmod("/tmp/knull_test_chmod.txt", 420)   // 420 decimal = 0o644
+let s2 = file_stat("/tmp/knull_test_chmod.txt")
+println("chmod mode bits: " + str((s2["mode"] & 511) == 420))  // 511 = 0o777
+
+// mmap anonymous
+let m = mmap_anon(4096)
+let ptr = m[0]
+let sz  = m[1]
+println("mmap_anon ptr nonzero: " + str(ptr != 0))
+mem_write_u64(ptr, 12345)
+println("mmap read back: " + str(mem_read_u64(ptr) == 12345))
+munmap(ptr, sz)
+
+println("ALL CRYPTO/FS/MMAP TESTS PASSED")

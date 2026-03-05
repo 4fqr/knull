@@ -215,6 +215,7 @@ impl EffectChecker {
                 name: _,
                 value,
                 ty: _,
+                ..
             } => self.check_node(value),
             ASTNode::While { cond, body } => {
                 let cond_effects = self.check_node(cond)?;

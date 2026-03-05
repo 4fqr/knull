@@ -1,0 +1,211 @@
+// ─── mega_test.knull — exhaustive test of all new builtins ───────────────────
+
+fn main() {
+    println("╔══════════════════════════════════════════════════════════════╗")
+    println("║           KNULL — MEGA BUILTIN TEST SUITE                   ║")
+    println("╚══════════════════════════════════════════════════════════════╝")
+    println("")
+
+    // ── ANSI Colors ──────────────────────────────────────────────────────────
+    println(bold("=== ANSI Terminal Colors ==="))
+    println(red("This is red text"))
+    println(green("This is green text"))
+    println(blue("This is blue text"))
+    println(yellow("This is yellow text"))
+    println(cyan("This is cyan text"))
+    println(magenta("This is magenta text"))
+    println(bold("Bold text"))
+    println(italic("Italic text"))
+    println(underline("Underlined text"))
+    println(bright_cyan("Bright cyan"))
+    let colored = rgb(255, 128, 0, "Orange text via RGB")
+    println(colored)
+    println("")
+
+    // ── Progress Bar ──────────────────────────────────────────────────────────
+    println(bold("=== Progress Bar ==="))
+    println(progress_bar(30, 100, 30))
+    println(progress_bar(75, 100, 30))
+    println(progress_bar(100, 100, 30))
+    println("")
+
+    // ── Box Drawing ───────────────────────────────────────────────────────────
+    println(bold("=== Box Drawing ==="))
+    let box_lines = box_draw(40, 5, "Knull v1")
+    for line in box_lines {
+        println(line)
+    }
+    println("")
+
+    // ── Table Formatting ──────────────────────────────────────────────────────
+    println(bold("=== Table Format ==="))
+    let headers = ["Name", "Age", "Language"]
+    let rows = [
+        ["Alice", "28", "Knull"],
+        ["Bob", "34", "Python"],
+        ["Charlie", "22", "Rust"]
+    ]
+    println(table_format(headers, rows))
+    println("")
+
+    // ── Path Operations ───────────────────────────────────────────────────────
+    println(bold("=== Path Operations ==="))
+    let p = "/home/user/projects/knull/src/main.knull"
+    println("dirname:  " + path_dirname(p))
+    println("basename: " + path_basename(p))
+    println("ext:      " + path_ext(p))
+    println("stem:     " + path_stem(p))
+    println("exists /tmp: " + to_string(path_exists("/tmp")))
+    println("is_dir /tmp: " + to_string(is_dir("/tmp")))
+    println("cwd: " + cwd())
+    println("")
+
+    // ── Base64 ────────────────────────────────────────────────────────────────
+    println(bold("=== Base64 ==="))
+    let original = "Hello, Knull World!"
+    let encoded = base64_encode(original)
+    let decoded = base64_decode(encoded)
+    println("Original: " + original)
+    println("Encoded:  " + encoded)
+    println("Decoded:  " + decoded)
+    assert_eq(original, decoded)
+    println(green("✓ Base64 round-trip passed"))
+    println("")
+
+    // ── URL Encode/Decode ─────────────────────────────────────────────────────
+    println(bold("=== URL Encoding ==="))
+    let url_str = "hello world & foo=bar+baz"
+    let url_enc = url_encode(url_str)
+    let url_dec = url_decode(url_enc)
+    println("Original:  " + url_str)
+    println("Encoded:   " + url_enc)
+    println("Decoded:   " + url_dec)
+    println("")
+
+    // ── Math ─────────────────────────────────────────────────────────────────
+    println(bold("=== Advanced Math ==="))
+    println("factorial(10) = " + to_string(factorial(10)))
+    println("gcd(48, 18)   = " + to_string(gcd(48, 18)))
+    println("lcm(12, 18)   = " + to_string(lcm(12, 18)))
+    println("is_prime(97)  = " + to_string(is_prime(97)))
+    println("is_prime(99)  = " + to_string(is_prime(99)))
+    println("atan2(1,1)    = " + to_string(atan2(1.0, 1.0)))
+    println("hypot(3,4)    = " + to_string(hypot(3.0, 4.0)))
+    println("deg2rad(180)  = " + to_string(deg2rad(180.0)))
+    println("lerp(0,100,0.3)= " + to_string(lerp(0.0, 100.0, 0.3)))
+    println("sign(-5)      = " + to_string(sign(-5)))
+    println("phi           = " + to_string(phi()))
+    println("tau           = " + to_string(tau()))
+    println("remap(5,0,10,0,100) = " + to_string(remap(5.0, 0.0, 10.0, 0.0, 100.0)))
+    let primes_list = primes_up_to(30)
+    println("primes to 30: " + to_string(primes_list))
+    println("")
+
+    // ── Functional Array Ops ──────────────────────────────────────────────────
+    println(bold("=== Functional Array Ops ==="))
+    let nums = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
+    let sorted_asc = sort_by(nums, |x| x)
+    println("sort_by asc:   " + to_string(sorted_asc))
+    let sorted_desc = sort_by_desc(nums, |x| x)
+    println("sort_by desc:  " + to_string(sorted_desc))
+    let taken = take(nums, 4)
+    println("take(4):       " + to_string(taken))
+    let dropped = drop(nums, 6)
+    println("drop(6):       " + to_string(dropped))
+    let chunked = chunks(nums, 3)
+    println("chunks(3):     " + to_string(chunked))
+    let windowed = windows([1, 2, 3, 4, 5], 3)
+    println("windows(3):    " + to_string(windowed))
+    let parts = partition(nums, |x| x % 2 == 0)
+    println("evens:         " + to_string(parts[0]))
+    println("odds:          " + to_string(parts[1]))
+    let zipped = zip([1, 2, 3], ["a", "b", "c"])
+    println("zip:           " + to_string(zipped))
+    let zw = zip_with([1, 2, 3], [10, 20, 30], |a, b| a + b)
+    println("zip_with(+):   " + to_string(zw))
+    let tw = take_while([1, 2, 3, 4, 5], |x| x < 4)
+    println("take_while(<4):" + to_string(tw))
+    let dw = drop_while([1, 2, 3, 4, 5], |x| x < 3)
+    println("drop_while(<3):" + to_string(dw))
+    let grouped = group_by(["cat", "car", "bar", "bat", "bee"], |s| char_at(s, 0))
+    println("group_by[0]:   " + to_string(grouped))
+    let cnt = count_if(nums, |x| x > 4)
+    println("count_if(>4):  " + to_string(cnt))
+    let sb = sum_by([1, 2, 3, 4, 5], |x| x * x)
+    println("sum_by(x²):   " + to_string(sb))
+    let mb = max_by(["banana", "apple", "cherry"], |s| len(s))
+    println("max_by len:    " + mb)
+    let minb = min_by(["banana", "apple", "cherry"], |s| len(s))
+    println("min_by len:    " + minb)
+    println("")
+
+    // ── String Utilities ──────────────────────────────────────────────────────
+    println(bold("=== String Utilities ==="))
+    let fmt_result = sprintf("Name: %s, Age: %d, Score: %.2f", "Alice", 42, 98.765)
+    println(fmt_result)
+    println("pad_right: '" + pad_right("hi", 10, ".") + "'")
+    println("center:    '" + center("Knull", 20, "=") + "'")
+    let wrapped = word_wrap("The quick brown fox jumps over the lazy dog near the bank", 20)
+    println("word_wrap(20):")
+    for wline in wrapped { println("  " + wline) }
+    let ed = edit_distance("kitten", "sitting")
+    println("levenshtein(kitten,sitting) = " + to_string(ed))
+    let lcs_len = lcs("ABCBDAB", "BDCAB")
+    println("lcs(ABCBDAB, BDCAB) = " + to_string(lcs_len))
+    println("")
+
+    // ── Assert / Error Handling ───────────────────────────────────────────────
+    println(bold("=== Assert / Error handling ==="))
+    assert(1 + 1 == 2, "math broke")
+    assert_eq(len("hello"), 5)
+    assert_ne(1, 2)
+    println(green("✓ All assertions passed"))
+    let e = err("something went wrong")
+    println("is_error: " + to_string(is_error(e)))
+    let safe = unwrap_or(null, "fallback")
+    println("unwrap_or null → " + safe)
+    println("")
+
+    // ── Type checking ─────────────────────────────────────────────────────────
+    println(bold("=== Type Checking ==="))
+    println("is_int(42):     " + to_string(is_int(42)))
+    println("is_float(3.14): " + to_string(is_float(3.14)))
+    println("is_bool(true):  " + to_string(is_bool(true)))
+    println("is_array([]):   " + to_string(is_array([])))
+    println("is_null(null):  " + to_string(is_null(null)))
+    println("is_fn(|x|x):    " + to_string(is_fn(|x| x)))
+    println("")
+
+    // ── Timestamps ────────────────────────────────────────────────────────────
+    println(bold("=== Timestamps ==="))
+    let ts = timestamp()
+    let ms = timestamp_ms()
+    println("Unix timestamp: " + to_string(ts))
+    println("Unix ms:        " + to_string(ms))
+    println("")
+
+    // ── Defined / Scope introspection ─────────────────────────────────────────
+    println(bold("=== Scope Introspection ==="))
+    let my_var = 42
+    println("defined('my_var'): " + to_string(defined("my_var")))
+    println("defined('zzz_xyz'): " + to_string(defined("zzz_xyz")))
+    println("")
+
+    // ── random_string ─────────────────────────────────────────────────────────
+    println(bold("=== Random String ==="))
+    let rs = random_string(16)
+    println("random 16-char: " + rs)
+    println("is_string: " + to_string(is_string(rs)))
+    println("len == 16: " + to_string(len(rs) == 16))
+    println("")
+
+    // ── SHA256 (via shell) ────────────────────────────────────────────────────
+    println(bold("=== SHA256 Hash ==="))
+    let h = sha256("hello")
+    println("sha256('hello'): " + h)
+    println("")
+
+    println("╔══════════════════════════════════════════════════════════════╗")
+    println("║         ALL TESTS COMPLETED SUCCESSFULLY                    ║")
+    println("╚══════════════════════════════════════════════════════════════╝")
+}

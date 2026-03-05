@@ -1,0 +1,66 @@
+// ──────────────────────────────────────────────────────────────────────────────
+//  audio_synth.knull — Audio Synthesis Demo
+// ──────────────────────────────────────────────────────────────────────────────
+
+println("═══════════════════════════════════════════════")
+println("    KNULL AUDIO SYNTHESISER DEMO                ")
+println("═══════════════════════════════════════════════")
+
+let SAMPLE_RATE = 44100
+
+println("\n── Generating tones ──")
+let sine_A4  = wav_generate_sine(440.0, 0.5, SAMPLE_RATE)
+let sine_E5  = wav_generate_sine(659.25, 0.5, SAMPLE_RATE)
+let square   = wav_generate_square(440.0, 0.5, SAMPLE_RATE)
+let sawtooth = wav_generate_sawtooth(220.0, 0.5, SAMPLE_RATE)
+
+println("  Sine A4 samples:    " + len(sine_A4))
+println("  Sine E5 samples:    " + len(sine_E5))
+println("  Square 440 samples: " + len(square))
+println("  Sawtooth 220 samps: " + len(sawtooth))
+
+println("\n── Mixing A4 + E5 (perfect fifth) ──")
+let chord = wav_mix(sine_A4, sine_E5, 0.5)
+println("  Mixed chord samples: " + len(chord))
+println("  Duration: " + (len(chord) / SAMPLE_RATE) + " seconds")
+
+println("\n── Volume adjustment ──")
+let loud  = wav_volume(chord, 0.9)
+let quiet = wav_volume(chord, 0.1)
+println("  Loud sample[100]:  " + loud[100])
+println("  Quiet sample[100]: " + quiet[100])
+
+println("\n── PCM16 conversion ──")
+let pcm16 = wav_to_pcm16(loud)
+println("  PCM16 samples: " + len(pcm16))
+
+println("\n── Saving WAV files ──")
+let chord_pcm = wav_to_pcm16(wav_volume(chord, 0.8))
+let r1 = wav_write("/tmp/knull_chord.wav", chord_pcm, SAMPLE_RATE, 1, 16)
+println("  /tmp/knull_chord.wav: " + r1)
+
+let saw_pcm = wav_to_pcm16(wav_volume(sawtooth, 0.6))
+let r2 = wav_write("/tmp/knull_bass.wav", saw_pcm, SAMPLE_RATE, 1, 16)
+println("  /tmp/knull_bass.wav:  " + r2)
+
+println("\n── WAV file info ──")
+let info = wav_info("/tmp/knull_chord.wav")
+println("  Channels:    " + info["channels"])
+println("  Sample rate: " + info["sample_rate"])
+println("  Duration:    " + info["duration_secs"] + "s")
+
+println("\n── Frequency sweep (4 tones using array concat) ──")
+let f1 = wav_generate_sawtooth(110.0, 0.1, SAMPLE_RATE)
+let f2 = wav_generate_sawtooth(220.0, 0.1, SAMPLE_RATE)
+let f3 = wav_generate_sawtooth(440.0, 0.1, SAMPLE_RATE)
+let f4 = wav_generate_sawtooth(880.0, 0.1, SAMPLE_RATE)
+let sweep = f1 + f2 + f3 + f4
+println("  Sweep samples: " + len(sweep))
+let sw_pcm = wav_to_pcm16(wav_volume(sweep, 0.7))
+wav_write("/tmp/knull_sweep.wav", sw_pcm, SAMPLE_RATE, 1, 16)
+println("  /tmp/knull_sweep.wav saved")
+
+println("\n═══════════════════════════════════════════════")
+println("  Audio synthesis complete!")
+println("  Generated: /tmp/knull_chord.wav, /tmp/knull_bass.wav, /tmp/knull_sweep.wav")
+println("═══════════════════════════════════════════════")

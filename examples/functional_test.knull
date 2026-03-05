@@ -1,0 +1,95 @@
+// Functional test - all using closures (lambdas)
+let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+// map / filter / reduce (existing builtins)
+let doubled = map(nums, |x| x * 2)
+print("map doubled: " + str(doubled))
+
+let evens = filter(nums, |x| x % 2 == 0)
+print("evens: " + str(evens))
+
+let total = reduce(nums, |acc, x| acc + x, 0)
+print("sum via reduce: " + str(total))
+
+// sum builtin
+print("sum builtin: " + str(sum(nums)))
+
+// all / any with closures
+let all_even = all(nums, |x| x % 2 == 0)
+print("all even: " + str(all_even))
+
+let any_even = any(nums, |x| x % 2 == 0)
+print("any even: " + str(any_even))
+
+// count_if
+let cnt = count_if(nums, |x| x % 2 == 0)
+print("count even: " + str(cnt))
+
+// unique
+let dups = [1, 2, 2, 3, 3, 3, 4]
+print("unique: " + str(unique(dups)))
+
+// flatten
+let nested = [[1, 2], [3, 4], [5]]
+print("flatten: " + str(flatten(nested)))
+
+// chunk
+print("chunk 3: " + str(chunk(nums, 3)))
+
+// take / drop
+print("take 3: " + str(take(nums, 3)))
+print("drop 7: " + str(drop(nums, 7)))
+
+// zip / enumerate
+let letters = ["a", "b", "c"]
+print("zip: " + str(zip([1, 2, 3], letters)))
+print("enumerate: " + str(enumerate(letters)))
+
+// sort_by (key-fn: |x| x returns key to sort ascending by)
+let unsorted = [5, 2, 8, 1, 9, 3]
+let asc = sort_by(unsorted, |x| x)
+print("sort asc: " + str(asc))
+
+let desc = sort_by_desc(unsorted, |x| x)
+print("sort desc: " + str(desc))
+
+// sort_cmp (comparator: fn(a,b)->neg/0/pos)
+let cmp_sorted = sort_cmp(unsorted, |a, b| a - b)
+print("sort_cmp asc: " + str(cmp_sorted))
+
+// flat_map
+let pairs = [[1, 2], [3, 4], [5, 6]]
+let flat = flat_map(pairs, |arr| arr)
+print("flat_map: " + str(flat))
+
+// foreach
+foreach([1, 2, 3], |x| print("  item: " + str(x)))
+
+// partition
+let parts = partition(nums, |x| x % 2 == 0)
+print("partition evens/odds: " + str(parts))
+
+// range
+print("range(5): " + str(range(5)))
+print("range(2,8): " + str(range(2, 8)))
+print("range(0,10,2): " + str(range(0, 10, 2)))
+
+// contains / index_of
+print("contains 5: " + str(contains(nums, 5)))
+print("index_of 7: " + str(index_of(nums, 7)))
+
+// array_min / array_max
+print("min: " + str(array_min(unsorted)))
+print("max: " + str(array_max(unsorted)))
+
+// Map utilities
+let m = {"a": 1, "b": 2, "c": 3}
+print("keys: " + str(keys(m)))
+print("values: " + str(values(m)))
+print("has_key a: " + str(has_key(m, "a")))
+print("has_key z: " + str(has_key(m, "z")))
+
+let m2 = merge(m, {"d": 4, "a": 99})
+print("merged: " + str(m2))
+
+print("ALL TESTS DONE")

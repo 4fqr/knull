@@ -14,9 +14,23 @@ pub enum ASTNode {
     },
     Let {
         name: String,
+        mutable: bool,
         ty: Option<Type>,
         value: Box<ASTNode>,
     },
+    /// Re-assignment to existing variable (or field/index)
+    Assign {
+        target: Box<ASTNode>,
+        value: Box<ASTNode>,
+    },
+    /// Compound assignment: target += value, etc.
+    AssignOp {
+        target: Box<ASTNode>,
+        op: String,
+        value: Box<ASTNode>,
+    },
+    Break(Option<String>),
+    Continue(Option<String>),
     Return(Box<ASTNode>),
     If {
         cond: Box<ASTNode>,
@@ -133,6 +147,84 @@ pub enum ASTNode {
     Await(Box<ASTNode>),
     // Yield expression
     Yield(Option<Box<ASTNode>>),
+    // Interpolated string: f"Hello {name}" or `Hello {name}`
+    // Segments: Vec<(is_expr, content)>: is_expr=false → literal text, is_expr=true → source to re-parse
+    InterpolatedString(Vec<(bool, String)>),
+    // Lambda / closure: |x, y| body   OR   \(x, y) => body
+    Lambda {
+        params: Vec<String>,
+        body: Box<ASTNode>,
+    },
+    // Map literal: {"key": value, ...}
+    Map(Vec<(ASTNode, ASTNode)>),
+    // Tuple: (a, b, c)
+    Tuple(Vec<ASTNode>),
+    // Pipeline: left |> right
+    Pipeline {
+        left: Box<ASTNode>,
+        right: Box<ASTNode>,
+    },
+    // Null coalesce: a ?? b
+    NullCoalesce {
+        left: Box<ASTNode>,
+        right: Box<ASTNode>,
+    },
+    // Safe navigation: a?.field or a?.method()
+    SafeNav {
+        obj: Box<ASTNode>,
+        field: String,
+    },
+    // Try operator: expr?
+    TryOp(Box<ASTNode>),
+    // Spread: ...expr (inside arrays/args)
+    Spread(Box<ASTNode>),
+    // List comprehension: [expr for x in iter if cond]
+    ListComp {
+        expr: Box<ASTNode>,
+        var: String,
+        iter: Box<ASTNode>,
+        filter: Option<Box<ASTNode>>,
+    },
+    // Do-while loop
+    DoWhile {
+        body: Box<ASTNode>,
+        cond: Box<ASTNode>,
+    },
+    // If-let binding: if let pattern = expr { ... }
+    IfLet {
+        pattern: String,
+        value: Box<ASTNode>,
+        then_body: Box<ASTNode>,
+        else_body: Option<Box<ASTNode>>,
+    },
+    // Named arg: func(name: value) — stored as a wrapping node
+    NamedArg {
+        name: String,
+        value: Box<ASTNode>,
+    },
+    // Spawn a concurrent task
+    Spawn(Box<ASTNode>),
+    // Type alias: type X = Y
+    TypeAlias {
+        name: String,
+        ty: Type,
+    },
+    // Defer statement
+    Defer(Box<ASTNode>),
+    // Const declaration
+    Const {
+        name: String,
+        ty: Option<Type>,
+        value: Box<ASTNode>,
+    },
+    // Try/catch error handling
+    TryCatch {
+        try_body: Box<ASTNode>,
+        catch_var: String,
+        catch_body: Box<ASTNode>,
+    },
+    // Throw an error
+    Throw(Box<ASTNode>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -170,6 +262,7 @@ pub struct Param {
 #[derive(Debug, Clone)]
 pub struct MatchArm {
     pub pattern: Pattern,
+    pub guard: Option<ASTNode>,  // if guard condition
     pub body: ASTNode,
 }
 
@@ -178,6 +271,7 @@ pub enum Pattern {
     Wildcard,
     Literal(Literal),
     Identifier(String),
+    Or(Vec<Pattern>),
     Struct {
         name: String,
         fields: Vec<(String, Pattern)>,
@@ -292,11 +386,19 @@ impl Parser {
             }
             match self.current().kind {
                 TokenKind::Mode => items.push(self.parse_mode()?),
+                TokenKind::Async => items.push(self.parse_async_function()?),
                 TokenKind::Fn => items.push(self.parse_function()?),
+                TokenKind::Class => items.push(self.parse_class()?),
+                TokenKind::Spawn => {
+                    self.advance();
+                    let body = self.parse_block()?;
+                    items.push(ASTNode::Spawn(Box::new(body)));
+                }
                 TokenKind::Let => items.push(self.parse_let()?),
                 TokenKind::If => items.push(self.parse_if()?),
                 TokenKind::Match => items.push(self.parse_match()?),
                 TokenKind::While => items.push(self.parse_while()?),
+                TokenKind::Do => items.push(self.parse_do_while()?),
                 TokenKind::For => items.push(self.parse_for()?),
                 TokenKind::Loop => items.push(self.parse_loop()?),
                 TokenKind::Mod => items.push(self.parse_module_decl()?),
@@ -315,7 +417,18 @@ impl Parser {
                 }
                 TokenKind::Type => {
                     self.advance();
-                    self.parse_type_alias()?;
+                    let alias = self.parse_type_alias()?;
+                    items.push(alias);
+                }
+                TokenKind::Defer => {
+                    self.advance();
+                    let expr = self.parse_expression()?;
+                    items.push(ASTNode::Defer(Box::new(expr)));
+                }
+                TokenKind::Throw => {
+                    self.advance();
+                    let expr = self.parse_expression()?;
+                    items.push(ASTNode::Throw(Box::new(expr)));
                 }
                 TokenKind::Unsafe => {
                     self.advance();
@@ -332,7 +445,6 @@ impl Parser {
                 TokenKind::Linear => items.push(self.parse_linear_expr()?),
                 TokenKind::Effect => items.push(self.parse_effect_annotation()?),
                 TokenKind::HashRun => items.push(self.parse_run_block()?),
-                TokenKind::Async => items.push(self.parse_async_function()?),
                 _ => {
                     let expr = self.parse_expression()?;
                     items.push(expr);
@@ -410,7 +522,7 @@ impl Parser {
         self.expect(TokenKind::Let)?;
 
         // Check for mut
-        let _is_mut = if self.current().kind == TokenKind::Mut {
+        let mutable = if self.current().kind == TokenKind::Mut {
             self.advance();
             true
         } else {
@@ -434,6 +546,7 @@ impl Parser {
         }
         Ok(ASTNode::Let {
             name,
+            mutable,
             ty,
             value: Box::new(value),
         })
@@ -455,20 +568,49 @@ impl Parser {
         if self.current().kind == TokenKind::Semicolon {
             self.advance();
         }
-        Ok(ASTNode::Let {
+        Ok(ASTNode::Const {
             name,
             ty,
             value: Box::new(value),
         })
     }
 
+    fn parse_if_let(&mut self) -> Result<ASTNode, String> {
+        // `if let pattern = expr { } else { }`
+        self.expect(TokenKind::Let)?;
+        // For now support simple identifier patterns
+        let pattern = self.parse_identifier()?;
+        self.expect(TokenKind::Eq)?;
+        let value = self.parse_expression()?;
+        let then_body = self.parse_block()?;
+        let else_body = if self.current().kind == TokenKind::Else {
+            self.advance();
+            if self.current().kind == TokenKind::If {
+                self.advance();
+                Some(Box::new(self.parse_if()?))
+            } else {
+                Some(Box::new(self.parse_block()?))
+            }
+        } else { None };
+        Ok(ASTNode::IfLet { pattern, value: Box::new(value), then_body: Box::new(then_body), else_body })
+    }
+
     fn parse_if(&mut self) -> Result<ASTNode, String> {
         self.expect(TokenKind::If)?;
+        // if let binding
+        if self.current().kind == TokenKind::Let {
+            return self.parse_if_let();
+        }
         let cond = self.parse_expression()?;
         let then_body = self.parse_block()?;
         let else_body = if self.current().kind == TokenKind::Else {
             self.advance();
-            Some(Box::new(self.parse_block()?))
+            // `else if` chain
+            if self.current().kind == TokenKind::If {
+                Some(Box::new(self.parse_if()?))
+            } else {
+                Some(Box::new(self.parse_block()?))
+            }
         } else {
             None
         };
@@ -477,6 +619,15 @@ impl Parser {
             then_body: Box::new(then_body),
             else_body,
         })
+    }
+
+    fn parse_do_while(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Do)?;
+        let body = self.parse_block()?;
+        self.expect(TokenKind::While)?;
+        let cond = self.parse_expression()?;
+        if self.current().kind == TokenKind::Semicolon { self.advance(); }
+        Ok(ASTNode::DoWhile { body: Box::new(body), cond: Box::new(cond) })
     }
 
     fn parse_while(&mut self) -> Result<ASTNode, String> {
@@ -528,15 +679,55 @@ impl Parser {
             }
             TokenKind::Return => {
                 self.advance();
+                // bare return with no expression
+                if matches!(self.current().kind, TokenKind::Semicolon | TokenKind::RBrace | TokenKind::Eof) {
+                    if self.current().kind == TokenKind::Semicolon { self.advance(); }
+                    return Ok(ASTNode::Return(Box::new(ASTNode::Literal(crate::parser::Literal::Null))));
+                }
                 let value = self.parse_expression()?;
                 if self.current().kind == TokenKind::Semicolon {
                     self.advance();
                 }
                 Ok(ASTNode::Return(Box::new(value)))
             }
+            TokenKind::Break => {
+                self.advance();
+                let label = if self.current().kind == TokenKind::Identifier {
+                    let l = self.current().value.clone(); self.advance(); Some(l)
+                } else { None };
+                if self.current().kind == TokenKind::Semicolon { self.advance(); }
+                Ok(ASTNode::Break(label))
+            }
+            TokenKind::Continue => {
+                self.advance();
+                let label = if self.current().kind == TokenKind::Identifier {
+                    let l = self.current().value.clone(); self.advance(); Some(l)
+                } else { None };
+                if self.current().kind == TokenKind::Semicolon { self.advance(); }
+                Ok(ASTNode::Continue(label))
+            }
+            TokenKind::Loop => self.parse_loop(),
             TokenKind::If => self.parse_if(),
             TokenKind::While => self.parse_while(),
             TokenKind::For => self.parse_for(),
+            TokenKind::Unsafe => {
+                self.advance();
+                let block = self.parse_block()?;
+                Ok(ASTNode::Unsafe(Box::new(block)))
+            }
+            TokenKind::Match => self.parse_match(),
+            TokenKind::Spawn => {
+                self.advance();
+                let body = self.parse_block()?;
+                Ok(ASTNode::Spawn(Box::new(body)))
+            }
+            TokenKind::Try => self.parse_try_catch(),
+            TokenKind::Throw => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                if self.current().kind == TokenKind::Semicolon { self.advance(); }
+                Ok(ASTNode::Throw(Box::new(expr)))
+            }
             _ => {
                 // Check for space-separated function call: "println x" or "print "hello""
                 // Also handle "println "x = " + x" where the argument is a binary expression
@@ -586,8 +777,9 @@ impl Parser {
             TokenKind::Int
                 | TokenKind::Float
                 | TokenKind::String
-                | TokenKind::Identifier
-                | TokenKind::LBracket
+                | TokenKind::FString
+                | TokenKind::True
+                | TokenKind::False
         )
     }
 
@@ -608,7 +800,15 @@ impl Parser {
                 | TokenKind::Gte
                 | TokenKind::Ampersand
                 | TokenKind::Pipe
+                | TokenKind::Caret
+                | TokenKind::Shl
+                | TokenKind::Shr
         )
+    }
+
+    /// Public wrapper so external code (e.g. C codegen) can parse a single expr
+    pub fn parse_expression_pub(&mut self) -> Result<ASTNode, String> {
+        self.parse_assignment()
     }
 
     fn parse_expression(&mut self) -> Result<ASTNode, String> {
@@ -616,25 +816,60 @@ impl Parser {
     }
 
     fn parse_assignment(&mut self) -> Result<ASTNode, String> {
-        let left = self.parse_or()?;
+        let left = self.parse_null_coalesce()?;
+        // Compound assignment operators
+        let compound_op: Option<&str> = match self.current().kind {
+            TokenKind::PlusEq    => Some("+"),
+            TokenKind::MinusEq   => Some("-"),
+            TokenKind::StarEq    => Some("*"),
+            TokenKind::SlashEq   => Some("/"),
+            TokenKind::PercentEq => Some("%"),
+            TokenKind::AmpEq     => Some("&"),
+            TokenKind::BarEq     => Some("|"),
+            TokenKind::CaretEq   => Some("^"),
+            TokenKind::ShlEq     => Some("<<"),
+            TokenKind::ShrEq     => Some(">>"),
+            _ => None,
+        };
+        if let Some(op) = compound_op {
+            let op = op.to_string();
+            self.advance();
+            let right = self.parse_assignment()?;
+            if self.current().kind == TokenKind::Semicolon { self.advance(); }
+            return Ok(ASTNode::AssignOp {
+                target: Box::new(left),
+                op,
+                value: Box::new(right),
+            });
+        }
         if self.current().kind == TokenKind::Eq {
             self.advance();
             let right = self.parse_assignment()?;
-            // This is assignment to a variable - create a Let
-            if let ASTNode::Identifier(name) = left {
-                return Ok(ASTNode::Let {
-                    name,
-                    ty: None,
-                    value: Box::new(right),
-                });
-            }
+            if self.current().kind == TokenKind::Semicolon { self.advance(); }
+            return Ok(ASTNode::Assign {
+                target: Box::new(left),
+                value: Box::new(right),
+            });
+        }
+        Ok(left)
+    }
+
+    fn parse_null_coalesce(&mut self) -> Result<ASTNode, String> {
+        let mut left = self.parse_or()?;
+        while self.current().kind == TokenKind::NullCoalesce {
+            self.advance();
+            let right = self.parse_or()?;
+            left = ASTNode::NullCoalesce {
+                left: Box::new(left),
+                right: Box::new(right),
+            };
         }
         Ok(left)
     }
 
     fn parse_or(&mut self) -> Result<ASTNode, String> {
         let mut left = self.parse_and()?;
-        while self.current().kind == TokenKind::Pipe {
+        while self.current().kind == TokenKind::Or {
             self.advance();
             let right = self.parse_and()?;
             left = ASTNode::Binary {
@@ -647,15 +882,40 @@ impl Parser {
     }
 
     fn parse_and(&mut self) -> Result<ASTNode, String> {
-        let mut left = self.parse_equality()?;
-        while self.current().kind == TokenKind::Ampersand {
+        let mut left = self.parse_bitwise()?;
+        while self.current().kind == TokenKind::And {
             self.advance();
-            let right = self.parse_equality()?;
+            let right = self.parse_bitwise()?;
             left = ASTNode::Binary {
                 op: "&&".to_string(),
                 left: Box::new(left),
                 right: Box::new(right),
             };
+        }
+        Ok(left)
+    }
+
+    fn parse_bitwise(&mut self) -> Result<ASTNode, String> {
+        let mut left = self.parse_equality()?;
+        loop {
+            // Pipeline operator: left |> right -> right(left)
+            if self.current().kind == TokenKind::Pipeline {
+                self.advance();
+                let right = self.parse_equality()?;
+                left = ASTNode::Pipeline { left: Box::new(left), right: Box::new(right) };
+                continue;
+            }
+            let op = match self.current().kind {
+                TokenKind::Ampersand => "&",
+                TokenKind::Pipe      => "|",
+                TokenKind::Caret     => "^",
+                TokenKind::Shl       => "<<",
+                TokenKind::Shr       => ">>",
+                _ => break,
+            }.to_string();
+            self.advance();
+            let right = self.parse_equality()?;
+            left = ASTNode::Binary { op, left: Box::new(left), right: Box::new(right) };
         }
         Ok(left)
     }
@@ -800,6 +1060,27 @@ impl Parser {
                     obj: Box::new(node),
                     index: Box::new(index),
                 };
+            } else if self.current().kind == TokenKind::SafeNav {
+                // ?. safe navigation
+                self.advance();
+                let field = self.parse_identifier()?;
+                // Check if it's a method call
+                if self.current().kind == TokenKind::LParen {
+                    self.advance();
+                    let mut args = Vec::new();
+                    while self.current().kind != TokenKind::RParen && self.current().kind != TokenKind::Eof {
+                        args.push(self.parse_expression()?);
+                        if self.current().kind == TokenKind::Comma { self.advance(); }
+                    }
+                    if self.current().kind == TokenKind::RParen { self.advance(); }
+                    node = ASTNode::MethodCall {
+                        obj: Box::new(ASTNode::SafeNav { obj: Box::new(node), field }),
+                        method: "__safe_call__".to_string(),
+                        args,
+                    };
+                } else {
+                    node = ASTNode::SafeNav { obj: Box::new(node), field };
+                }
             } else if self.current().kind == TokenKind::Dot {
                 self.advance();
                 let field = self.parse_identifier()?;
@@ -857,6 +1138,10 @@ impl Parser {
                     expr: Box::new(node),
                     target_type,
                 };
+            } else if self.current().kind == TokenKind::Question {
+                // Try operator: expr?
+                self.advance();
+                node = ASTNode::TryOp(Box::new(node));
             } else {
                 break;
             }
@@ -868,10 +1153,22 @@ impl Parser {
         let token = self.current().clone();
 
         match &token.kind {
+            // ── Interpolated strings ─────────────────────────────────────────
+            TokenKind::FString => {
+                self.advance();
+                let raw = token.value.clone();
+                let segments = Self::parse_fstring_segments(&raw);
+                Ok(ASTNode::InterpolatedString(segments))
+            }
+            // ── Numeric / bool / null literals ───────────────────────────────
             TokenKind::Int => {
                 self.advance();
                 let n: i64 = if token.value.starts_with("0x") || token.value.starts_with("0X") {
                     i64::from_str_radix(&token.value[2..], 16).unwrap_or(0)
+                } else if token.value.starts_with("0o") || token.value.starts_with("0O") {
+                    i64::from_str_radix(&token.value[2..], 8).unwrap_or(0)
+                } else if token.value.starts_with("0b") || token.value.starts_with("0B") {
+                    i64::from_str_radix(&token.value[2..], 2).unwrap_or(0)
                 } else {
                     token.value.parse().unwrap_or(0)
                 };
@@ -898,29 +1195,189 @@ impl Parser {
                 self.advance();
                 Ok(ASTNode::Literal(Literal::Null))
             }
+            // ── Array literal / list comprehension ─────────────────────────
             TokenKind::LBracket => {
                 self.advance();
-                let mut items = Vec::new();
-                while self.current().kind != TokenKind::RBracket
-                    && self.current().kind != TokenKind::Eof
-                {
-                    items.push(self.parse_expression()?);
-                    if self.current().kind == TokenKind::Comma {
+                if self.current().kind == TokenKind::RBracket {
+                    self.advance();
+                    return Ok(ASTNode::Array(vec![]));
+                }
+                // Spread: [...arr]
+                if self.current().kind == TokenKind::DotDot {
+                    self.advance();
+                    let spreaded = self.parse_expression()?;
+                    self.expect(TokenKind::RBracket)?;
+                    return Ok(ASTNode::Spread(Box::new(spreaded)));
+                }
+                let first = self.parse_expression()?;
+                // Check for list comprehension: [expr for var in iter]
+                if self.current().kind == TokenKind::For {
+                    self.advance();
+                    let var = self.parse_identifier()?;
+                    self.expect(TokenKind::In)?;
+                    let iter = self.parse_expression()?;
+                    let filter = if self.current().kind == TokenKind::If {
                         self.advance();
+                        Some(Box::new(self.parse_expression()?))
+                    } else { None };
+                    self.expect(TokenKind::RBracket)?;
+                    return Ok(ASTNode::ListComp {
+                        expr: Box::new(first),
+                        var,
+                        iter: Box::new(iter),
+                        filter,
+                    });
+                }
+                let mut items = vec![first];
+                while self.current().kind == TokenKind::Comma && self.current().kind != TokenKind::Eof {
+                    self.advance();
+                    if self.current().kind == TokenKind::RBracket { break; }
+                    if self.current().kind == TokenKind::DotDot {
+                        self.advance();
+                        let spreaded = self.parse_expression()?;
+                        items.push(ASTNode::Spread(Box::new(spreaded)));
+                    } else {
+                        items.push(self.parse_expression()?);
                     }
                 }
                 self.expect(TokenKind::RBracket)?;
                 Ok(ASTNode::Array(items))
             }
+            // ── Map literal  { key: val, ... } ───────────────────────────────
+            TokenKind::LBrace => {
+                // Peek ahead: if first non-whitespace content looks like `key:`, it's a map
+                let checkpoint = self.pos;
+                self.advance(); // consume `{`
+                // Try to parse as map: key can be string literal or identifier, then `:`
+                let is_map = match self.current().kind {
+                    TokenKind::String | TokenKind::Int | TokenKind::Float => {
+                        // peek if next is `:`
+                        self.pos + 1 < self.tokens.len()
+                            && self.tokens[self.pos + 1].kind == TokenKind::Colon
+                    }
+                    TokenKind::Identifier => {
+                        self.pos + 1 < self.tokens.len()
+                            && self.tokens[self.pos + 1].kind == TokenKind::Colon
+                    }
+                    TokenKind::RBrace => false, // empty `{}` → empty map
+                    _ => false,
+                };
+                let is_empty = self.current().kind == TokenKind::RBrace;
+                if is_map || is_empty {
+                    let mut pairs = Vec::new();
+                    while self.current().kind != TokenKind::RBrace
+                        && self.current().kind != TokenKind::Eof
+                    {
+                        let key = match self.current().kind {
+                            TokenKind::String => {
+                                let v = self.current().value.clone();
+                                self.advance();
+                                ASTNode::Literal(Literal::String(v))
+                            }
+                            TokenKind::Identifier => {
+                                let v = self.current().value.clone();
+                                self.advance();
+                                ASTNode::Literal(Literal::String(v))
+                            }
+                            _ => self.parse_expression()?,
+                        };
+                        self.expect(TokenKind::Colon)?;
+                        let val = self.parse_expression()?;
+                        pairs.push((key, val));
+                        if self.current().kind == TokenKind::Comma {
+                            self.advance();
+                        }
+                    }
+                    self.expect(TokenKind::RBrace)?;
+                    Ok(ASTNode::Map(pairs))
+                } else {
+                    // Not a map — restore and return error so caller can try block
+                    self.pos = checkpoint;
+                    // Can't have a block as a primary expression here; return empty block
+                    let block = self.parse_block()?;
+                    Ok(block)
+                }
+            }
+            // ── Tuple or parenthesised expression ────────────────────────────
             TokenKind::LParen => {
                 self.advance();
-                let expr = self.parse_expression()?;
-                self.expect(TokenKind::RParen)?;
-                Ok(expr)
+                // empty tuple ()
+                if self.current().kind == TokenKind::RParen {
+                    self.advance();
+                    return Ok(ASTNode::Tuple(vec![]));
+                }
+                let first = self.parse_expression()?;
+                if self.current().kind == TokenKind::Comma {
+                    // It's a tuple
+                    let mut elems = vec![first];
+                    while self.current().kind == TokenKind::Comma {
+                        self.advance();
+                        if self.current().kind == TokenKind::RParen { break; }
+                        elems.push(self.parse_expression()?);
+                    }
+                    self.expect(TokenKind::RParen)?;
+                    Ok(ASTNode::Tuple(elems))
+                } else {
+                    self.expect(TokenKind::RParen)?;
+                    Ok(first)
+                }
+            }
+            // ── Lambda  |x, y| body  or  || body ────────────────────────────
+            TokenKind::Or => {
+                // `||` as zero-param lambda: || body
+                self.advance();
+                if self.current().kind == TokenKind::Arrow {
+                    self.advance();
+                    let _ = self.parse_type();
+                }
+                let body = if self.current().kind == TokenKind::LBrace {
+                    self.parse_block()?
+                } else {
+                    self.parse_expression()?
+                };
+                Ok(ASTNode::Lambda { params: vec![], body: Box::new(body) })
+            }
+            TokenKind::Pipe => {
+                self.advance(); // consume first `|`
+                let mut params = Vec::new();
+                while self.current().kind != TokenKind::Pipe
+                    && self.current().kind != TokenKind::Or
+                    && self.current().kind != TokenKind::Eof
+                {
+                    if self.current().kind == TokenKind::Identifier {
+                        params.push(self.current().value.clone());
+                        self.advance();
+                    } else {
+                        self.advance(); // skip type annotations etc.
+                    }
+                    if self.current().kind == TokenKind::Comma { self.advance(); }
+                }
+                if self.current().kind == TokenKind::Pipe { self.advance(); } // consume closing `|`
+                // Optional `->` return type annotation
+                if self.current().kind == TokenKind::Arrow {
+                    self.advance();
+                    let _ = self.parse_type(); // discard
+                }
+                let body = if self.current().kind == TokenKind::LBrace {
+                    self.parse_block()?
+                } else {
+                    self.parse_expression()?
+                };
+                Ok(ASTNode::Lambda { params, body: Box::new(body) })
             }
             TokenKind::SelfValue => {
                 self.advance();
                 Ok(ASTNode::Identifier("self".to_string()))
+            }
+            // ── try { } catch e { } as expression ───────────────────────────
+            TokenKind::Try => {
+                self.parse_try_catch()
+            }
+            // ── throw expr as expression ─────────────────────────────────────
+            TokenKind::Throw => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                Ok(ASTNode::Throw(Box::new(expr)))
             }
             TokenKind::Identifier => {
                 self.advance();
@@ -931,6 +1388,54 @@ impl Parser {
                 Ok(ASTNode::Identifier(token.value.clone()))
             }
         }
+    }
+
+    /// Parse f-string raw content into segments: (is_expr, text)
+    fn parse_fstring_segments(raw: &str) -> Vec<(bool, String)> {
+        let mut segments = Vec::new();
+        let mut current = String::new();
+        let chars: Vec<char> = raw.chars().collect();
+        let mut i = 0;
+        while i < chars.len() {
+            if chars[i] == '{' && i + 1 < chars.len() && chars[i + 1] != '{' {
+                // Start of expression
+                if !current.is_empty() {
+                    segments.push((false, current.clone()));
+                    current.clear();
+                }
+                i += 1; // skip `{`
+                let mut depth = 1;
+                let mut expr = String::new();
+                while i < chars.len() {
+                    match chars[i] {
+                        '{' => { depth += 1; expr.push('{'); }
+                        '}' => {
+                            depth -= 1;
+                            if depth == 0 { i += 1; break; }
+                            expr.push('}');
+                        }
+                        c => expr.push(c),
+                    }
+                    i += 1;
+                }
+                segments.push((true, expr));
+            } else if chars[i] == '{' && i + 1 < chars.len() && chars[i + 1] == '{' {
+                // Escaped `{{` → literal `{`
+                current.push('{');
+                i += 2;
+            } else if chars[i] == '}' && i + 1 < chars.len() && chars[i + 1] == '}' {
+                // Escaped `}}` → literal `}`
+                current.push('}');
+                i += 2;
+            } else {
+                current.push(chars[i]);
+                i += 1;
+            }
+        }
+        if !current.is_empty() {
+            segments.push((false, current));
+        }
+        segments
     }
 
     fn parse_identifier(&mut self) -> Result<String, String> {
@@ -961,11 +1466,20 @@ impl Parser {
 
     // Parse use declarations
     fn parse_use_decl(&mut self) -> Result<ASTNode, String> {
-        self.advance(); // skip 'use'
+        self.advance(); // skip 'use'/'import'
+        // If the path is a string literal, just take that one token
+        if self.current().kind == TokenKind::String {
+            let path = self.current().value.clone();
+            self.advance();
+            if self.current().kind == TokenKind::Semicolon { self.advance(); }
+            return Ok(ASTNode::Use(path));
+        }
+        // Otherwise accumulate dotted/module path tokens until ; or EOF or {
         let mut path = String::new();
         while self.current().kind != TokenKind::Semicolon
             && self.current().kind != TokenKind::Eof
             && self.current().kind != TokenKind::LBrace
+            && self.current().kind != TokenKind::String  // stop at any string
         {
             path.push_str(&self.current().value);
             self.advance();
@@ -978,6 +1492,36 @@ impl Parser {
             self.advance();
         }
         Ok(ASTNode::Use(path))
+    }
+
+    fn parse_try_catch(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Try)?;
+        let try_body = self.parse_block()?;
+        // optional 'catch var { body }'
+        let (catch_var, catch_body) = if self.current().kind == TokenKind::Catch {
+            self.advance();
+            // catch var or catch (var)
+            let var = if self.current().kind == TokenKind::LParen {
+                self.advance();
+                let v = self.parse_identifier()?;
+                self.expect(TokenKind::RParen)?;
+                v
+            } else if self.current().kind == TokenKind::Identifier {
+                self.parse_identifier()?
+            } else {
+                "_err".to_string()
+            };
+            let body = self.parse_block()?;
+            (var, body)
+        } else {
+            // no catch — just a try block, swallow errors silently (return null on error)
+            ("_err".to_string(), ASTNode::Block(vec![ASTNode::Literal(Literal::Null)]))
+        };
+        Ok(ASTNode::TryCatch {
+            try_body: Box::new(try_body),
+            catch_var,
+            catch_body: Box::new(catch_body),
+        })
     }
 
     // Parse mode declaration
@@ -995,10 +1539,24 @@ impl Parser {
 
         let mut arms = Vec::new();
         while self.current().kind != TokenKind::RBrace && self.current().kind != TokenKind::Eof {
-            let pattern = self.parse_pattern()?;
+            let mut pattern = self.parse_pattern()?;
+            // Handle OR-patterns: 1 | 2 | 3 => ...
+            if self.current().kind == TokenKind::Pipe {
+                let mut pats = vec![pattern];
+                while self.current().kind == TokenKind::Pipe {
+                    self.advance();
+                    pats.push(self.parse_pattern()?);
+                }
+                pattern = Pattern::Or(pats);
+            }
+            // Optional guard: if cond
+            let guard = if self.current().kind == TokenKind::If {
+                self.advance();
+                Some(self.parse_expression()?)
+            } else { None };
             self.expect(TokenKind::FatArrow)?;
             let body = self.parse_expression()?;
-            arms.push(MatchArm { pattern, body });
+            arms.push(MatchArm { pattern, guard, body });
 
             if self.current().kind == TokenKind::Comma {
                 self.advance();
@@ -1019,9 +1577,26 @@ impl Parser {
                 Ok(Pattern::Wildcard)
             }
             TokenKind::Int => {
-                let val = self.current().value.parse::<i64>().unwrap_or(0);
+                let v = self.current().value.clone();
+                let val = if v.starts_with("0x") || v.starts_with("0X") {
+                    i64::from_str_radix(&v[2..], 16).unwrap_or(0)
+                } else if v.starts_with("0o") || v.starts_with("0O") {
+                    i64::from_str_radix(&v[2..], 8).unwrap_or(0)
+                } else if v.starts_with("0b") || v.starts_with("0B") {
+                    i64::from_str_radix(&v[2..], 2).unwrap_or(0)
+                } else { v.parse::<i64>().unwrap_or(0) };
                 self.advance();
                 Ok(Pattern::Literal(Literal::Int(val)))
+            }
+            TokenKind::Float => {
+                let val = self.current().value.parse::<f64>().unwrap_or(0.0);
+                self.advance();
+                Ok(Pattern::Literal(Literal::Float(val)))
+            }
+            TokenKind::String => {
+                let val = self.current().value.clone();
+                self.advance();
+                Ok(Pattern::Literal(Literal::String(val)))
             }
             TokenKind::True => {
                 self.advance();
@@ -1031,14 +1606,34 @@ impl Parser {
                 self.advance();
                 Ok(Pattern::Literal(Literal::Bool(false)))
             }
+            TokenKind::Null => {
+                self.advance();
+                Ok(Pattern::Literal(Literal::Null))
+            }
+            TokenKind::Minus => {
+                // Negative number pattern: -42 or -3.14
+                self.advance();
+                if self.current().kind == TokenKind::Int {
+                    let val = -(self.current().value.parse::<i64>().unwrap_or(0));
+                    self.advance();
+                    Ok(Pattern::Literal(Literal::Int(val)))
+                } else if self.current().kind == TokenKind::Float {
+                    let val = -(self.current().value.parse::<f64>().unwrap_or(0.0));
+                    self.advance();
+                    Ok(Pattern::Literal(Literal::Float(val)))
+                } else {
+                    Err("Expected number after `-` in pattern".to_string())
+                }
+            }
             TokenKind::Identifier => {
                 let name = self.parse_identifier()?;
                 Ok(Pattern::Identifier(name))
             }
-            _ => Err(format!(
-                "Unexpected token in pattern: {:?}",
-                self.current().kind
-            )),
+            _ => {
+                // Fallback: treat as wildcard to not break match
+                self.advance();
+                Ok(Pattern::Wildcard)
+            }
         }
     }
 
@@ -1060,8 +1655,13 @@ impl Parser {
             while self.current().kind != TokenKind::RBrace && self.current().kind != TokenKind::Eof
             {
                 let field_name = self.parse_identifier()?;
-                self.expect(TokenKind::Colon)?;
-                let ty = self.parse_type()?;
+                // Type annotation is optional: `x: Int` or just `x`
+                let ty = if self.current().kind == TokenKind::Colon {
+                    self.advance();
+                    self.parse_type()?
+                } else {
+                    Type::Custom("any".to_string())
+                };
                 fields.push((field_name, ty));
 
                 if self.current().kind == TokenKind::Comma {
@@ -1151,11 +1751,13 @@ impl Parser {
     }
 
     // Parse type alias
-    fn parse_type_alias(&mut self) -> Result<(), String> {
-        self.parse_identifier()?; // type name
+    fn parse_type_alias(&mut self) -> Result<ASTNode, String> {
+        // NEW: returns ASTNode::TypeAlias
+        let name = self.parse_identifier()?;
         self.expect(TokenKind::Eq)?;
-        self.parse_type()?;
-        Ok(())
+        let ty = self.parse_type()?;
+        if self.current().kind == TokenKind::Semicolon { self.advance(); }
+        Ok(ASTNode::TypeAlias { name, ty })
     }
 
     // Parse type
@@ -1273,6 +1875,52 @@ impl Parser {
         Ok(ASTNode::CompileTimeRun(Box::new(block)))
     }
 
+    // Parse class definition: `class Foo { fields; methods }`
+    // Desugars to: struct Foo { fields } + impl Foo { methods }
+    fn parse_class(&mut self) -> Result<ASTNode, String> {
+        self.expect(TokenKind::Class)?;
+        let name = self.parse_identifier()?;
+
+        let mut fields = Vec::new();
+        let mut methods = Vec::new();
+
+        if self.current().kind == TokenKind::LBrace {
+            self.advance();
+            while self.current().kind != TokenKind::RBrace && self.current().kind != TokenKind::Eof {
+                self.skip_semis();
+                if self.current().kind == TokenKind::RBrace { break; }
+                if self.current().kind == TokenKind::Fn {
+                    methods.push(self.parse_function()?);
+                } else if self.current().kind == TokenKind::Identifier {
+                    // Field: `name: Type`
+                    if self.pos + 1 < self.tokens.len()
+                        && self.tokens[self.pos + 1].kind == TokenKind::Colon
+                    {
+                        let field_name = self.parse_identifier()?;
+                        self.expect(TokenKind::Colon)?;
+                        let ty = self.parse_type()?;
+                        fields.push((field_name, ty));
+                        if self.current().kind == TokenKind::Comma
+                            || self.current().kind == TokenKind::Semicolon
+                        {
+                            self.advance();
+                        }
+                    } else {
+                        self.advance();
+                    }
+                } else {
+                    self.advance();
+                }
+            }
+            self.expect(TokenKind::RBrace)?;
+        }
+
+        // Emit: StructDef + Impl as a Block
+        let struct_node = ASTNode::StructDef { name: name.clone(), fields };
+        let impl_node = ASTNode::Impl { ty: name, methods };
+        Ok(ASTNode::Block(vec![struct_node, impl_node]))
+    }
+
     // Parse async function
     fn parse_async_function(&mut self) -> Result<ASTNode, String> {
         self.expect(TokenKind::Async)?;
@@ -1325,3 +1973,4 @@ pub fn parse(source: &str) -> Result<ASTNode, String> {
     let mut parser = Parser::new(source);
     parser.parse()
 }
+

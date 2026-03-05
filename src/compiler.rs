@@ -93,7 +93,7 @@ pub fn compile(
     if options.mode != CompileMode::Novice {
         let mut type_checker = crate::type_system::TypeChecker::new();
         type_checker
-            .check(&crate::parser::ASTNode::Program(vec![]))
+            .check(&ast)  // Fixed: was checking empty AST
             .map_err(|e| format!("Type error: {}", e))?;
     }
 

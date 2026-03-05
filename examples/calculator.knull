@@ -24,14 +24,14 @@ fn main() {
 // -----------------------------------------------------------------------------
 
 fn print_header() {
-    println "=========================================="
-    println "  MATHEMATICAL CALCULATOR"
-    println "=========================================="
-    println ""
+    println("==========================================")
+    println("  MATHEMATICAL CALCULATOR")
+    println("==========================================")
+    println("")
 }
 
 fn print_footer() {
-    println "=========================================="
+    println("==========================================")
 }
 
 // -----------------------------------------------------------------------------
@@ -39,27 +39,27 @@ fn print_footer() {
 // -----------------------------------------------------------------------------
 
 fn demonstrate_arithmetic() {
-    println "--- BASIC ARITHMETIC ---"
-    println ""
+    println("--- BASIC ARITHMETIC ---")
+    println("")
     
     let a = 125
     let b = 375
-    println "Addition: " + a + " + " + b + " = " + (a + b)
+    println("Addition: " + a + " + " + b + " = " + (a + b))
     
     let x = 1000
     let y = 273
-    println "Subtraction: " + x + " - " + y + " = " + (x - y)
+    println("Subtraction: " + x + " - " + y + " = " + (x - y))
     
     let m1 = 24
     let m2 = 18
-    println "Multiplication: " + m1 + " * " + m2 + " = " + (m1 * m2)
+    println("Multiplication: " + m1 + " * " + m2 + " = " + (m1 * m2))
     
     let d1 = 144
     let d2 = 12
-    println "Division: " + d1 + " / " + d2 + " = " + (d1 / d2)
-    println "Remainder: " + d1 + " % " + d2 + " = " + (d1 % d2)
+    println("Division: " + d1 + " / " + d2 + " = " + (d1 / d2))
+    println("Remainder: " + d1 + " % " + d2 + " = " + (d1 % d2))
     
-    println ""
+    println("")
 }
 
 // -----------------------------------------------------------------------------
@@ -67,14 +67,14 @@ fn demonstrate_arithmetic() {
 // -----------------------------------------------------------------------------
 
 fn demonstrate_factorial() {
-    println "--- FACTORIAL ---"
-    println ""
+    println("--- FACTORIAL ---")
+    println("")
     
     let n = 7
     let result = factorial(n)
-    println n + "! = " + result
+    println(n + "! = " + result)
     
-    println ""
+    println("")
 }
 
 fn factorial(n) {
@@ -98,15 +98,15 @@ fn factorial(n) {
 // -----------------------------------------------------------------------------
 
 fn demonstrate_power() {
-    println "--- POWER ---"
-    println ""
+    println("--- POWER ---")
+    println("")
     
     let base = 2
     let exp = 10
     let result = power(base, exp)
-    println base + "^" + exp + " = " + result
+    println(base + "^" + exp + " = " + result)
     
-    println ""
+    println("")
 }
 
 fn power(base, exp) {
@@ -130,14 +130,14 @@ fn power(base, exp) {
 // -----------------------------------------------------------------------------
 
 fn demonstrate_sum_of_squares() {
-    println "--- SUM OF SQUARES ---"
-    println ""
+    println("--- SUM OF SQUARES ---")
+    println("")
     
     let n = 10
     let sum = sum_of_squares(n)
-    println "Sum of squares from 1 to " + n + ": " + sum
+    println("Sum of squares from 1 to " + n + ": " + sum)
     
-    println ""
+    println("")
 }
 
 fn sum_of_squares(n) {
@@ -157,15 +157,15 @@ fn sum_of_squares(n) {
 // -----------------------------------------------------------------------------
 
 fn demonstrate_square_root() {
-    println "--- SQUARE ROOT ---"
-    println ""
+    println("--- SQUARE ROOT ---")
+    println("")
     
     let num = 144
     let sqrt_approx = integer_sqrt(num)
-    println "Square root of " + num + " = " + sqrt_approx
-    println "Verification: " + sqrt_approx + " * " + sqrt_approx + " = " + (sqrt_approx * sqrt_approx)
+    println("Square root of " + num + " = " + sqrt_approx)
+    println("Verification: " + sqrt_approx + " * " + sqrt_approx + " = " + (sqrt_approx * sqrt_approx))
     
-    println ""
+    println("")
 }
 
 // Integer square root using Newton's method

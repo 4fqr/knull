@@ -1,0 +1,248 @@
+// tui_demo.knull — Terminal UI (TUI) Showcase in Knull
+//
+//  Demonstrates: ANSI colors, bold/italic/underline, 256-color palette,
+//  RGB truecolor, box drawing, tables, progress bars, spinners,
+//  cursor control, and composited layouts
+
+// ── Colors ────────────────────────────────────────────────────────────────────
+println(bold("╔══════════════════════════════════════════════════════╗"))
+println(bold("║         KNULL TERMINAL UI SHOWCASE                  ║"))
+println(bold("╚══════════════════════════════════════════════════════╝"))
+println("")
+
+// ── 1. Standard Named Colors ─────────────────────────────────────────────────
+println(bold("── 1. Named Colors ──"))
+println("  " + red("red")     + "  " + green("green")   + "  " + blue("blue")    +
+        "  " + yellow("yellow") + "  " + magenta("magenta") + "  " + cyan("cyan"))
+println("  " + bright_red("bright_red")   + "  " + bright_green("bright_green") +
+        "  " + bright_blue("bright_blue") + "  " + bright_yellow("bright_yellow"))
+println("  " + white("white") + "  " + bright_white("bright_white") + "  " + dim("dim text"))
+
+// ── 2. Text Styles ────────────────────────────────────────────────────────────
+println("")
+println(bold("── 2. Text Styles ──"))
+println("  " + bold("bold") + "  " + italic("italic") + "  " + underline("underline") +
+        "  " + strikethrough("strikethrough") + "  " + blink("blink"))
+
+// ── 3. 256-Color Palette Sample ───────────────────────────────────────────────
+println("")
+println(bold("── 3. 256-Color Palette Sample ──"))
+let palette_row = "  "
+let ci = 0
+while ci < 16 {
+    palette_row = palette_row + bg_color_256(ci, "  ")
+    ci = ci + 1
+}
+println(palette_row)
+
+// Row from 196-231 (6x6 color cube)
+palette_row = "  "
+let ci2 = 196
+while ci2 < 220 {
+    palette_row = palette_row + bg_color_256(ci2, "  ")
+    ci2 = ci2 + 1
+}
+println(palette_row)
+
+// Grayscale ramp
+palette_row = "  "
+let ci3 = 232
+while ci3 < 256 {
+    palette_row = palette_row + bg_color_256(ci3, " ")
+    ci3 = ci3 + 1
+}
+println(palette_row)
+
+// ── 4. RGB Truecolor ─────────────────────────────────────────────────────────
+println("")
+println(bold("── 4. RGB Truecolor Gradient ──"))
+
+// Horizontal red → yellow gradient (10 steps)
+let grad = "  "
+let gi = 0
+while gi < 20 {
+    let gr = 255
+    let gg = gi * 12
+    let gb = 0
+    grad = grad + bg_rgb(gr, gg, gb, "  ")
+    gi = gi + 1
+}
+println(grad)
+
+// Blue → cyan
+grad = "  "
+let gi2 = 0
+while gi2 < 20 {
+    let gr2 = 0
+    let gg2 = gi2 * 12
+    let gb2 = 255
+    grad = grad + bg_rgb(gr2, gg2, gb2, "  ")
+    gi2 = gi2 + 1
+}
+println(grad)
+
+// Colored text labels
+println("")
+println("  " + rgb(255, 80, 80, "Crimson text") + "   " +
+        rgb(80, 200, 120, "Emerald text") + "   " +
+        rgb(100, 149, 237, "Cornflower text"))
+
+// ── 5. Box Drawing ────────────────────────────────────────────────────────────
+println("")
+println(bold("── 5. Box Drawing ──"))
+
+let box_lines = box_draw(50, 5, "Status Panel")
+let bl = 0
+while bl < len(box_lines) {
+    println("  " + box_lines[bl])
+    bl = bl + 1
+}
+println("")
+
+// Nested box (just inner content)
+let inner = box_draw(30, 3, "Inner")
+let il = 0
+while il < len(inner) {
+    println("      " + inner[il])
+    il = il + 1
+}
+
+// ── 6. Table Formatting ───────────────────────────────────────────────────────
+println("")
+println(bold("── 6. Table Formatting ──"))
+let headers = ["Language", "Creator", "Year", "Paradigm"]
+let rows = [
+    ["Knull",   "Community",    "2024", "Multi"],
+    ["Rust",    "Graydon Hoare","2010", "Systems"],
+    ["Python",  "G. van Rossum","1991", "Scripting"],
+    ["C",       "D. Ritchie",   "1972", "Procedural"],
+    ["Haskell", "Committee",    "1990", "Functional"]
+]
+let tbl = table_format(headers, rows)
+println(tbl)
+
+// ── 7. Progress Bars ─────────────────────────────────────────────────────────
+println("")
+println(bold("── 7. Progress Bars ──"))
+let tasks = ["Compiling      ", "Linking        ", "Optimizing     ", "Testing        ", "Deploying      "]
+let pcts  = [100, 87, 64, 42, 12]
+let pi_t  = 0
+while pi_t < len(tasks) {
+    let pval = pcts[pi_t]
+    let bar  = progress_bar(pval, 100, 30)
+    // Color the bar by completion level
+    let colored_bar = ""
+    if pval > 80 {
+        colored_bar = green(bar)
+    } else {
+        if pval > 40 {
+            colored_bar = yellow(bar)
+        } else {
+            colored_bar = red(bar)
+        }
+    }
+    println("  " + tasks[pi_t] + " " + colored_bar)
+    pi_t = pi_t + 1
+}
+
+// ── 8. Spinner Frames Preview ────────────────────────────────────────────────
+println("")
+println(bold("── 8. Spinner Frames ──"))
+let frames = spinner_frames()
+let sf = "  Spinner: "
+let fi = 0
+while fi < len(frames) {
+    sf = sf + frames[fi] + " "
+    fi = fi + 1
+}
+println(sf)
+println("  (Use in a loop with cursor_up(1) to animate in real programs)")
+
+// ── 9. Simulated Live Dashboard ───────────────────────────────────────────────
+println("")
+println(bold("── 9. Simulated System Dashboard ──"))
+
+// Draw the outer frame
+let dash_width = 56
+let dash_lines = box_draw(dash_width, 12, " KNULL SYSTEM DASHBOARD ")
+
+// Print top border
+println("  " + dash_lines[0])
+
+// CPU row
+let cpu_bar = progress_bar(73, 100, 20)
+println("  │  " + bold(cyan("CPU  ")) + " " + green(cpu_bar) + "   │")
+
+// Memory row
+let mem_bar = progress_bar(88, 100, 20)
+println("  │  " + bold(yellow("MEM  ")) + " " + red(mem_bar) + "    │")
+
+// Disk row
+let disk_bar = progress_bar(45, 100, 20)
+println("  │  " + bold(blue("DISK ")) + " " + green(disk_bar) + "   │")
+
+// Net stats row
+println("  │  " + bold(magenta("NET  ")) + "  ↓ " + green("1.2 MB/s") + "   ↑ " + cyan("0.3 MB/s") + "             │")
+
+// Separator
+println("  │  " + dim("─────────────────────────────────────────────────") + "  │")
+
+// Process list headers
+println("  │  " + bold("PID    NAME          CPU%   MEM(MB)") + "           │")
+println("  │  " + dim("25814  code           4.2    512.0") + "             │")
+println("  │  " + dim("31042  knull           2.1     64.0") + "             │")
+println("  │  " + dim("12301  firefox        18.7   1024.0") + "             │")
+
+// Bottom border
+println("  " + dash_lines[len(dash_lines) - 1])
+
+// ── 10. Color-coded Log Output ───────────────────────────────────────────────
+println("")
+println(bold("── 10. Log Output Styles ──"))
+println("  " + dim("[2024-01-15 10:23:01]") + " " + dim("DEBUG ") + " Loading config from /etc/knull.toml")
+println("  " + dim("[2024-01-15 10:23:02]") + " " + green("INFO  ") + " Server started on " + cyan("0.0.0.0:8080"))
+println("  " + dim("[2024-01-15 10:23:05]") + " " + green("INFO  ") + " Request " + bold("GET /api/v1/health") + " → " + green("200 OK"))
+println("  " + dim("[2024-01-15 10:23:10]") + " " + yellow("WARN  ") + " " + yellow("Memory usage exceeds 80% threshold"))
+println("  " + dim("[2024-01-15 10:23:15]") + " " + red("ERROR ") + " " + red("Connection refused: db.internal:5432"))
+println("  " + dim("[2024-01-15 10:23:15]") + " " + bright_red("FATAL ") + " " + bright_red("Cannot continue: shutting down"))
+
+// ── 11. Decorative Header Generator ─────────────────────────────────────────
+println("")
+println(bold("── 11. Decorative Headers ──"))
+
+// Generate three styles of section headers
+let title_text  = " KNULL LANGUAGE "
+let tlen        = len(title_text)
+let line_char   = "━"
+let pad_count   = 20
+let h_line      = str_repeat(line_char, pad_count)
+println("  " + bold(cyan(h_line + title_text + h_line)))
+
+// ASCII-style banner
+println("")
+println("  " + bg_rgb(30, 50, 100, bold(white("  ◆ STATUS: ALL SYSTEMS OPERATIONAL  "))))
+println("")
+
+// Rainbow text (one color per char)
+let rainbow_colors = [196, 202, 208, 214, 226, 46, 51, 21, 57, 93]
+let rainbow_str = "KNULL RAINBOW"
+let ri = 0
+let rainbow_out = "  "
+while ri < len(rainbow_str) {
+    let ch = substring(rainbow_str, ri, ri + 1)
+    let cidx = ri % len(rainbow_colors)
+    rainbow_out = rainbow_out + color_256(rainbow_colors[cidx], bold(ch))
+    ri = ri + 1
+}
+println(rainbow_out)
+
+// ── 12. Terminal Info ─────────────────────────────────────────────────────────
+println("")
+println(bold("── 12. Terminal Info ──"))
+let tsize = term_size()
+println("  Terminal size: " + tsize["cols"] + " cols × " + tsize["rows"] + " rows")
+
+println("")
+println(bold("╔══════════════════════════════════════════════════════╗"))
+println(bold("║     TUI showcase complete. Terminal is beautiful.   ║"))
+println(bold("╚══════════════════════════════════════════════════════╝"))

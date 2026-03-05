@@ -561,6 +561,7 @@ pub struct WasmCodeGen {
     module: WasmModule,
     func_indices: HashMap<String, u32>,
     local_types: Vec<WasmType>,
+    local_names: Vec<(String, u32)>,
     temp_count: u32,
     string_data: Vec<u8>,
 }
@@ -571,6 +572,7 @@ impl WasmCodeGen {
             module: WasmModule::new(),
             func_indices: HashMap::new(),
             local_types: Vec::new(),
+            local_names: Vec::new(),
             temp_count: 0,
             string_data: Vec::new(),
         }
@@ -619,6 +621,9 @@ impl WasmCodeGen {
         body: &ASTNode,
     ) -> Result<u32, String> {
         self.local_types = params.iter().map(|_| WasmType::I32).collect();
+        self.local_names = params.iter().enumerate()
+            .map(|(i, p)| (p.name.clone(), i as u32))
+            .collect();
         let mut body_instrs = Vec::new();
         self.compile_node(body, &mut body_instrs)?;
         body_instrs.push(WasmInstr::I32Const(0));
@@ -658,6 +663,7 @@ impl WasmCodeGen {
                 self.compile_node(value, instrs)?;
                 let local_idx = self.local_types.len() as u32;
                 self.local_types.push(WasmType::I32);
+                self.local_names.push((name.clone(), local_idx));
                 instrs.push(WasmInstr::LocalSet(local_idx));
             }
             ASTNode::Return(expr) => {
@@ -781,7 +787,9 @@ impl WasmCodeGen {
     }
 
     fn find_local(&self, name: &str) -> Option<u32> {
-        None
+        self.local_names.iter().rev()
+            .find(|(n, _)| n == name)
+            .map(|(_, idx)| *idx)
     }
 
     fn get_builtin_idx(&self, name: &str) -> u32 {

@@ -1,0 +1,114 @@
+// =============================================================================
+// FUNCTIONAL PROGRAMMING IN KNULL
+// =============================================================================
+// Demonstrates closures, higher-order functions, and functional patterns.
+
+fn main() {
+    println("=== Knull Functional Programming ===")
+    println("")
+
+    // ── Basic Closures ──────────────────────────────────────────────────────
+    println("-- Closures --")
+
+    let add = |a, b| a + b
+    let mul = |a, b| a * b
+    let sub = |a, b| a - b
+
+    println(f"add(3, 4)  = {add(3, 4)}")
+    println(f"mul(6, 7)  = {mul(6, 7)}")
+    println(f"sub(10, 3) = {sub(10, 3)}")
+
+    // Closure capturing environment
+    let base = 100
+    let add_base = |x| x + base
+    println(f"add_base(5) = {add_base(5)}")
+    println("")
+
+    // ── Higher-Order Functions ──────────────────────────────────────────────
+    println("-- Higher-Order Functions --")
+
+    let compose = |f, g| |x| f(g(x))
+    let double = |x| x * 2
+    let inc    = |x| x + 1
+
+    let double_then_inc = compose(inc, double)
+    let inc_then_double = compose(double, inc)
+
+    println(f"double_then_inc(5) = {double_then_inc(5)}")
+    println(f"inc_then_double(5) = {inc_then_double(5)}")
+
+    let apply = |f, x| f(x)
+    println(f"apply(double, 7) = {apply(double, 7)}")
+    println("")
+
+    // ── Map / Filter / Reduce ────────────────────────────────────────────────
+    println("-- Map / Filter / Reduce --")
+
+    let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    let squares  = map_fn(nums, |x| x * x)
+    let evens    = filter_fn(nums, |x| x % 2 == 0)
+    let sum      = reduce(nums, |acc, x| acc + x, 0)
+    let product  = reduce([1, 2, 3, 4, 5], |acc, x| acc * x, 1)
+
+    println(f"squares:   {squares}")
+    println(f"evens:     {evens}")
+    println(f"sum 1-10:  {sum}")
+    println(f"5!:        {product}")
+    println("")
+
+    // ── Flat Map ────────────────────────────────────────────────────────────
+    println("-- flat_map --")
+    let pairs = flat_map([1, 2, 3], |x| [x, -x])
+    println(f"pairs: {pairs}")
+    println("")
+
+    // ── Chained Pipeline ────────────────────────────────────────────────────
+    println("-- Chained Pipeline --")
+    let data = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]
+
+    // Remove duplicates → sort → filter > 3 → square
+    let unique_sorted_filtered_sq =
+        map_fn(
+            filter_fn(
+                data.unique().sort(),
+                |x| x > 3
+            ),
+            |x| x * x
+        )
+    println(f"Unique, sorted, filtered > 3, squared: {unique_sorted_filtered_sq}")
+
+    // Using pipeline |>
+    let pipeline_result = data |> filter_fn(|x| x >= 5)
+    println(f"Pipeline: values >= 5: {pipeline_result}")
+    println("")
+
+    // ── Currying ────────────────────────────────────────────────────────────
+    println("-- Currying --")
+    let curry_add = |a| |b| a + b
+    let add5 = curry_add(5)
+    let add10 = curry_add(10)
+
+    println(f"add5(3)  = {add5(3)}")
+    println(f"add10(7) = {add10(7)}")
+
+    let nums2 = [1, 2, 3, 4, 5]
+    let bumped = map_fn(nums2, add5)
+    println(f"map add5: {bumped}")
+    println("")
+
+    // ── Memoization Pattern ──────────────────────────────────────────────────
+    println("-- Fibonacci with reduce (no recursion) --")
+    let fib_n = |n|
+        reduce(
+            array(range(0, n)),
+            |state, _| [state[1], state[0] + state[1]],
+            [0, 1]
+        )
+    // Note: returns [fib(n-1), fib(n)] pair — get second element
+    let fib10 = fib_n(10)
+    println(f"fib(10) pair: {fib10}")
+    println("")
+
+    println("Done!")
+}

@@ -1,0 +1,210 @@
+// ──────────────────────────────────────────────────────────────────────────────
+//  sysmon.knull — Real-time System Monitor
+//  Shows: CPU, memory, disk, network, process list, environment info
+// ──────────────────────────────────────────────────────────────────────────────
+
+println("═══════════════════════════════════════════════")
+println("    KNULL SYSTEM MONITOR                        ")
+println("═══════════════════════════════════════════════")
+
+// Refresh sysinfo
+sys_refresh()
+
+// ── 1. Host Information ──────────────────────────────────────────────────────
+println("\n── Host ──")
+println("  Hostname   : " + sys_hostname())
+println("  OS         : " + sys_os_name() + " " + sys_os_version())
+println("  Kernel     : " + sys_kernel_version())
+println("  Arch       : " + sys_arch())
+println("  PID        : " + proc_pid())
+println("  Executable : " + env_exe())
+println("  CWD        : " + env_cwd())
+
+// ── 2. Uptime & Boot ─────────────────────────────────────────────────────────
+println("\n── Uptime ──")
+let uptime_s = sys_uptime()
+let hours    = uptime_s / 3600
+let mins     = (uptime_s % 3600) / 60
+let secs     = uptime_s % 60
+println("  Uptime: " + hours + "h " + mins + "m " + secs + "s")
+println("  Boot time: " + sys_boot_time() + " (unix seconds)")
+println("  Now:       " + timer_now_ms() + " ms epoch")
+
+// ── 3. CPU ────────────────────────────────────────────────────────────────────
+println("\n── CPU ──")
+let ncpu  = sys_cpu_count()
+let usage_arr = sys_cpu_usage()
+let freq_arr  = sys_cpu_freq()
+println("  Logical CPUs : " + ncpu)
+
+// Compute mean CPU usage from per-core array
+let cpu_total = 0.0
+let ci = 0
+while ci < len(usage_arr) {
+    cpu_total = cpu_total + usage_arr[ci]
+    ci = ci + 1
+}
+let usage = 0.0
+if ncpu > 0 { usage = cpu_total / ncpu }
+
+// Mean frequency
+let freq_total = 0.0
+let fi = 0
+while fi < len(freq_arr) {
+    freq_total = freq_total + freq_arr[fi]
+    fi = fi + 1
+}
+let freq = 0.0
+if ncpu > 0 { freq = freq_total / ncpu }
+
+println("  Mean CPU use : " + usage + "%")
+println("  Mean freq    : " + freq + " MHz")
+
+let load = sys_load_avg()
+println("  Load avg     : 1m=" + load["one"] + "  5m=" + load["five"] + "  15m=" + load["fifteen"])
+
+// Simple CPU bar
+let bar = "["
+let bars = 20
+let filled = (usage / 100.0) * bars
+let b = 0
+while b < bars {
+    if b < filled {
+        bar = bar + "█"
+    } else {
+        bar = bar + "░"
+    }
+    b = b + 1
+}
+bar = bar + "] " + usage + "%"
+println("  " + bar)
+
+// ── 4. Memory ────────────────────────────────────────────────────────────────
+println("\n── Memory ──")
+let mem_total = sys_memory_total()
+let mem_used  = sys_memory_used()
+let mem_avail = sys_memory_available()
+let mem_pct   = (float(mem_used) / float(mem_total)) * 100.0
+
+let mb = 1048576.0
+println("  Total     : " + (float(mem_total) / mb) + " MB")
+println("  Used      : " + (float(mem_used)  / mb) + " MB  (" + mem_pct + "%)")
+println("  Available : " + (float(mem_avail) / mb) + " MB")
+
+// Memory bar
+let mbar = "["
+let mfilled = (mem_pct / 100.0) * 20.0
+let mb2 = 0
+while mb2 < 20 {
+    if mb2 < mfilled {
+        mbar = mbar + "█"
+    } else {
+        mbar = mbar + "░"
+    }
+    mb2 = mb2 + 1
+}
+mbar = mbar + "] " + mem_pct + "%"
+println("  " + mbar)
+
+let swap_total = sys_swap_total()
+let swap_used  = sys_swap_used()
+println("  Swap total: " + (float(swap_total) / mb) + " MB  Used: " + (float(swap_used) / mb) + " MB")
+
+// ── 5. Disks ─────────────────────────────────────────────────────────────────
+println("\n── Disks ──")
+let disks = sys_disk_list()
+let di = 0
+let gb = 1073741824.0
+let disk = null
+let dtotal = 0.0
+let dused  = 0.0
+let davail = 0.0
+let dpct   = 0.0
+while di < len(disks) {
+    disk = disks[di]
+    dtotal = float(disk["total"])   / gb
+    dused  = float(disk["used"])    / gb
+    davail = float(disk["free"]) / gb
+    dpct   = 0.0
+    if disk["total"] > 0 {
+        dpct = (float(disk["used"]) / float(disk["total"])) * 100.0
+    }
+    println("  " + disk["name"])
+    println("    total=" + dtotal + " GB  used=" + dused + " GB  avail=" + davail + " GB  (" + dpct + "%)")
+    di = di + 1
+}
+
+// ── 6. Network Interfaces ────────────────────────────────────────────────────
+println("\n── Network ──")
+let nets = sys_network_list()
+let ni = 0
+let net = null
+while ni < len(nets) {
+    net = nets[ni]
+    println("  " + net["name"] + "  rx=" + net["rx"] + "B  tx=" + net["tx"] + "B")
+    ni = ni + 1
+}
+
+// ── 7. Processes ─────────────────────────────────────────────────────────────
+println("\n── First 10 Processes ──")
+let procs = sys_process_list()
+let show = 10
+if len(procs) < show { show = len(procs) }
+println("  PID      NAME                   MEM (MB)  CPU%")
+println("  ─────────────────────────────────────────────")
+let pi = 0
+let sproc = null
+let pmem = 0.0
+while pi < show {
+    sproc = procs[pi]
+    pmem = float(sproc["mem"]) / mb
+    println("  " + sproc["pid"] + "  " + sproc["name"] + "  " + pmem + "  " + sproc["cpu"])
+    pi = pi + 1
+}
+println("  Total processes: " + len(procs))
+
+// ── 8. Environment ────────────────────────────────────────────────────────────
+println("\n── Key Environment Variables ──")
+let interesting = ["PATH", "HOME", "USER", "SHELL", "TERM", "LANG"]
+let ei = 0
+let ekey = ""
+let eval = ""
+while ei < len(interesting) {
+    ekey = interesting[ei]
+    eval = env_get(ekey)
+    if len(eval) > 60 {
+        eval = substring(eval, 0, 57) + "..."
+    }
+    println("  " + ekey + " = " + eval)
+    ei = ei + 1
+}
+
+// ── 9. File System Quick Stats ────────────────────────────────────────────────
+println("\n── Filesystem ──")
+let tmpstat = fs_stat("/tmp")
+println("  /tmp  is_dir=" + tmpstat["is_dir"])
+let homedir = env_get("HOME")
+let homestat = fs_stat(homedir)
+println("  " + homedir + "  is_dir=" + homestat["is_dir"])
+
+// Count files in /tmp
+let tmp_items = fs_glob("/tmp/*")
+println("  Files/dirs in /tmp: " + len(tmp_items))
+
+// ── 10. Quick benchmark ──────────────────────────────────────────────────────
+println("\n── Micro-benchmark ──")
+let start_ns = timer_now_ns()
+let sum_bench = 0
+let bi = 0
+while bi < 1000000 {
+    sum_bench = sum_bench + bi
+    bi = bi + 1
+}
+let end_ns = timer_now_ns()
+let elapsed_ms = (end_ns - start_ns) / 1000000
+println("  Sum 0..1M = " + sum_bench)
+println("  Time: " + elapsed_ms + " ms")
+
+println("\n═══════════════════════════════════════════════")
+println("  System monitor complete.")
+println("═══════════════════════════════════════════════")

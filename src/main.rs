@@ -131,6 +131,12 @@ enum Commands {
     /// Start interactive REPL
     #[command(alias = "i")]
     Repl,
+    /// Evaluate an inline expression or snippet
+    #[command(alias = "e")]
+    Eval {
+        /// The Knull expression/snippet to evaluate
+        expr: String,
+    },
     /// Show version information
     #[command(alias = "v")]
     Version,
@@ -202,6 +208,7 @@ fn main() {
             }
         }
         Some(Commands::Repl) => cli::start_repl(),
+        Some(Commands::Eval { expr }) => cli::eval_expr(&expr, cli.verbose),
         Some(Commands::Version) => {
             show_version();
             Ok(())
@@ -234,38 +241,48 @@ fn main() {
 }
 
 fn show_version() {
-    println!("{}", ASCII_ART.bright_cyan());
+    println!("{}", ASCII_ART.bright_purple());
     println!(
-        "{} {}",
+        "  {} {} — {}",
         "Knull".bright_green().bold(),
-        "1.0.0".bright_white()
+        "v2.0.0".bright_white(),
+        "The God Programming Language".bright_yellow()
     );
-    println!("{}", "The God Programming Language".bright_yellow());
+    println!();
+    #[cfg(feature = "llvm-backend")]
+    println!("  Backend: LLVM (native compile)");
+    #[cfg(not(feature = "llvm-backend"))]
+    println!("  Backend: Interpreter + C codegen");
+    println!("  Edition: 2024");
 }
 
 fn show_help() {
-    println!("{}", ASCII_ART.bright_cyan());
+    println!("{}", ASCII_ART.bright_purple());
     println!(
-        "{} {} - {}",
+        "  {} {} — {}",
         "Knull".bright_green().bold(),
-        "1.0.0".bright_white(),
+        "v2.0.0".bright_white(),
         "The God Programming Language".bright_yellow()
     );
     println!();
     println!("{}", "USAGE:".bright_white().bold());
     println!("  knull [OPTIONS] <COMMAND>");
     println!();
-    println!("{}", "COMMANDS:".bright_white().bold());
-    println!("  run <file>      Run a Knull file");
-    println!("  build <file>    Compile a Knull file to binary");
-    println!("  check <file>    Check syntax without building");
-    println!("  fmt <file>      Format a Knull file");
-    println!("  new <name>      Create a new Knull project");
-    println!("  add <pkg>       Add a dependency to the project");
-    println!("  test            Run tests");
-    println!("  repl            Start interactive REPL");
-    println!("  version         Show version information");
-    println!("  help            Show this help message");
+    println!("{}", "CORE:".bright_white().bold());
+    println!("  {}  Run a .knull file",                   "run   <file>      ".bright_cyan());
+    println!("  {}  Evaluate an inline snippet",           "eval  <expr>      ".bright_cyan());
+    println!("  {}  Start interactive REPL",               "repl              ".bright_cyan());
+    println!("  {}  Check syntax/types",                   "check <file>      ".bright_cyan());
+    println!("  {}  Format a .knull file",                 "fmt   <file>      ".bright_cyan());
+    println!();
+    println!("{}", "BUILD:".bright_white().bold());
+    println!("  {}  Compile to binary",                    "build <file>      ".bright_cyan());
+    println!("  {}  Emit assembly",                        "asm   <file>      ".bright_cyan());
+    println!();
+    println!("{}", "PROJECT:".bright_white().bold());
+    println!("  {}  Create a new project",                 "new   <name>      ".bright_cyan());
+    println!("  {}  Add a dependency",                     "add   <pkg>       ".bright_cyan());
+    println!("  {}  Run test suite",                       "test              ".bright_cyan());
     println!();
     println!("{}", "OPTIONS:".bright_white().bold());
     println!("  -v, --verbose   Verbose output");
@@ -273,9 +290,10 @@ fn show_help() {
     println!("  -V, --version   Print version");
     println!();
     println!("{}", "EXAMPLES:".bright_white().bold());
-    println!("  knull run hello.knull           # Run a program");
-    println!("  knull new myproject             # Create new project");
-    println!("  knull build --release main.knull # Build optimized binary");
+    println!("  knull run hello.knull");
+    println!("  knull eval 'println(42 * 2)'");
+    println!("  knull repl");
+    println!("  knull build --release main.knull -o myapp");
     println!();
-    println!("Documentation: https://github.com/4fqr/knull");
+    println!("{}", "https://github.com/4fqr/knull".bright_black());
 }

@@ -1,0 +1,161 @@
+// ──────────────────────────────────────────────────────────────────────────────
+//  linalg_demo.knull — Linear Algebra, FFT, and Numerical Methods
+//  Shows: nalgebra matrix ops, FFT signal analysis, numerical integration,
+//         ODE solving, statistics, regression
+// ──────────────────────────────────────────────────────────────────────────────
+
+println("═══════════════════════════════════════════════")
+println("    KNULL LINEAR ALGEBRA & NUMERICAL DEMO       ")
+println("═══════════════════════════════════════════════")
+
+// ── 1. Basic Matrix Operations ────────────────────────────────────────────────
+println("\n── Matrix Operations ──")
+
+let A = mat_new([[1.0, 2.0], [3.0, 4.0]])
+let B = mat_new([[5.0, 6.0], [7.0, 8.0]])
+
+println("  A = " + A)
+println("  B = " + B)
+println("  A + B = " + mat_add(A, B))
+println("  A × B = " + mat_mul(A, B))
+println("  det(A) = " + mat_det(A))
+println("  trace(A) = " + mat_trace(A))
+println("  A^T = " + mat_transpose(A))
+
+let A_inv = mat_inv(A)
+println("  A^-1 = " + A_inv)
+
+// Verify: A * A^-1 ≈ I
+let should_be_I = mat_mul(A, A_inv)
+println("  A × A^-1 ≈ I: " + should_be_I)
+
+// ── 2. Solving Linear Systems Ax = b ─────────────────────────────────────────
+println("\n── Linear System Solver (Ax = b) ──")
+// 2x + y = 5, x + 3y = 10
+let coeff = mat_new([[2.0, 1.0], [1.0, 3.0]])
+let rhs   = [5.0, 10.0]
+let x_sol = mat_solve(coeff, rhs)
+println("  2x + y = 5, x + 3y = 10")
+println("  Solution: x=" + x_sol[0] + "  y=" + x_sol[1])
+
+// ── 3. Eigenvalues ─────────────────────────────────────────────────────────────
+println("\n── Eigenvalues ──")
+let sym = mat_new([[4.0, 2.0], [2.0, 3.0]])
+let eigs = mat_eigenvalues(sym)
+println("  Matrix: " + sym)
+println("  Eigenvalues: " + eigs)
+
+// ── 4. SVD ────────────────────────────────────────────────────────────────────
+println("\n── Singular Value Decomposition ──")
+let M = mat_new([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+let svd = mat_svd(M)
+println("  Singular values: " + svd["singular_values"])
+println("  Rank: " + mat_rank(M))
+println("  Norm: " + mat_norm(M))
+
+// ── 5. Vector Operations ───────────────────────────────────────────────────────
+println("\n── Vector Operations ──")
+let u = [1.0, 2.0, 3.0]
+let v = [4.0, 5.0, 6.0]
+println("  u = " + u)
+println("  v = " + v)
+println("  u · v = " + vec_dot(u, v))
+println("  u × v = " + vec_cross(u, v))
+println("  |u| = " + vec_norm(u))
+println("  normalize(u) = " + vec_normalize(u))
+println("  angle(u, v) = " + vec_angle(u, v) + " rad")
+println("  lerp(u, v, 0.5) = " + vec_lerp(u, v, 0.5))
+
+// ── 6. FFT Signal Analysis ─────────────────────────────────────────────────────
+println("\n── FFT Signal Analysis ──")
+// Synthesize 440 Hz + 880 Hz signal (8 samples at 8kHz)
+let sample_rate = 8000.0
+let N  = 128
+let pi = 3.14159265359
+
+let signal = []
+let k = 0
+while k < N {
+    let t   = k / sample_rate
+    let s   = sin(2.0 * pi * 440.0 * t) + 0.5 * sin(2.0 * pi * 880.0 * t)
+    signal  = signal + [s]
+    k = k + 1
+}
+
+let spectrum   = fft(signal)
+let magnitudes = fft_magnitude(spectrum)
+let freqs      = fft_frequencies(N, sample_rate)
+
+// Find top 3 peaks
+println("  Signal: N=" + N + " at " + sample_rate + " Hz")
+println("  Spectrum ( first 10 magnitudes): " + magnitudes[0] + " " + magnitudes[1] + " " + magnitudes[2] + " ...")
+println("  Frequencies (first 5): " + freqs[0] + " " + freqs[1] + " " + freqs[2] + " " + freqs[3] + " " + freqs[4])
+
+// ── 7. Numerical Integration ───────────────────────────────────────────────────
+println("\n── Numerical Integration ──")
+// ∫₀^π sin(x) dx = 2
+let xs_trap = linspace(0.0, pi, 1000)
+let ys_trap = []
+let t = 0
+while t < len(xs_trap) {
+    ys_trap = ys_trap + [sin(xs_trap[t])]
+    t = t + 1
+}
+let trap_result = integrate_trapezoidal(xs_trap, ys_trap)
+println("  ∫₀^π sin(x) dx (trapezoidal, 1000 pts) = " + trap_result)
+println("  Exact = 2.0,  Error = " + abs(trap_result - 2.0))
+
+// ── 8. Statistics ─────────────────────────────────────────────────────────────
+println("\n── Statistics & Regression ──")
+let x_data = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+let y_data = [2.1, 4.0, 5.9, 8.1, 10.2, 12.0, 14.1, 15.9, 17.8, 20.3]
+
+let reg  = stat_regression_linear(x_data, y_data)
+let corr = stat_correlation(x_data, y_data)
+
+println("  Data: y ≈ 2x + noise")
+println("  slope = " + reg["slope"] + "  intercept = " + reg["intercept"])
+println("  R² = " + reg["r2"])
+println("  correlation(x, y) = " + corr)
+
+let z_scores = stat_zscore(y_data)
+println("  z-scores: " + z_scores[0] + " " + z_scores[1] + " ... " + z_scores[9])
+
+let hist = stat_histogram(y_data, 4)
+println("  histogram (4 bins): " + hist)
+
+println("  IQR: " + stat_iqr(y_data))
+println("  skewness: " + stat_skewness(y_data))
+println("  kurtosis: " + stat_kurtosis(y_data))
+
+// ── 9. ODE Solving (RK4) ──────────────────────────────────────────────────────
+println("\n── ODE Solver (Runge-Kutta 4) ──")
+// dy/dt = -y, y(0)=1  → exact solution: y(t) = e^-t
+// (passed as fn idx — approximated via finite diff here, using builtin)
+// Solve using small numerical derivative
+println("  dy/dt = -0.5·y  from t=0 to t=4  (step=0.1)")
+let t_span = [0.0, 4.0]
+let y0     = [1.0]
+let steps  = 40
+// RK4 manually (interpreter loop)
+let y_rk  = 1.0
+let dt    = 0.1
+let t_cur = 0.0
+let step  = 0
+while step < steps {
+    let k1 = -0.5 * y_rk
+    let k2 = -0.5 * (y_rk + 0.5 * dt * k1)
+    let k3 = -0.5 * (y_rk + 0.5 * dt * k2)
+    let k4 = -0.5 * (y_rk + dt * k3)
+    y_rk   = y_rk + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+    t_cur  = t_cur + dt
+    step   = step + 1
+}
+let exact = exp(-0.5 * 4.0)
+println("  y(4) numerical = " + y_rk)
+println("  y(4) exact     = " + exact)
+println("  error          = " + abs(y_rk - exact))
+
+println("\n═══════════════════════════════════════════════")
+println("  Linear algebra demo complete.")
+println("═══════════════════════════════════════════════")

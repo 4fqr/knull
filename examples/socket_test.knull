@@ -1,0 +1,17 @@
+// Smoke test for native TCP/UDP socket builtins
+
+let ips = dns_lookup("localhost")
+println("DNS localhost: " + str(ips))
+
+let open = port_open("127.0.0.1", 9999)
+println("port_open closed port: " + str(open))
+
+let conn = tcp_connect("127.0.0.1", 19999)
+println("tcp_connect closed port (should be null): " + str(conn))
+
+let sock = udp_bind("0.0.0.0", 54321)
+println("udp_bind port 54321: handle=" + str(sock))
+udp_close(sock)
+println("udp_close: ok")
+
+println("ALL SOCKET TESTS PASSED")

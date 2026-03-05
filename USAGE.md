@@ -1,597 +1,299 @@
 # Knull Usage Guide
 
-Complete guide for using the Knull programming language and command-line interface.
+Complete reference for the Knull CLI, REPL, and project workflow.
 
 ---
 
 ## Table of Contents
 
 1. [Installation](#installation)
-2. [Command Reference](#command-reference)
-3. [Writing Knull Programs](#writing-knull-programs)
-4. [Project Management](#project-management)
-5. [Editor Integration](#editor-integration)
-6. [Troubleshooting](#troubleshooting)
+2. [CLI Commands](#cli-commands)
+3. [REPL](#repl)
+4. [Writing Programs](#writing-programs)
+5. [Project Management](#project-management)
+6. [Editor Support](#editor-support)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Installation
 
-### Prerequisites
-
-- Rust compiler (1.70 or later)
-- Git
-
-### Building from Source
+### Build from Source
 
 ```bash
-# Clone the repository
 git clone https://github.com/4fqr/knull.git
-cd knull
-
-# Build the compiler
-cd src
+cd knull/src
 cargo build --release --no-default-features
-
-# The binary is located at:
-# Linux/macOS: target/release/knull
-# Windows: target/release/knull.exe
-```
-
-### Adding to PATH
-
-**Linux/macOS:**
-```bash
-# Temporary (current session only)
 export PATH="$PWD/target/release:$PATH"
-
-# Permanent (add to ~/.bashrc or ~/.zshrc)
-echo 'export PATH="$HOME/knull/src/target/release:$PATH"' >> ~/.bashrc
-source ~/.bashrc
 ```
 
-**Windows:**
-```powershell
-# Add to system PATH through System Properties
-# Or copy to a directory already in PATH:
-copy target\release\knull.exe C:\Windows\System32\
-```
-
-### Verification
+### Quick Install Script
 
 ```bash
-knull --version
+curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Expected output:
-```
-knull 1.0.0
+### Verify
+
+```bash
+knull version
+# Knull v2.0.0 — The God Programming Language
 ```
 
 ---
 
-## Command Reference
+## CLI Commands
 
-### knull run
+### `run` — Execute a file
 
-Execute a Knull source file.
-
-```bash
-knull run <file>
-```
-
-**Example:**
 ```bash
 knull run hello.knull
-knull run examples/fibonacci.knull
+knull run -v src/main.knull        # verbose output
 ```
 
-**Output:**
-```
-Running: hello.knull
-Lexed 12 tokens
-Parsed successfully
-Hello, World!
-```
-
-### Language Features
-
-Knull supports advanced language features:
-
-**Hex Literals:**
-```knull
-fn main() {
-    let x = 0xFF       // 255 in decimal
-    let addr = 0xDEADBEEF
-    print("Hex: ", x)
-}
-```
-
-**Block Comments:**
-```knull
-fn main() {
-    /* This is a
-       multi-line comment */
-    print("Comments work!")
-}
-```
-
-**Const Declarations:**
-```knull
-const MAX_SIZE = 1024
-const PI = 3.14159
-
-fn main() {
-    print("Max: ", MAX_SIZE)
-}
-```
-
-**Array Types:**
-```knull
-fn main() {
-    let arr: [i32; 5] = [1, 2, 3, 4, 5]
-    print(arr[0])
-}
-```
-
-**Type Casting:**
-```knull
-fn main() {
-    let x = 42 as f64
-    print(x)
-}
-```
-
-### knull build
-
-Compile a Knull file to binary (preparation for native compilation).
+### `eval` — Inline evaluation
 
 ```bash
-knull build <file> [OPTIONS]
+knull eval 'println(42 * 7)'
+knull eval 'let x = [1,2,3]; println(x.map(fn(n){n*n}))'
 ```
 
-**Options:**
-- `-o, --output <path>`: Specify output file name
-- `-r, --release`: Build in release mode (optimized)
-
-**Example:**
-```bash
-knull build hello.knull
-knull build hello.knull -o myprogram
-knull build hello.knull --release
-```
-
-### knull check
-
-Validate syntax without executing.
-
-```bash
-knull check <file>
-```
-
-**Example:**
-```bash
-knull check hello.knull
-```
-
-**Success output:**
-```
-No errors found
-```
-
-**Error output:**
-```
-Error: Parse error: Expected LBrace, got Identifier
-```
-
-### knull fmt
-
-Format a Knull source file.
-
-```bash
-knull fmt <file>
-```
-
-**Example:**
-```bash
-knull fmt hello.knull
-```
-
-### knull repl
-
-Start the interactive Read-Eval-Print Loop.
+### `repl` — Interactive session
 
 ```bash
 knull repl
 ```
 
-**Example session:**
-```
-Knull REPL v1.0.0
-Type :quit to exit
-
-knull> let x = 42
-knull> println x
-42
-knull> :quit
-```
-
-### knull new
-
-Create a new Knull project.
+### `build` — Compile to binary
 
 ```bash
-knull new <project-name>
+knull build main.knull                    # debug build
+knull build main.knull -o myapp           # custom output name
+knull build --release main.knull          # optimised
+knull build --target wasm32 app.knull     # WebAssembly
 ```
 
-**Example:**
-```bash
-knull new myproject
-```
-
-**Creates:**
-```
-myproject/
-├── knull.toml          # Project manifest
-├── README.md           # Project documentation
-└── src/
-    └── main.knull      # Entry point
-```
-
-### knull add
-
-Add a dependency to the current project.
+### `check` — Syntax checking
 
 ```bash
-knull add <package> [version]
+knull check src/main.knull
 ```
 
-**Example:**
+### `fmt` — Format source
+
 ```bash
-knull add json
-knull add http 1.2.0
+knull fmt src/main.knull
 ```
 
-### knull test
-
-Run tests in the current project.
+### `new` — Scaffold project
 
 ```bash
-knull test
+knull new my-project
+cd my-project
+knull run src/main.knull
 ```
 
-Looks for test files in:
-- `tests/`
-- `test/`
-- `src/tests/`
-
-### knull version
-
-Display version information.
+### `add` / `test`
 
 ```bash
-knull version
+knull add json ^1.0         # add dependency
+knull test                  # run test suite
 ```
 
-### knull help
-
-Display help information.
+### Global flag
 
 ```bash
-knull help
+knull -v run file.knull     # verbose everywhere
 ```
 
 ---
 
-## Writing Knull Programs
+## REPL
 
-### Basic Program Structure
+Start with `knull repl`. State (variables, functions) persists between lines.
 
-Every Knull program requires a `main` function as the entry point:
+### Session example
+
+```
+knull❯ let x = 100
+knull❯ let y = 200
+knull❯ x + y
+300 // number
+knull❯ fn double(n) { n * 2 }
+knull❯ double(x)
+200 // number
+knull❯ :vars
+Variables:
+  x = 100
+  y = 200
+knull❯ :fns
+Functions:
+  double
+knull❯ :quit
+Goodbye! 👋
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `:help` / `:h` | Show help |
+| `:quit` / `:q` | Exit |
+| `:vars` | List all variables |
+| `:fns` | List all defined functions |
+| `:reset` | Clear all state |
+| `:load <file>` | Execute a file into this session |
+| `:type <expr>` | Show type of expression |
+| `:clear` | Clear screen |
+
+### Multi-line blocks
+
+```
+knull❯ fn fib(n) {
+  ...   if n <= 1 { n }
+  ...   else { fib(n-1) + fib(n-2) }
+  ... }
+knull❯ fib(10)
+55 // number
+```
+
+---
+
+## Writing Programs
+
+### Minimal program
+
+```knull
+println("Hello, Knull!")
+```
+
+No `main()` required — top-level code executes in order.
+
+### With main function
 
 ```knull
 fn main() {
-    println "Hello, World!"
+    println("Hello!")
 }
+
+main()
 ```
 
-### Variables
-
-Declare variables using `let`:
+### Functions must be defined before use (or at top level)
 
 ```knull
-let integer = 42
-let floating = 3.14
-let text = "Hello"
+// Functions defined anywhere at top level are hoisted
+fn greet(name) {
+    "Hello, " + name + "!"
+}
+
+println(greet("World"))
 ```
 
-### Functions
-
-Define functions with parameters:
+### Implicit return
 
 ```knull
-fn add(a, b) {
-    return a + b
-}
-
-fn main() {
-    let result = add(5, 3)
-    println result
-}
+fn square(n) { n * n }          // last expression is returned
+fn abs(n) { if n < 0 { -n } else { n } }
 ```
 
-### Control Flow
-
-If-else statements:
+### Closures
 
 ```knull
-if condition {
-    // true branch
-} else {
-    // false branch
-}
-```
-
-While loops:
-
-```knull
-let i = 0
-while i < 10 {
-    println i
-    i = i + 1
-}
-```
-
-### Comments
-
-Single-line comments:
-
-```knull
-// This is a comment
-let x = 5  // This is also a comment
-```
-
-### Complete Example
-
-```knull
-// Calculate factorial
-fn factorial(n) {
-    if n <= 1 {
-        return 1
-    }
-    
-    let result = 1
-    let i = 2
-    
-    while i <= n {
-        result = result * i
-        i = i + 1
-    }
-    
-    return result
-}
-
-fn main() {
-    println "Factorial of 5: " + factorial(5)
-}
+let mul = fn(a, b) { a * b }
+let double = fn(x) { x * 2 }
+println(mul(3, 4))    // 12
+println(double(7))    // 14
 ```
 
 ---
 
 ## Project Management
 
-### knull.toml Format
+### Project structure
+
+```
+my-project/
+├── knull.toml
+├── src/
+│   └── main.knull
+├── tests/
+│   └── tests.knull
+└── packages/
+```
+
+### knull.toml
 
 ```toml
 [package]
-name = "myproject"
+name    = "my-project"
 version = "0.1.0"
-edition = "2024"
-entry = "src/main.knull"
-authors = ["Your Name <email@example.com>"]
-description = "A brief description"
-license = "MIT"
+author  = "Your Name"
 
 [dependencies]
-# std = "1.0"
-
-[build]
-opt-level = 3
-lto = true
+json    = "^1.0"
 ```
 
-### Project Structure
-
-Standard project layout:
-
-```
-myproject/
-├── knull.toml          # Project configuration
-├── README.md           # Documentation
-├── src/
-│   ├── main.knull      # Entry point
-│   └── lib.knull       # Library code
-├── examples/           # Example programs
-└── tests/              # Test files
-```
-
-### Building Projects
+### Adding dependencies
 
 ```bash
-# Navigate to project directory
-cd myproject
+knull add json ^1.0
+knull add crypto ^2.0
+```
 
-# Run the main entry point
-knull run src/main.knull
+### Running tests
 
-# Check all files for syntax errors
-knull check src/main.knull
+```bash
+knull test                # runs all *.knull in tests/
 ```
 
 ---
 
-## Editor Integration
+## Editor Support
 
-### Visual Studio Code
+### VS Code
 
-1. Install the Knull extension (when available)
-2. Or use the provided syntax file:
-   - Copy `syntax/knull.tmLanguage.json` to `.vscode/extensions/`
+Install the bundled extension from `editor/`:
 
-### Vim
-
-Add to `~/.vim/filetype.vim`:
-
-```vim
-augroup filetypedetect
-  au! BufNewFile,BufRead *.knull set filetype=knull
-augroup END
+```bash
+cd editor && npm install && npm run compile
+code --install-extension knull-lang-*.vsix
 ```
 
-Create `~/.vim/syntax/knull.vim`:
+Or add `.knull` → language association manually.
 
-```vim
-if exists("b:current_syntax")
-  finish
-endif
+Features provided:
+- Syntax highlighting
+- Bracket matching / auto-close
+- Line & block comments (`//`, `/* */`)
+- Snippets: `fn`, `let`, `if`, `while`, `match`, `struct`, `impl`
 
-syntax keyword knullKeyword fn let if else while for return
-syntax keyword knullType int float string bool
-syntax match knullComment "//.*$"
-syntax match knullNumber "\d\+"
-syntax match knullString "\"[^\"]*\""
+### Other editors
 
-highlight link knullKeyword Keyword
-highlight link knullType Type
-highlight link knullComment Comment
-highlight link knullNumber Number
-highlight link knullString String
-
-let b:current_syntax = "knull"
-```
-
-### Sublime Text
-
-Copy `syntax/knull.tmLanguage.json` to:
-
-```
-~/.config/sublime-text/Packages/User/
-```
-
-### Emacs
-
-Add to `~/.emacs` or `~/.emacs.d/init.el`:
-
-```elisp
-(add-to-list 'auto-mode-alist '("\\.knull\\'" . knull-mode))
-
-(define-derived-mode knull-mode prog-mode "Knull"
-  "Major mode for editing Knull source files."
-  (setq comment-start "// ")
-  (setq comment-end "")
-  (font-lock-add-keywords nil
-    '(("\\<\\(fn\\|let\\|if\\|else\\|while\\|for\\|return\\)\\>" . font-lock-keyword-face)
-      ("\\<\\(int\\|float\\|string\\|bool\\)\\>" . font-lock-type-face)
-      ("//.*$" . font-lock-comment-face))))
-```
+TextMate grammar at `editor/syntaxes/knull.tmLanguage.json` works with any editor that supports TextMate grammars (Sublime Text, Atom, Nova, etc.).
 
 ---
 
 ## Troubleshooting
 
-### Command Not Found
+| Problem | Solution |
+|---------|----------|
+| `knull: command not found` | Add `target/release` to `$PATH` |
+| `Runtime error: Undefined variable` | Check spelling / scope |
+| `Parse error: Expected ...` | Check syntax — use `knull check` |
+| Build fails (LLVM) | Build with `--no-default-features` |
+| Stack overflow on recursion | Add a base case; reduce recursion depth |
+| `spawn` thread errors | Ensure block syntax: `spawn { ... }` |
 
-**Problem:** `knull: command not found`
+### Verbose run
 
-**Solutions:**
-1. Verify the binary exists: `ls target/release/knull`
-2. Add to PATH: `export PATH="$PWD/target/release:$PATH"`
-3. Use full path: `./target/release/knull`
-
-### Parse Errors
-
-**Problem:** `Error: Expected LBrace, got Identifier`
-
-**Solution:** Check for syntax errors. Common issues:
-- Missing braces: `fn main()` should be `fn main() { }`
-- Incorrect function call syntax: use `println "text"` not `println("text")`
-
-### Build Failures
-
-**Problem:** Cargo build fails
-
-**Solutions:**
-1. Update Rust: `rustup update`
-2. Build without LLVM: `cargo build --release --no-default-features`
-3. Check for missing dependencies
-
-### Runtime Errors
-
-**Problem:** `Error: undefined variable 'x'`
-
-**Solution:** Ensure variables are declared with `let` before use.
-
-**Problem:** Infinite loops
-
-**Solution:** Verify loop conditions will eventually be false:
-
-```knull
-// Correct
-let i = 0
-while i < 10 {
-    i = i + 1  // Increment ensures termination
-}
-
-// Incorrect (infinite loop)
-let i = 0
-while i < 10 {
-    // Missing increment
-}
+```bash
+knull -v run file.knull
 ```
 
----
+### Check syntax only
 
-## Quick Reference
-
-### File Extensions
-
-- `.knull` - Knull source files
-
-### Entry Point
-
-- `fn main()` - Required in executable programs
-
-### Common Patterns
-
-**Loop n times:**
-```knull
-let i = 0
-while i < n {
-    // Loop body
-    i = i + 1
-}
+```bash
+knull check file.knull
 ```
-
-**Iterate array:**
-```knull
-let arr = [1, 2, 3, 4, 5]
-let i = 0
-while i < 5 {
-    println arr[i]
-    i = i + 1
-}
-```
-
-**Function with default behavior:**
-```knull
-fn greet(name) {
-    if name == "" {
-        return "Hello, World!"
-    }
-    return "Hello, " + name + "!"
-}
-```
-
----
-
-For additional information, consult the Language Guide (docs/GUIDE.md) or Standard Library Reference (docs/STD_LIB.md).

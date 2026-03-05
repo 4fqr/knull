@@ -4,27 +4,27 @@
 // Display awesome ASCII art and patterns
 
 fn main() {
-    println "=========================================="
-    println "  ASCII ART GALLERY"
-    println "=========================================="
-    println ""
+    println("==========================================")
+    println("  ASCII ART GALLERY")
+    println("==========================================")
+    println("")
     
     // Knull logo
-    println "--- KNULL LOGO ---"
-    println ""
-    println "    _  ___      _       _ "
-    println "   | |/ / |    | |     | |"
-    println "   | ' /| | ___| |_   _| |"
-    println "   | . \\| |/ _ \\ | | | | |"
-    println "   | |\\ \\ |  __/ | |_| |_|"
-    println "   |_| \\_\\_|\\___|_|\\__, (_)"
-    println "                    __/ |  "
-    println "                   |___/   "
-    println ""
+    println("--- KNULL LOGO ---")
+    println("")
+    println("    _  ___      _       _ ")
+    println("   | |/ / |    | |     | |")
+    println("   | ' /| | ___| |_   _| |")
+    println("   | . \\| |/ _ \\ | | | | |")
+    println("   | |\\ \\ |  __/ | |_| |_|")
+    println("   |_| \\_\\_|\\___|_|\\__, (_)")
+    println("                    __/ |  ")
+    println("                   |___/   ")
+    println("")
     
     // Diamond pattern
-    println "--- DIAMOND PATTERN ---"
-    println ""
+    println("--- DIAMOND PATTERN ---")
+    println("")
     
     let size = 5
     let i = 1
@@ -35,7 +35,7 @@ fn main() {
         let spaces = size - i
         let s = 0
         while s < spaces {
-            print " "
+            print(" ")
             s = s + 1
         }
         
@@ -43,11 +43,11 @@ fn main() {
         let stars = 2 * i - 1
         let st = 0
         while st < stars {
-            print "*"
+            print("*")
             st = st + 1
         }
         
-        println ""
+        println("")
         i = i + 1
     }
     
@@ -58,7 +58,7 @@ fn main() {
         let spaces = size - i
         let s = 0
         while s < spaces {
-            print " "
+            print(" ")
             s = s + 1
         }
         
@@ -66,19 +66,19 @@ fn main() {
         let stars = 2 * i - 1
         let st = 0
         while st < stars {
-            print "*"
+            print("*")
             st = st + 1
         }
         
-        println ""
+        println("")
         i = i - 1
     }
     
-    println ""
+    println("")
     
     // Number pyramid
-    println "--- NUMBER PYRAMID ---"
-    println ""
+    println("--- NUMBER PYRAMID ---")
+    println("")
     
     let rows = 5
     let row = 1
@@ -88,28 +88,28 @@ fn main() {
         let spaces = rows - row
         let s = 0
         while s < spaces {
-            print "  "
+            print("  ")
             s = s + 1
         }
         
         // Ascending numbers
         let num = 1
         while num <= row {
-            print num + " "
+            print(num + " ")
             num = num + 1
         }
         
         // Descending numbers
         num = row - 1
         while num >= 1 {
-            print num + " "
+            print(num + " ")
             num = num - 1
         }
         
-        println ""
+        println("")
         row = row + 1
     }
     
-    println ""
-    println "=========================================="
+    println("")
+    println("==========================================")
 }

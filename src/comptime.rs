@@ -175,12 +175,16 @@ fn value_to_embedded(val: &Value) -> EmbeddedValue {
         Value::Bool(b) => EmbeddedValue::Bool(*b),
         Value::String(s) => EmbeddedValue::String(s.clone()),
         Value::Array(arr) => EmbeddedValue::String(format!("{:?}", arr)),
+        Value::Map(_) => EmbeddedValue::String("<map>".to_string()),
+        Value::Tuple(vals) => EmbeddedValue::String(format!("({})", vals.iter().map(|v| format!("{}", v)).collect::<Vec<_>>().join(", "))),
+        Value::Closure { params, .. } => EmbeddedValue::String(format!("<closure({})>", params.join(","))),
         Value::StructDef(_) => EmbeddedValue::String("<struct_def>".to_string()),
         Value::StructInstance(_) => EmbeddedValue::String("<struct_instance>".to_string()),
         Value::Function(_) => EmbeddedValue::String("<function>".to_string()),
         Value::Trait(_) => EmbeddedValue::String("<trait>".to_string()),
         Value::Reference(_) => EmbeddedValue::String("<reference>".to_string()),
         Value::Null => EmbeddedValue::Unit,
+        Value::Range { start, end, inclusive } => EmbeddedValue::String(if *inclusive { format!("{}..={}", start, end) } else { format!("{}..{}", start, end) }),
     }
 }
 

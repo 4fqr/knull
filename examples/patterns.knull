@@ -24,14 +24,14 @@ fn main() {
 // -----------------------------------------------------------------------------
 
 fn print_header() {
-    println "=========================================="
-    println "  PATTERN PROGRAMS"
-    println "=========================================="
-    println ""
+    println("==========================================")
+    println("  PATTERN PROGRAMS")
+    println("==========================================")
+    println("")
 }
 
 fn print_footer() {
-    println "=========================================="
+    println("==========================================")
 }
 
 // -----------------------------------------------------------------------------
@@ -39,8 +39,8 @@ fn print_footer() {
 // -----------------------------------------------------------------------------
 
 fn print_right_triangle() {
-    println "--- RIGHT TRIANGLE ---"
-    println ""
+    println("--- RIGHT TRIANGLE ---")
+    println("")
     
     let rows = 5
     let i = 1
@@ -48,14 +48,14 @@ fn print_right_triangle() {
     while i <= rows {
         let j = 1
         while j <= i {
-            print "* "
+            print("* ")
             j = j + 1
         }
-        println ""
+        println("")
         i = i + 1
     }
     
-    println ""
+    println("")
 }
 
 // -----------------------------------------------------------------------------
@@ -63,8 +63,8 @@ fn print_right_triangle() {
 // -----------------------------------------------------------------------------
 
 fn print_inverted_triangle() {
-    println "--- INVERTED TRIANGLE ---"
-    println ""
+    println("--- INVERTED TRIANGLE ---")
+    println("")
     
     let rows = 5
     let i = rows
@@ -72,14 +72,14 @@ fn print_inverted_triangle() {
     while i >= 1 {
         let j = 1
         while j <= i {
-            print "* "
+            print("* ")
             j = j + 1
         }
-        println ""
+        println("")
         i = i - 1
     }
     
-    println ""
+    println("")
 }
 
 // -----------------------------------------------------------------------------
@@ -87,8 +87,8 @@ fn print_inverted_triangle() {
 // -----------------------------------------------------------------------------
 
 fn print_pyramid() {
-    println "--- PYRAMID ---"
-    println ""
+    println("--- PYRAMID ---")
+    println("")
     
     let rows = 5
     let i = 1
@@ -98,7 +98,7 @@ fn print_pyramid() {
         let spaces = rows - i
         let s = 0
         while s < spaces {
-            print "  "
+            print("  ")
             s = s + 1
         }
         
@@ -106,15 +106,15 @@ fn print_pyramid() {
         let stars = 2 * i - 1
         let j = 0
         while j < stars {
-            print "* "
+            print("* ")
             j = j + 1
         }
         
-        println ""
+        println("")
         i = i + 1
     }
     
-    println ""
+    println("")
 }
 
 // -----------------------------------------------------------------------------
@@ -122,8 +122,8 @@ fn print_pyramid() {
 // -----------------------------------------------------------------------------
 
 fn print_number_triangle() {
-    println "--- NUMBER TRIANGLE ---"
-    println ""
+    println("--- NUMBER TRIANGLE ---")
+    println("")
     
     let rows = 5
     let i = 1
@@ -131,15 +131,15 @@ fn print_number_triangle() {
     while i <= rows {
         let j = 1
         while j <= i {
-            print j
-            print " "
+            print(j)
+            print(" ")
             j = j + 1
         }
-        println ""
+        println("")
         i = i + 1
     }
     
-    println ""
+    println("")
 }
 
 // -----------------------------------------------------------------------------
@@ -147,8 +147,8 @@ fn print_number_triangle() {
 // -----------------------------------------------------------------------------
 
 fn print_diamond() {
-    println "--- DIAMOND ---"
-    println ""
+    println("--- DIAMOND ---")
+    println("")
     
     let size = 5
     
@@ -159,7 +159,7 @@ fn print_diamond() {
         let spaces = size - i
         let s = 0
         while s < spaces {
-            print " "
+            print(" ")
             s = s + 1
         }
         
@@ -167,11 +167,11 @@ fn print_diamond() {
         let stars = 2 * i - 1
         let j = 0
         while j < stars {
-            print "*"
+            print("*")
             j = j + 1
         }
         
-        println ""
+        println("")
         i = i + 1
     }
     
@@ -182,7 +182,7 @@ fn print_diamond() {
         let spaces = size - i
         let s = 0
         while s < spaces {
-            print " "
+            print(" ")
             s = s + 1
         }
         
@@ -190,13 +190,13 @@ fn print_diamond() {
         let stars = 2 * i - 1
         let j = 0
         while j < stars {
-            print "*"
+            print("*")
             j = j + 1
         }
         
-        println ""
+        println("")
         i = i - 1
     }
     
-    println ""
+    println("")
 }

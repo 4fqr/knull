@@ -81,7 +81,7 @@ fn main() {
     println("─────────────────────────────────────────────────────────────")
     println("  Thread functions available: spawn, sleep, thread_id")
     println("  Spawning a thread...")
-    spawn("println('    Hello from thread!')")
+    spawn { println("    Hello from thread!") }
     sleep(100)
     println("")
     
@@ -155,3 +155,5 @@ fn main() {
 fn add(a, b) {
     return a + b
 }
+
+main()

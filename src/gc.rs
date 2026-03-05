@@ -59,6 +59,8 @@ pub struct GCObject<T> {
 /// Global GC state
 pub struct GCState {
     next_id: AtomicUsize,
+    /// id -> (size, live) — live=true means root still holds it
+    objects: Mutex<std::collections::HashMap<usize, (usize, bool)>>,
     roots: Mutex<HashSet<usize>>,
     total_allocated: AtomicUsize,
     total_freed: AtomicUsize,
@@ -68,6 +70,7 @@ impl GCState {
     pub fn new() -> Self {
         Self {
             next_id: AtomicUsize::new(1),
+            objects: Mutex::new(std::collections::HashMap::new()),
             roots: Mutex::new(HashSet::new()),
             total_allocated: AtomicUsize::new(0),
             total_freed: AtomicUsize::new(0),
@@ -78,47 +81,67 @@ impl GCState {
         self.next_id.fetch_add(1, Ordering::SeqCst)
     }
 
-    fn register(&self, _id: usize, size: usize) {
+    fn register(&self, id: usize, size: usize) {
         self.total_allocated.fetch_add(size, Ordering::SeqCst);
+        self.objects.lock().unwrap().insert(id, (size, true));
     }
 
     /// Add a root reference
     pub fn add_root(&self, id: usize) {
-        let mut roots = self.roots.lock().unwrap();
-        roots.insert(id);
+        self.roots.lock().unwrap().insert(id);
+        if let Some(entry) = self.objects.lock().unwrap().get_mut(&id) {
+            entry.1 = true;
+        }
     }
 
     /// Remove a root reference
     pub fn remove_root(&self, id: usize) {
-        let mut roots = self.roots.lock().unwrap();
-        roots.remove(&id);
+        self.roots.lock().unwrap().remove(&id);
+        if let Some(entry) = self.objects.lock().unwrap().get_mut(&id) {
+            entry.1 = false;  // mark as unreachable
+        }
     }
 
     /// Run garbage collection
     pub fn collect(&self) -> usize {
-        // Mark phase - mark all reachable objects
         self.mark();
-
-        // Sweep phase - free unmarked objects
         self.sweep()
     }
 
     fn mark(&self) {
-        // Mark all root objects
-        let _roots = self.roots.lock().unwrap();
-        // In a real implementation, we'd recursively mark
+        // Mark all root objects as live
+        let roots = self.roots.lock().unwrap();
+        let mut objects = self.objects.lock().unwrap();
+        for id in roots.iter() {
+            if let Some(entry) = objects.get_mut(id) {
+                entry.1 = true;
+            }
+        }
     }
 
     fn sweep(&self) -> usize {
-        // Simplified sweep - in real implementation would check marked flags
-        0
+        let mut objects = self.objects.lock().unwrap();
+        let mut freed_count = 0usize;
+        let mut freed_bytes = 0usize;
+        objects.retain(|_id, (size, live)| {
+            if !*live {
+                freed_bytes += *size;
+                freed_count += 1;
+                false  // remove from map
+            } else {
+                *live = false;  // reset mark for next cycle
+                true
+            }
+        });
+        self.total_freed.fetch_add(freed_bytes, Ordering::SeqCst);
+        freed_count
     }
 
     /// Get GC statistics
     pub fn stats(&self) -> GCStats {
-        let roots = self.roots.lock().unwrap();
+        let objects = self.objects.lock().unwrap();
         GCStats {
-            live_objects: roots.len(),
+            live_objects: objects.values().filter(|(_, live)| *live).count(),
             total_allocated: self.total_allocated.load(Ordering::SeqCst),
             total_freed: self.total_freed.load(Ordering::SeqCst),
         }

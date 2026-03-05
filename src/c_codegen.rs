@@ -25,6 +25,7 @@ pub struct CCodeGen {
     needs_threading: bool,
     needs_networking: bool,
     mode: CompileMode,
+    var_types: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +47,7 @@ impl CCodeGen {
             needs_threading: false,
             needs_networking: false,
             mode: CompileMode::Normal,
+            var_types: HashMap::new(),
         }
     }
 
@@ -251,8 +253,10 @@ impl CCodeGen {
                 Ok(String::new())
             }
             ASTNode::Let { name, value, .. } => {
+                let c_type = self.infer_c_type(value);
                 let val_code = self.compile_node(value)?;
-                self.emit_line(&format!("knull_int {} = {};", name, val_code));
+                self.var_types.insert(name.clone(), c_type.clone());
+                self.emit_line(&format!("{} {} = {};", c_type, name, val_code));
                 Ok(String::new())
             }
             ASTNode::Return(expr) => {
@@ -344,16 +348,17 @@ impl CCodeGen {
                         if args.is_empty() {
                             self.emit_line("printf(\"\\n\");");
                         } else {
-                            // Handle string literals vs expressions
-                            let arg_str = self.compile_expr_for_print(&args[0])?;
-                            self.emit_line(&format!("printf(\"%s\\n\", {});", arg_str));
+                            let fmt = self.format_spec_for(&args[0]);
+                            let arg_str = self.compile_node(&args[0])?;
+                            self.emit_line(&format!("printf(\"{}\\n\", {});", fmt, arg_str));
                         }
                         Ok("0".to_string())
                     }
                     "print" => {
                         if !args.is_empty() {
-                            let arg_str = self.compile_expr_for_print(&args[0])?;
-                            self.emit_line(&format!("printf(\"%s\", {});", arg_str));
+                            let fmt = self.format_spec_for(&args[0]);
+                            let arg_str = self.compile_node(&args[0])?;
+                            self.emit_line(&format!("printf(\"{}\", {});", fmt, arg_str));
                         }
                         Ok("0".to_string())
                     }
@@ -412,8 +417,203 @@ impl CCodeGen {
                 let args_code: Result<Vec<String>, String> =
                     args.iter().map(|a| self.compile_node(a)).collect();
                 let args_str = args_code?.join(", ");
-
                 Ok(format!("syscall({})", args_str))
+            }
+            // ── For loop ─────────────────────────────────────────────────────
+            ASTNode::For { var, iter, body } => {
+                // Emit a C for loop over a range or array
+                let iter_code = self.compile_node(iter)?;
+                // Check if iter is a Range node
+                if let ASTNode::Range { start, end, inclusive } = iter.as_ref() {
+                    let s = self.compile_node(start)?;
+                    let e = self.compile_node(end)?;
+                    let op = if *inclusive { "<=" } else { "<" };
+                    self.emit_line(&format!("for (knull_int {} = {}; {} {} {}; {}++) {{", var, s, var, op, e, var));
+                } else {
+                    // Generic: iterate array len
+                    let tmp = self.next_temp();
+                    self.emit_line(&format!("knull_array* {} = (knull_array*)({}); ", tmp, iter_code));
+                    self.emit_line(&format!("for (size_t _i = 0; _i < {}->len; _i++) {{", tmp));
+                    self.emit_line(&format!("    knull_int {} = {}->data[_i];", var, tmp));
+                }
+                self.indent += 4;
+                self.compile_node(body)?;
+                self.indent -= 4;
+                self.emit_line("}");
+                Ok(String::new())
+            }
+            // ── Loop ─────────────────────────────────────────────────────────
+            ASTNode::Loop(body) => {
+                self.emit_line("while (1) {");
+                self.indent += 4;
+                self.compile_node(body)?;
+                self.indent -= 4;
+                self.emit_line("}");
+                Ok(String::new())
+            }
+            // ── Break / Continue ─────────────────────────────────────────────
+            ASTNode::Break(_) => {
+                self.emit_line("break;");
+                Ok(String::new())
+            }
+            ASTNode::Continue(_) => {
+                self.emit_line("continue;");
+                Ok(String::new())
+            }
+            // ── Assignment ───────────────────────────────────────────────────
+            ASTNode::Assign { target, value } => {
+                let lhs = self.compile_node(target)?;
+                let rhs = self.compile_node(value)?;
+                self.emit_line(&format!("{} = {};", lhs, rhs));
+                Ok(String::new())
+            }
+            ASTNode::AssignOp { target, op, value } => {
+                let lhs = self.compile_node(target)?;
+                let rhs = self.compile_node(value)?;
+                self.emit_line(&format!("{} {}= {};", lhs, op, rhs));
+                Ok(String::new())
+            }
+            // ── Index ────────────────────────────────────────────────────────
+            ASTNode::Index { obj, index } => {
+                let o = self.compile_node(obj)?;
+                let i = self.compile_node(index)?;
+                Ok(format!("({})->data[{}]", o, i))
+            }
+            // ── Field access ─────────────────────────────────────────────────
+            ASTNode::FieldAccess { obj, field } => {
+                let o = self.compile_node(obj)?;
+                Ok(format!("{}->{}", o, field))
+            }
+            // ── Struct definition ─────────────────────────────────────────────
+            ASTNode::StructDef { name, fields } => {
+                self.emit_line(&format!("typedef struct {{"));
+                for (fname, ftype) in fields {
+                    let c_type = self.type_to_c(ftype);
+                    self.emit_line(&format!("    {} {};", c_type, fname));
+                }
+                self.emit_line(&format!("}} {};", name));
+                Ok(String::new())
+            }
+            // ── Struct literal ────────────────────────────────────────────────
+            ASTNode::StructLiteral { name, fields } => {
+                let tmp = self.next_temp();
+                self.emit_line(&format!("{} {} = {{}};", name, tmp));
+                for (fname, fval) in fields {
+                    let val = self.compile_node(fval)?;
+                    self.emit_line(&format!("{}.{} = {};", tmp, fname, val));
+                }
+                Ok(tmp)
+            }
+            // ── Impl block ────────────────────────────────────────────────────
+            ASTNode::Impl { ty: _, methods } => {
+                for method in methods {
+                    self.compile_node(method)?;
+                }
+                Ok(String::new())
+            }
+            // ── Method call: obj.method(args) → name__method(obj, args) ──────
+            ASTNode::MethodCall { obj, method, args } => {
+                let obj_code = self.compile_node(obj)?;
+                let mut all_args = vec![obj_code];
+                for a in args {
+                    all_args.push(self.compile_node(a)?);
+                }
+                // Map common methods
+                match method.as_str() {
+                    "len" => Ok(format!("knull_strlen({})", all_args[0])),
+                    "push" if all_args.len() >= 2 => {
+                        self.emit_line(&format!("array_push({});", all_args.join(", ")));
+                        Ok(String::new())
+                    }
+                    _ => Ok(format!("{}_{}({})", all_args[0], method, all_args[1..].join(", "))),
+                }
+            }
+            // ── Range ─────────────────────────────────────────────────────────
+            ASTNode::Range { start, end, .. } => {
+                let s = self.compile_node(start)?;
+                let e = self.compile_node(end)?;
+                // emit as a temporary struct (not commonly needed as standalone)
+                Ok(format!("/* range {}->{} */", s, e))
+            }
+            // ── Enum definition ───────────────────────────────────────────────
+            ASTNode::EnumDef { name, variants } => {
+                // Emit as an int enum
+                self.emit_line(&format!("typedef enum {{"));
+                for v in variants {
+                    self.emit_line(&format!("    {}_{},", name, v.name));
+                }
+                self.emit_line(&format!("}} {};", name));
+                Ok(String::new())
+            }
+            // ── Match ─────────────────────────────────────────────────────────
+            ASTNode::Match { expr, arms } => {
+                let val = self.compile_node(expr)?;
+                let tmp = self.next_temp();
+                self.emit_line(&format!("knull_int {} = {};", tmp, val));
+                let mut first = true;
+                for arm in arms {
+                    use crate::parser::Pattern;
+                    let cond = match &arm.pattern {
+                        Pattern::Wildcard => None,
+                        Pattern::Literal(crate::parser::Literal::Int(n)) => Some(format!("{} == {}", tmp, n)),
+                        Pattern::Literal(crate::parser::Literal::Bool(b)) => Some(format!("{} == {}", tmp, *b as i64)),
+                        Pattern::Identifier(name) => Some(format!("/* {} */1", name)),
+                        _ => Some(format!("1 /* pattern */")),
+                    };
+                    match cond {
+                        None => {
+                            self.emit_line("else {");
+                        }
+                        Some(c) => {
+                            if first { self.emit_line(&format!("if ({}) {{", c)); first = false; }
+                            else { self.emit_line(&format!("else if ({}) {{", c)); }
+                        }
+                    }
+                    self.indent += 4;
+                    self.compile_node(&arm.body)?;
+                    self.indent -= 4;
+                    self.emit_line("}");
+                }
+                Ok(String::new())
+            }
+            // ── Tuple ─────────────────────────────────────────────────────────
+            ASTNode::Tuple(elems) => {
+                // Represent as array
+                let tmp = self.next_temp();
+                self.emit_line(&format!("knull_array* {} = array_new();", tmp));
+                for elem in elems {
+                    let v = self.compile_node(elem)?;
+                    self.emit_line(&format!("array_push({}, {});", tmp, v));
+                }
+                Ok(format!("(knull_int){}", tmp))
+            }
+            // ── InterpolatedString (f-string) ─────────────────────────────────
+            ASTNode::InterpolatedString(segments) => {
+                // Build a snprintf call
+                let mut fmt = String::new();
+                let mut args_list = Vec::new();
+                for (is_expr, content) in segments {
+                    if *is_expr {
+                        fmt.push_str("%lld");
+                        // Parse the expression and compile it
+                        let mut sub_parser = crate::parser::Parser::new(content);
+                        if let Ok(sub_ast) = sub_parser.parse_expression_pub() {
+                            if let Ok(code) = self.compile_node(&sub_ast) {
+                                args_list.push(code);
+                            }
+                        }
+                    } else {
+                        fmt.push_str(&content.replace('"', "\\\"").replace('\n', "\\n"));
+                    }
+                }
+                let tmp = self.next_temp();
+                self.emit_line(&format!("char {}[4096];", tmp));
+                if args_list.is_empty() {
+                    self.emit_line(&format!("snprintf({}, 4096, \"{}\");", tmp, fmt));
+                } else {
+                    self.emit_line(&format!("snprintf({}, 4096, \"{}\", {});", tmp, fmt, args_list.join(", ")));
+                }
+                Ok(format!("(knull_string){}", tmp))
             }
             _ => Ok("0".to_string()),
         }
@@ -423,6 +623,84 @@ impl CCodeGen {
         match node {
             ASTNode::Literal(Literal::String(s)) => Ok(format!("\"{}\"", s)),
             _ => self.compile_node(node),
+        }
+    }
+
+    /// Convert a Knull Type to a C type string
+    fn type_to_c(&self, ty: &crate::parser::Type) -> String {
+        use crate::parser::Type;
+        match ty {
+            Type::I8  | Type::U8  => "int8_t".to_string(),
+            Type::I16 | Type::U16 => "int16_t".to_string(),
+            Type::I32 | Type::U32 => "int32_t".to_string(),
+            Type::I64 | Type::U64 | Type::I128 | Type::U128 => "knull_int".to_string(),
+            Type::F32 | Type::F64 => "knull_float".to_string(),
+            Type::Bool  => "knull_bool".to_string(),
+            Type::Char  => "char".to_string(),
+            Type::String => "knull_string".to_string(),
+            Type::Void  => "void".to_string(),
+            Type::RawPtr(_) | Type::MutRawPtr(_) => "void*".to_string(),
+            Type::Array(inner, _) | Type::Slice(inner) | Type::Vec(inner) => {
+                format!("{}*", self.type_to_c(inner))
+            }
+            Type::Custom(name) => name.clone(),
+            _ => "knull_int".to_string(),
+        }
+    }
+
+    /// Infer C type string from an AST node
+    fn infer_c_type(&self, node: &ASTNode) -> String {
+        match node {
+            ASTNode::Literal(Literal::Int(_)) => "knull_int".to_string(),
+            ASTNode::Literal(Literal::Float(_)) => "knull_float".to_string(),
+            ASTNode::Literal(Literal::String(_)) => "knull_string".to_string(),
+            ASTNode::Literal(Literal::Bool(_)) => "knull_bool".to_string(),
+            ASTNode::Literal(Literal::Null) => "void*".to_string(),
+            ASTNode::Array(_) => "knull_array*".to_string(),
+            ASTNode::Binary { op, left, right } => {
+                // Comparison ops → bool
+                if matches!(op.as_str(), "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||") {
+                    return "knull_bool".to_string();
+                }
+                // Float arithmetic if either side is float
+                let lt = self.infer_c_type(left);
+                let rt = self.infer_c_type(right);
+                if lt == "knull_float" || rt == "knull_float" {
+                    "knull_float".to_string()
+                } else {
+                    lt
+                }
+            }
+            ASTNode::Identifier(name) => {
+                self.var_types.get(name).cloned().unwrap_or_else(|| "knull_int".to_string())
+            }
+            _ => "knull_int".to_string(),
+        }
+    }
+
+    /// Return a printf format specifier for a node
+    fn format_spec_for(&self, node: &ASTNode) -> &'static str {
+        match node {
+            ASTNode::Literal(Literal::Int(_)) => "%lld",
+            ASTNode::Literal(Literal::Float(_)) => "%g",
+            ASTNode::Literal(Literal::String(_)) => "%s",
+            ASTNode::Literal(Literal::Bool(_)) => "%d",
+            ASTNode::Identifier(name) => {
+                match self.var_types.get(name).map(|s| s.as_str()) {
+                    Some("knull_float") => "%g",
+                    Some("knull_string") => "%s",
+                    Some("knull_bool") => "%d",
+                    _ => "%lld",
+                }
+            }
+            ASTNode::Binary { op, .. } => {
+                if matches!(op.as_str(), "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||") {
+                    "%d"
+                } else {
+                    "%lld"
+                }
+            }
+            _ => "%lld",
         }
     }
 

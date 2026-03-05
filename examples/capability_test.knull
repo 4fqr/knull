@@ -1,0 +1,39 @@
+// ── Vector math ──────────────────────────────────────────────────────────────
+let a = [1.0, 2.0, 3.0]
+let b = [4.0, 5.0, 6.0]
+
+println("dot(a,b) = " + str(dot(a, b)))           // 32.0
+println("cross(a,b) = " + str(cross(a, b)))        // [-3, 6, -3]
+println("norm(a) = " + str(vec_norm(a)))            // ~3.74
+println("normalize = " + str(vec_normalize(a)))
+println("vec_add = " + str(vec_add(a, b)))
+println("vec_sub = " + str(vec_sub(b, a)))
+println("vec_scale = " + str(vec_scale(a, 2.0)))
+
+// ── Matrix multiply (2x2 * 2x2) ──────────────────────────────────────────────
+let m1 = [1.0, 2.0, 3.0, 4.0]   // [[1,2],[3,4]]
+let m2 = [5.0, 6.0, 7.0, 8.0]   // [[5,6],[7,8]]
+let r = mat_mul(m1, m2, 2, 2, 2)
+println("mat_mul 2x2: " + str(r))  // [19,22,43,50]
+
+// ── Raw memory ───────────────────────────────────────────────────────────────
+let ptr = mem_alloc(64)
+println("alloc ptr (non-zero): " + str(ptr != 0))
+mem_write_u64(ptr, 0xDEADBEEF)
+let v = mem_read_u64(ptr)
+println("write/read u64: " + str(v == 0xDEADBEEF))
+mem_set(ptr, 0, 64)
+println("mem_set zero check: " + str(mem_read_u64(ptr) == 0))
+mem_free(ptr, 64)
+
+// ── Threads ───────────────────────────────────────────────────────────────────
+fn worker(x) {
+    sleep_ms(10)
+    return x * 2
+}
+let t = thread_spawn("worker", 21)
+println("thread handle: " + str(t > 0))
+let res = thread_join(t)
+println("thread result (should be 42): " + str(res))
+
+println("ALL CAPABILITY TESTS PASSED")

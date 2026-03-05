@@ -12,8 +12,8 @@ fn main() {
     print_header()
     
     let limit = 100
-    println "Finding all prime numbers up to " + limit + ":"
-    println ""
+    println("Finding all prime numbers up to " + limit + ":")
+    println("")
     
     let num = 2
     let count = 0
@@ -21,21 +21,21 @@ fn main() {
     while num <= limit {
         if is_prime(num) {
             // Print the prime number
-            print num
+            print(num)
             count = count + 1
             
             // Format: 10 primes per line
             if count % 10 == 0 {
-                println ""
+                println("")
             } else {
                 // Add spacing for alignment
                 if num < 10 {
-                    print "   "
+                    print("   ")
                 } else {
                     if num < 100 {
-                        print "  "
+                        print("  ")
                     } else {
-                        print " "
+                        print(" ")
                     }
                 }
             }
@@ -45,12 +45,12 @@ fn main() {
     
     // Ensure final newline if needed
     if count % 10 != 0 {
-        println ""
+        println("")
     }
     
-    println ""
-    println "Total primes found: " + count
-    println "Prime density: " + (count * 100 / limit) + "." + ((count * 1000 / limit) % 10) + "%"
+    println("")
+    println("Total primes found: " + count)
+    println("Prime density: " + (count * 100 / limit) + "." + ((count * 1000 / limit) % 10) + "%")
 }
 
 // -----------------------------------------------------------------------------
@@ -58,10 +58,10 @@ fn main() {
 // -----------------------------------------------------------------------------
 
 fn print_header() {
-    println "=========================================="
-    println "  PRIME NUMBER FINDER"
-    println "=========================================="
-    println ""
+    println("==========================================")
+    println("  PRIME NUMBER FINDER")
+    println("==========================================")
+    println("")
 }
 
 // -----------------------------------------------------------------------------

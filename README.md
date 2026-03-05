@@ -1,121 +1,40 @@
 # Knull Programming Language
 
 ```
-.____/\ .______ .____     .___   .___
-:   /  \:      \|    |___ |   |  |   |
-|.  ___/|       ||    |   ||   |  |   |
-|     \ |   |   ||    :   ||   |/\|   |/\
-|      \|___|   ||        ||   /  \|   /  \
-|___\  /    |___||. _____/ |______/|______/
-     \/           :/                         
-                  :                          
+  _  __              _ _
+ | |/ /_ __  _   _| | |
+ | \'| \'_ \\| | | | | |
+ | . \\| | | | |_| | | |
+ |_|\_\\_| |_|\\__,_|_|_|
 ```
 
-**The God Programming Language**
+**The God Programming Language** — v2.0.0
 
 Simple as Python. Fast as C. Powerful as Assembly.
+
+[![License](https://img.shields.io/badge/License-MIT%2FApache--2.0-blue.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-4fqr%2Fknull-green)](https://github.com/4fqr/knull)
 
 ---
 
 ## Overview
 
-Knull is a unified systems programming language designed to span the entire spectrum of software development, from beginner scripting to bare-metal systems programming. It eliminates the need to learn multiple languages by providing three integrated modes that adapt to your expertise level.
+Knull is a unified systems programming language designed to span the full spectrum of software development — from beginner scripting to bare-metal systems programming. Three integrated language modes adapt to your expertise level instead of requiring you to learn different languages.
 
-### Philosophy
+### Key Features
 
-1. **Unified Learning Curve**: Start simple, grow into complexity without switching languages
-2. **Zero-Cost Abstractions**: What you don't use, you don't pay for
-3. **Safety by Default**: Memory-safe unless explicitly unsafe
-4. **Systems-First**: Designed for operating systems, drivers, and embedded systems
-5. **C Interoperability**: Seamless FFI with C and assembly
-
----
-
-## The Three Modes
-
-| Mode | Description | Memory | Use Case |
-|------|-------------|--------|----------|
-| **Novice** | Dynamic typing, automatic memory management (GC) | Garbage collected | Beginners, prototyping, scripting |
-| **Expert** | Static typing, ownership system, compile-time checks | RAII + borrow checker | Systems programming, high-performance applications |
-| **God** | Unsafe blocks, direct hardware access, inline assembly | Manual + syscalls | Operating systems, embedded systems, security research |
-
-### Mode Declaration
-
-```knull
-// Novice mode - implicit or explicit
-mode novice
-fn main() {
-    let x = 42  // Type inferred, GC managed
-    println(x)
-}
-
-// Expert mode - ownership tracking
-mode expert
-fn main() {
-    let s = String::from("hello")  // Owned value
-    let r = &s                      // Borrow
-    println(r)
-} // s dropped here automatically
-
-// God mode - unsafe operations allowed
-mode god
-fn main() {
-    unsafe {
-        let ptr = 0x1000 as *mut u8
-        *ptr = 0xFF  // Direct memory access
-    }
-    
-    // Inline assembly
-    asm volatile("mov $1, %eax")
-    
-    // Direct syscall
-    syscall(60, 0)  // exit(0)
-}
-```
-
----
-
-## Installation
-
-### Prerequisites
-
-- **Rust** (1.70+) for building the bootstrap compiler
-- **LLVM** (optional, for optimized builds)
-- **NASM** (for assembly output)
-- **ld** or **lld** (for linking)
-
-### Quick Install (Linux / macOS)
-
-```bash
-curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-### Build from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/4fqr/knull.git
-cd knull
-
-# Build without LLVM (faster, no external deps)
-cd src
-cargo build --release --no-default-features
-
-# Build with LLVM (optimized, requires LLVM installed)
-cargo build --release
-
-# Verify installation
-./target/release/knull --version
-```
-
-### Windows
-
-```powershell
-git clone https://github.com/4fqr/knull.git
-cd knull\src
-cargo build --release --no-default-features
-```
+- **Three language modes**: Novice · Expert · God
+- **First-class functions, closures, recursion**
+- **Pattern matching** with guards and OR-patterns (`1 | 2 | 3 =>`)
+- **Structs and impl blocks** with self-methods
+- **Try/Catch/Throw** error handling
+- **Higher-order functions**: `map`, `filter`, `reduce`, `sorted_by`, `enumerate`, `zip`
+- **Rich string API**: `len`, `upper`, `lower`, `split`, `contains`, `replace`, `trim`, …
+- **File I/O**, **Networking (TCP/UDP/HTTP/WebSocket)**, **Threading**
+- **C FFI**, **inline assembly**, **syscalls**
+- **WebAssembly** output target
+- **Interactive REPL** with persistent state, multi-line input, introspection commands
+- **Interpreter + C codegen backend**
 
 ---
 
@@ -125,723 +44,270 @@ cargo build --release --no-default-features
 
 ```knull
 fn main() {
-    println("Hello, World!")
+    println("Hello, Knull!")
 }
+
+main()
 ```
 
 ```bash
 knull run hello.knull
 ```
 
-### Variables and Types
+### Variables
 
 ```knull
-fn main() {
-    // Type inference
-    let integer = 42
-    let floating = 3.14159
-    let text = "Knull"
-    let flag = true
-    
-    // Explicit types
-    let x: i32 = 42
-    let y: f64 = 3.14
-    let name: String = "Knull"
-    
-    println("Integer: {}", integer)
-    println("Float: {}", floating)
-    println("String: {}", text)
-}
+let x      = 42
+let pi     = 3.14159
+let name   = "Knull"
+let flag   = true
+let items  = [1, 2, 3, 4, 5]
+let coords = {"x": 10, "y": 20}
+
+println("x = " + x + ", name = " + name)
 ```
 
-### Functions
+### Functions & Recursion
 
 ```knull
-// Function with parameters and return type
-fn add(a: i32, b: i32) -> i32 {
-    return a + b
+fn factorial(n) {
+    if n <= 1 { 1 } else { n * factorial(n - 1) }
 }
 
-// Shorthand return (implicit)
-fn multiply(a: i32, b: i32) -> i32 { a * b }
-
-// Generic function
-fn identity<T>(x: T) -> T { x }
-
-// Function pointers
-fn apply(f: fn(i32) -> i32, x: i32) -> i32 {
-    f(x)
+fn fib(n) {
+    if n <= 1 { n } else { fib(n-1) + fib(n-2) }
 }
 
-fn main() {
-    let result = add(5, 3)
-    println("5 + 3 = {}", result)
-    
-    let doubled = apply(|x| x * 2, 21)
-    println("Doubled: {}", doubled)
-}
+println(factorial(10))  // 3628800
+println(fib(15))        // 610
 ```
 
-### Control Flow
+### Higher-Order Functions
 
 ```knull
-fn main() {
-    let x = 10
-    
-    // If/else
-    if x > 5 {
-        println("x is greater than 5")
-    } else if x > 0 {
-        println("x is positive but <= 5")
-    } else {
-        println("x is not positive")
-    }
-    
-    // While loop
-    let mut i = 0
-    while i < 5 {
-        println("Iteration: {}", i)
-        i = i + 1
-    }
-    
-    // For loop (iterator-based)
-    for i in 0..5 {
-        println("For iteration: {}", i)
-    }
-    
-    // For each
-    let items = [1, 2, 3, 4, 5]
-    for item in items {
-        println("Item: {}", item)
-    }
-    
-    // Match expression
-    let value = 3
-    match value {
-        1 => println("One"),
-        2 => println("Two"),
-        3 => println("Three"),
-        _ => println("Other"),
-    }
-}
+let nums    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+let evens   = nums.filter(fn(n) { n % 2 == 0 })
+let doubled = evens.map(fn(n) { n * 2 })
+let total   = doubled.reduce(fn(acc, n) { acc + n }, 0)
+
+println(total)  // 60
 ```
 
-### Ownership and Borrowing (Expert/God Mode)
+### Structs & Methods
 
 ```knull
-mode expert
+struct Point { x, y }
 
-fn main() {
-    // Ownership
-    let s1 = String::from("hello")
-    let s2 = s1  // s1 moved to s2
-    // println("{}", s1)  // ERROR: s1 no longer valid
-    println("{}", s2)     // OK
-    
-    // Borrowing
-    let s3 = String::from("world")
-    let len = calculate_length(&s3)  // Borrow
-    println("'{}' has length {}", s3, len)  // s3 still valid
-    
-    // Mutable borrow
-    let mut s4 = String::from("hello")
-    change(&mut s4)
-    println("Changed: {}", s4)
-}
-
-fn calculate_length(s: &String) -> usize {
-    s.len()
-}
-
-fn change(s: &mut String) {
-    s.push_str(", world")
-}
-```
-
-### Structs and Enums
-
-```knull
-// Struct definition
-struct Point {
-    x: f64,
-    y: f64,
-}
-
-// Struct with methods
 impl Point {
-    // Constructor
-    fn new(x: f64, y: f64) -> Point {
-        Point { x, y }
-    }
-    
-    // Method
-    fn distance_from_origin(&self) -> f64 {
-        (self.x * self.x + self.y * self.y).sqrt()
-    }
-    
-    // Mutable method
-    fn translate(&mut self, dx: f64, dy: f64) {
-        self.x = self.x + dx
-        self.y = self.y + dy
+    fn distance(self, other) {
+        let dx = self.x - other.x
+        let dy = self.y - other.y
+        sqrt(dx*dx + dy*dy)
     }
 }
 
-// Enum
-enum Message {
-    Quit,
-    Move { x: i32, y: i32 },
-    Write(String),
-    ChangeColor(i32, i32, i32),
+let a = Point { x: 0, y: 0 }
+let b = Point { x: 3, y: 4 }
+println(a.distance(b))  // 5
+```
+
+### Pattern Matching
+
+```knull
+fn describe(n) {
+    match n {
+        0       => "zero",
+        1 | 2   => "one or two",
+        n if n < 0 => "negative",
+        _       => "other",
+    }
 }
 
-impl Message {
-    fn call(&self) {
-        match self {
-            Message::Quit => println("Quit"),
-            Message::Move { x, y } => println("Move to ({}, {})", x, y),
-            Message::Write(text) => println("Write: {}", text),
-            Message::ChangeColor(r, g, b) => println("Color: {},{},{}", r, g, b),
-        }
-    }
+println(describe(0))   // zero
+println(describe(2))   // one or two
+```
+
+### Try / Catch / Throw
+
+```knull
+fn safe_div(a, b) {
+    if b == 0 { throw "division by zero" }
+    a / b
+}
+
+try {
+    println(safe_div(10, 0))
+} catch err {
+    println("Caught: " + err)
 }
 ```
 
-### Unsafe Code and Syscalls (God Mode)
+### Closures & Currying
 
 ```knull
+fn make_adder(n) { fn(x) { x + n } }
+
+let add5  = make_adder(5)
+let add10 = make_adder(10)
+println(add5(3))    // 8
+println(add10(3))   // 13
+```
+
+---
+
+## The Three Modes
+
+| Mode | Memory | Use Case |
+|------|--------|----------|
+| **Novice** (default) | Garbage collected | Scripting, learning, prototyping |
+| **Expert** | RAII + ownership | High-performance applications |
+| **God** | Manual + syscalls | OS kernels, embedded systems |
+
+```knull
+// Novice (default — no declaration needed)
+let x = 42
+println(x)
+
+// Expert — static types
+mode expert
+fn compute(x: i32) -> i32 { x * 2 }
+
+// God — unsafe hardware access + asm
 mode god
-
-fn main() {
-    unsafe {
-        // Raw pointer manipulation
-        let mut num = 5
-        let r1 = &num as *const i32
-        let r2 = &mut num as *mut i32
-        
-        println!("r1 is: {}", *r1)
-        *r2 = 10
-        println!("r2 is: {}", *r2)
-    }
-    
-    // Direct syscall
-    let pid = syscall(39, 0, 0, 0, 0, 0, 0)  // getpid
-    println("PID: {}", pid)
-    
-    // File I/O via syscall
-    let fd = syscall(2, "test.txt", 0o644, 0, 0, 0, 0)  // open
-    if fd >= 0 {
-        let msg = "Hello from syscall\n"
-        syscall(1, fd, msg, msg.len(), 0, 0, 0)  // write
-        syscall(3, fd, 0, 0, 0, 0, 0)  // close
-    }
-    
-    // Inline assembly
-    let result: i32
-    asm volatile(
-        "movl $42, %eax",
-        out("eax") result
-    )
-    println("Assembly result: {}", result)
-}
-```
-
-### Modules and Packages
-
-```knull
-// math.knull
-pub mod math {
-    pub const PI: f64 = 3.14159265359
-    
-    pub fn square(x: f64) -> f64 { x * x }
-    
-    pub fn factorial(n: u64) -> u64 {
-        if n <= 1 { 1 } else { n * factorial(n - 1) }
-    }
-}
-
-// main.knull
-use math::{PI, square}
-
-fn main() {
-    println("PI = {}", PI)
-    println("Square of 5 = {}", square(5))
-    println("5! = {}", math::factorial(5))
-}
-```
-
-### Networking
-
-```knull
-use std::net::{TcpListener, TcpStream}
-use std::io::{Read, Write}
-
-fn main() {
-    // TCP Server
-    let listener = TcpListener::bind("127.0.0.1:8080")
-    println("Server listening on port 8080")
-    
-    for stream in listener.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                handle_client(&mut stream)
-            }
-            Err(e) => println("Error: {}", e),
-        }
-    }
-}
-
-fn handle_client(stream: &mut TcpStream) {
-    let mut buffer = [0u8; 1024]
-    match stream.read(&mut buffer) {
-        Ok(n) => {
-            let request = String::from_utf8_lossy(&buffer[..n])
-            println!("Received: {}", request)
-            
-            let response = "HTTP/1.1 200 OK\r\n\r\nHello from Knull!"
-            stream.write(response.as_bytes())
-        }
-        Err(e) => println("Error reading: {}", e),
-    }
-}
+unsafe { let ptr = 0x1000 as *mut u8; *ptr = 0xFF }
+asm volatile("nop")
+syscall(60, 0)
 ```
 
 ---
 
-## Command Line Interface
+## Installation
 
 ```bash
-# Run a Knull file directly (interpreted)
-knull run <file>        
+# Clone and build
+git clone https://github.com/4fqr/knull.git
+cd knull/src
+cargo build --release --no-default-features
 
-# Compile to executable
-knull build <file>      
+# Add to PATH
+export PATH="$PWD/target/release:$PATH"
 
-# Compile to assembly
-knull build --emit=asm <file>
-
-# Compile to LLVM IR
-knull build --emit=llvm <file>
-
-# Check syntax without running
-knull check <file>      
-
-# Format code
-knull fmt <file>        
-
-# Interactive REPL
-knull repl              
-
-# Create new project
-knull new <name>        
-
-# Package management
-knull pkg add <name>    # Add dependency
-knull pkg update        # Update dependencies
-knull pkg build         # Build project
-
-# Show version
-knull --version
-
-# Show help
-knull --help
-```
-
-### Compilation Options
-
-```bash
-# Optimization levels
-knull build -O0 <file>  # No optimization
-knull build -O1 <file>  # Basic optimization
-knull build -O2 <file>  # Standard optimization (default)
-knull build -O3 <file>  # Aggressive optimization
-knull build -Os <file>  # Optimize for size
-
-# Target architecture
-knull build --target=x86_64-linux-gnu <file>
-knull build --target=aarch64-linux-gnu <file>
-knull build --target=wasm32-wasi <file>
-
-# Cross-compilation
-knull build --target=x86_64-windows-gnu <file>
+# Quick install script
+curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
 ```
 
 ---
 
-## Language Features
+## CLI Reference
 
-### Type System
-
-| Type | Description | Size |
-|------|-------------|------|
-| `i8` to `i128` | Signed integers | 1-16 bytes |
-| `u8` to `u128` | Unsigned integers | 1-16 bytes |
-| `f32`, `f64` | Floating point | 4, 8 bytes |
-| `bool` | Boolean | 1 byte |
-| `char` | Unicode scalar | 4 bytes |
-| `String` | UTF-8 string | variable |
-| `&T` | Immutable reference | pointer size |
-| `&mut T` | Mutable reference | pointer size |
-| `*const T` | Raw const pointer | pointer size |
-| `*mut T` | Raw mut pointer | pointer size |
-| `[T; N]` | Fixed array | N * sizeof(T) |
-| `[T]` | Slice | 2 * pointer size |
-| `Vec<T>` | Dynamic array | 3 * pointer size |
-| `Option<T>` | Optional value | sizeof(T) + 1 |
-| `Result<T, E>` | Error handling | max(sizeof(T), sizeof(E)) + 1 |
-| `fn` | Function pointer | pointer size |
-
-### Operators
-
-| Category | Operators |
-|----------|-----------|
-| Arithmetic | `+`, `-`, `*`, `/`, `%` |
-| Bitwise | `&`, `|`, `^`, `<<`, `>>`, `~` |
-| Comparison | `==`, `!=`, `<`, `>`, `<=`, `>=` |
-| Logical | `&&`, `\|\|`, `!` |
-| Assignment | `=`, `+=`, `-=`, `*=`, `/=`, `%=` |
-| Reference | `&`, `&mut`, `*` |
-| Range | `..`, `..=` |
-
-### Operator Precedence
-
-1. Postfix: `()`, `[]`, `.`, `?.`
-2. Unary: `!`, `-`, `*`, `&`, `&mut`
-3. Multiplicative: `*`, `/`, `%`
-4. Additive: `+`, `-`
-5. Shift: `<<`, `>>`
-6. Bitwise AND: `&`
-7. Bitwise XOR: `^`
-8. Bitwise OR: `|`
-9. Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
-10. Logical AND: `&&`
-11. Logical OR: `\|\|`
-12. Range: `..`
-13. Assignment: `=`, `+=`, `-=`, etc.
-
----
-
-## Examples
-
-See the `examples/` directory for comprehensive demonstrations:
-
-| Example | Description |
+| Command | Description |
 |---------|-------------|
-| `hello.knull` | Hello world |
-| `fibonacci.knull` | Mathematical sequence |
-| `primes.knull` | Prime number sieve |
-| `calculator.knull` | Mathematical operations |
-| `patterns.knull` | Pattern printing |
-| `sorting.knull` | Sorting algorithms |
-| `benchmark.knull` | Performance testing |
-| `ownership.knull` | Ownership examples |
-| `unsafe.knull` | Unsafe code patterns |
-| `network.knull` | TCP/UDP networking |
-| `syscall.knull` | Direct system calls |
-| `asm.knull` | Inline assembly |
+| `knull run <file>` | Execute a .knull file |
+| `knull eval <expr>` | Evaluate an inline snippet |
+| `knull repl` | Interactive REPL session |
+| `knull build <file>` | Compile to native binary |
+| `knull check <file>` | Syntax/type check |
+| `knull fmt <file>` | Format source file |
+| `knull new <name>` | Scaffold new project |
+| `knull add <pkg>` | Add a package dependency |
+| `knull test` | Run test suite |
+| `knull version` | Show version info |
+
+```bash
+knull run hello.knull
+knull eval 'println(2 + 2)'
+knull repl
+knull build --release main.knull -o myapp
+knull build --target wasm32 app.knull
+```
+
+---
+
+## REPL
+
+```
+$ knull repl
+
+  Knull v2.0.0  —  The God Programming Language
+
+knull❯ let x = 42
+knull❯ x * 2
+84 // number
+knull❯ fn square(n) { n * n }
+knull❯ square(7)
+49 // number
+knull❯ :vars
+Variables:
+  x = 42
+```
+
+**REPL Commands**: `:help` · `:vars` · `:fns` · `:reset` · `:load <file>` · `:type <expr>` · `:clear` · `:quit`
+
+Multi-line: enter a `{` and keep typing — the `...` prompt waits for you to close the block.
+
+---
+
+## Standard Library (Selected)
+
+```knull
+// Math
+abs(n)  sqrt(n)  pow(a,b)  floor(n)  ceil(n)
+min(a,b)  max(a,b)  min(array)  max(array)
+sin(x)  cos(x)  tan(x)  log(x)
+
+// Arrays
+len(arr)  push(arr, x)  pop(arr)  reverse(arr)
+sort(arr)  sum(arr)  map(arr, fn)  filter(arr, fn)
+reduce(arr, fn, init)  sorted_by(arr, fn)
+zip(a, b)  flatten(arr)  join(arr, sep)  enumerate(arr)
+
+// Strings
+s.len()  s.upper()  s.lower()  s.trim()
+s.split(sep)  s.contains(sub)  s.replace(old, new)
+s.starts_with(p)  s.ends_with(s)  s.chars()
+
+// Conversion
+to_string(x)  to_int(s)  to_float(s)  type_of(x)
+parse_int(s)  parse_float(s)
+
+// File I/O
+file_read(p)  file_write(p,s)  file_append(p,s)
+file_exists(p)  file_remove(p)  dir_list(p)  mkdir(p)
+
+// Network
+http_get(url)  http_post(url, body)
+tcp_connect(host, port)  tcp_send(c, msg)  tcp_recv(c, n)
+
+// System
+time()  time_millis()  sleep(ms)  exec(cmd)
+env_get(k)  env_set(k, v)  get_hostname()
+```
 
 ---
 
 ## Project Structure
 
 ```
-knull/
-├── src/                    # Bootstrap compiler (Rust)
-│   ├── main.rs            # CLI entry point
-│   ├── lexer.rs           # Tokenizer
-│   ├── parser.rs          # Parser
-│   ├── ast.rs             # AST definitions
-│   ├── type_system.rs     # Type checker
-│   ├── ownership.rs       # Ownership checker
-│   ├── llvm_codegen.rs    # LLVM backend
-│   ├── compiler.rs        # Compiler driver
-│   ├── pkg.rs             # Package manager
-│   └── cli.rs             # CLI implementation
-├── self_hosted/           # Self-hosted compiler (Knull)
-│   ├── knullc.knull       # Main compiler
-│   ├── lexer.knull        # Lexer module
-│   ├── parser.knull       # Parser module
-│   └── codegen.knull      # Code generator
-├── runtime/               # Standard library (Knull)
-│   ├── std.knull          # Standard library root
-│   ├── builtins.knull     # Built-in functions
-│   ├── sys.knull          # System calls
-│   └── net.knull          # Networking
-├── std/                   # Standard library (Rust implementation)
-│   ├── io.rs              # I/O operations
-│   ├── string.rs          # String utilities
-│   └── collections.rs     # Vectors, HashMaps
-├── pkg/                   # Package manager (Rust)
-│   └── manager.rs         # Package management
-├── examples/              # Example programs
-├── tests/                 # Test suite
-└── docs/                  # Documentation
+my-project/
+├── knull.toml          # Manifest
+├── src/
+│   └── main.knull      # Entry point
+├── tests/
+│   └── *.knull         # Tests
+└── packages/           # Dependencies
 ```
-
----
-
-## Current Status
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Lexer | Complete | Full tokenization, handles all tokens |
-| Parser | Complete | AST generation for all language features |
-| Interpreter | Complete | Tree-walk interpreter for execution |
-| C Backend | Complete | Generates valid C code, compiles to executable |
-| REPL | Complete | Interactive evaluation |
-| Type System | Complete | Full type inference, generics, traits |
-| Ownership System | Complete | Linear types, borrow checking |
-| LLVM Backend | Complete | Full codegen with optimizations |
-| Self-Hosted Compiler | Complete | Can compile simple programs |
-| Standard Library | Complete | 20+ modules (JSON, HTTP, crypto, etc.) |
-| Package Manager | Complete | Local packages, dependency resolution |
-| Networking | Complete | TCP, UDP, HTTP, WebSockets |
-| Macros | Complete | Declarative macros, built-in macros |
-| Concurrency | Complete | Green threads, channels, atomics |
-| Memory | Complete | Multiple allocators, ARC, RC, Box |
-| FFI | Complete | C, C++, Rust, Go, syscalls |
-| WebAssembly | Complete | WASM codegen, WASI bindings |
-| GUI/Graphics | Complete | SDL2, drawing primitives |
-| Embedded | Complete | Bare-metal, GPIO, UART |
-| Optimizations | Complete | LTO, SIMD, inlining, constant folding |
-
-### Performance
-
-Benchmarks vary significantly based on implementation. The interpreter provides basic performance for prototyping and learning.
-
-| Benchmark | Knull (Interpreter) | Python | C |
-|-----------|---------------------|--------|---|
-| Fibonacci (30) | ~2-5s | ~8s | ~0.2s |
-| Primes (100K) | ~1-3s | ~3s | ~0.1s |
-
-*Note: These are rough estimates for the interpreter. C backend performance varies. Not currently reproducibility-tested.*
-
----
-
-## Knull Can Do Anything
-
-Knull is a complete, production-ready programming language:
-
-- **Web Development**: HTTP servers, clients, WebSockets
-- **Systems Programming**: OS kernels, drivers, embedded systems  
-- **GUI Applications**: SDL2 graphics, games
-- **Networking**: TCP, UDP, HTTP, WebSockets
-- **Databases**: SQLite bindings
-- **Cryptography**: AES, SHA256, HMAC
-- **WebAssembly**: Compile to WASM for web/browser
-- **FFI**: Call C, C++, Rust, Go libraries
-- **Parallel**: Green threads, work stealing, atomics
-- **High Performance**: LTO, SIMD, constant folding
-
-### Ecosystem
-- **Package manager**: Basic project creation, limited dependency management
-- **LSP/IDE support**: Not implemented
-- **Debugger**: Not implemented
-
----
-
-## Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development Setup
-
-```bash
-# Clone and build
-git clone https://github.com/4fqr/knull.git
-cd knull/src
-cargo build
-
-# Run tests
-cargo test
-
-# Run with specific features
-cargo run --features llvm-backend -- run example.knull
-
-# Format code
-cargo fmt
-cargo clippy
-```
-
-### Areas for Contribution
-
-- [x] Complete C backend optimization
-- [ ] Complete LLVM backend optimization passes
-- [ ] Self-hosted compiler implementation
-- [ ] Full type system enforcement
-- [ ] Ownership/borrow checker implementation
-- [ ] WebAssembly target support
-- [ ] Complete standard library
-- [ ] Package manager with dependency resolution
-- [ ] IDE plugins (VS Code, Vim, Emacs)
-- [ ] Documentation translations
-- [ ] More examples and tutorials
-
----
-
-## Roadmap - ALL COMPLETE
-
-### Phase 1: Bootstrap Complete
-- Bootstrap compiler in Rust
-- Lexer and parser (hex literals, block comments, const, arrays)
-- Type system
-- Ownership system
-- C backend compiler
-- Standard library
-
-### Phase 2: Self-Hosting Complete
-- Self-hosted lexer
-- Self-hosted parser
-- Self-hosted type checker
-- Self-hosted code generator
-- Self-compilation (integration in progress)
-
-### Phase 3: Ecosystem Complete
-- Package registry
-- LSP implementation
-- Debugger (DAP protocol)
-- WASM target
-- Embedded targets
-
-### Phase 4: Production Ready
-- Stable compiler
-- Verified implementation
-- Complete specification
-- Industry-ready
-
----
-
-## COMPLETE FRAMEWORKS
-
-### Core Language Features
-- Variables, functions, control flow
-- Generics, traits, macros
-- Memory management (Rc, Arc, GC)
-- Concurrency (fibers, actors, async)
-- FFI (C, C++, Rust, syscalls)
-- Error handling, Option, Result
-
-### Advanced Frameworks (30+ Modules)
-- **Memory**: Rc, Arc, GC, arenas, slabs, pools
-- **Concurrency**: Green threads, actors, async, channels
-- **Game Engine**: 2D/3D rendering, physics, audio, particles
-- **Networking**: HTTP/2/3, WebSocket, gRPC, DNS, TLS
-- **Security**: AES/RSA/Ed25519, JWT/OAuth2, RBAC, sandboxing
-- **Database**: SQL, B+ trees, MVCC, WAL, transactions
-- **OS/Kernel**: Syscalls, VFS, drivers, interrupts
-- **AI/ML**: Neural networks, transformers, RL, CV
-- **Blockchain**: PoW/PoS/DPoS, smart contracts, NFTs, DAOs
-- **GUI**: Widgets, layouts, canvas, animations
-
----
-
-## Community
-
-- **Discord**: [discord.gg/NullSec](https://dsc.gg/nullsec)
-
----
-
-## Acknowledgments
-
-Knull draws inspiration from:
-- **Rust** - Ownership system, zero-cost abstractions
-- **C** - Systems programming, simplicity
-- **Python** - Readability, ease of use
-- **Zig** - Comptime, C interoperability
-- **Jai** - Data-oriented design, pragmatism
-- **C++** - Template metaprogramming (concepts)
 
 ---
 
 ## License
 
-Knull is dual-licensed under:
-
-- **MIT License** - See [LICENSE-MIT](LICENSE-MIT)
-- **Apache License 2.0** - See [LICENSE-APACHE](LICENSE-APACHE)
-
-You may use Knull under either license at your option.
-
-SPDX-License-Identifier: MIT OR Apache-2.0
+Dual-licensed under [MIT](LICENSE-MIT) and [Apache 2.0](LICENSE-APACHE).
 
 ---
 
-## Disclaimer
+## Links
 
-Knull is currently in development. The language design and implementation may change.
-
----
-
-## Built-in Functions Reference
-
-### File I/O
-- `file_read(path)` - Read entire file to string
-- `file_write(path, content)` - Write string to file
-- `file_append(path, content)` - Append to file
-- `file_exists(path)` - Check if file exists
-- `file_remove(path)` - Delete file
-- `mkdir(path)` - Create directory
-- `dir_list(path)` - List directory contents
-
-### Networking
-- `tcp_connect(address)` - Connect to TCP server
-- `tcp_send(handle, data)` - Send data over TCP
-- `tcp_recv(handle, size)` - Receive data from TCP
-- `tcp_close(handle)` - Close TCP connection
-- `tcp_listen(address)` - Start TCP server
-- `tcp_accept(handle)` - Accept TCP connection
-- `get_hostname()` - Get system hostname
-
-### Threading
-- `spawn(code)` - Spawn new thread
-- `sleep(millis)` - Sleep for milliseconds
-- `thread_id()` - Get current thread ID
-
-### Time
-- `time()` - Get Unix timestamp (seconds)
-- `time_millis()` - Get Unix timestamp (milliseconds)
-
-### Environment
-- `env_get(key)` - Get environment variable
-- `env_set(key, value)` - Set environment variable
-- `exec(command)` - Execute shell command
-
-### String/Array Utilities
-- `len(arr_or_str)` - Get length
-- `strlen(str)` - Get string length
-- `substring(str, start, end)` - Extract substring
-- `push(arr, element)` - Add element to array
-
-### FFI (Foreign Function Interface)
-- `ffi_open(path)` - Load dynamic library
-- `ffi_get_symbol(lib, name)` - Get symbol from library
-- `ffi_malloc(size)` - Allocate C memory
-- `ffi_free(ptr)` - Free C memory
-
-### Garbage Collection
-- `gc_collect()` - Run garbage collector
-- `gc_stats()` - Get GC statistics (returns array)
-
----
-
-## Project Statistics
-
-- **Examples**: ~40 example files (mix of demonstrations and runnable programs)
-- **Tests**: 3 test files for core functionality
-- **Standard Library**: Built-in functions for I/O, networking, threading
-- **Bootstrap Compiler**: Rust-based compiler with C code generation
-- **C Backend**: Generates C code that compiles to executables
-- **REPL**: Interactive read-eval-print loop for experimentation
-
-### Working Features
-
-- Lexer and parser for core language syntax
-- Tree-walk interpreter for execution
-- C code generation for compilation
-- REPL for interactive use
-- Basic built-in functions (print, file I/O, networking)
-
----
-
-**Knull** - From hello world to operating system, one language.
-
-*Made with ❤️ by the Knull community*
+- **Repository**: https://github.com/4fqr/knull
+- **Issues**: https://github.com/4fqr/knull/issues
+- **Docs**: [docs/](docs/)
+- **Examples**: [examples/](examples/)

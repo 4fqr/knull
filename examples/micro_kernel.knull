@@ -1,30 +1,137 @@
-// =============================================================================
-// MICRO KERNEL - THE GOD MODE
-// =============================================================================
-// A minimal kernel demonstrating Knull's systems programming capabilities
+// micro_kernel.knull — OS-level primitives showcase
+// Covers: fork/waitpid, shared memory IPC, signals, epoll,
+//         inotify, /proc introspection, benchmarking, DNS
 
-fn main() {
-    println("Knull Microkernel Demo")
-    println("")
-    println("This file demonstrates Knull's kernel development capabilities.")
-    println("Full kernel support coming soon!")
-    println("")
-    
-    // Simulate kernel initialization
-    println("Kernel initialization:")
-    println("  [OK] Memory management")
-    println("  [OK] Process scheduler")
-    println("  [OK] Interrupt handlers")
-    println("  [OK] Device drivers")
-    println("  [OK] System calls")
-    println("")
-    
-    // Simulate running processes
-    println("Running processes:")
-    println("  PID 1: init")
-    println("  PID 2: shell")
-    println("  PID 3: web-server")
-    println("")
-    
-    println("System ready.")
+// ── 1. System banner ─────────────────────────────────────────────
+let u    = uname()
+let si   = sysinfo()
+let cpus = nprocs()
+
+print("═══ Knull Micro-Kernel Demo ═══")
+print("OS     : " + u["sysname"] + " " + u["release"])
+print("Arch   : " + u["machine"])
+print("Host   : " + hostname())
+print("CPUs   : " + str(cpus))
+print("RAM    : " + str(si["totalram"] / 1048576) + " MiB total, " + str(si["freeram"] / 1048576) + " MiB free")
+print("Uptime : " + str(si["uptime"]) + " s")
+print("Load   : " + str(si["load1"]) + " / " + str(si["load5"]))
+print("PageSz : " + str(page_size()) + " B")
+print("")
+
+// ── 2. Secure random ─────────────────────────────────────────────
+print("─── Secure Random ───")
+let token = random_hex(16)
+print("Token (128-bit): " + token)
+print("rand [1,100): " + str(random_int(1, 100)))
+print("")
+
+// ── 3. fork + waitpid ────────────────────────────────────────────
+print("─── Process Management ───")
+print("Parent PID: " + str(getpid()))
+let child = fork()
+if child == 0 {
+    print("[child " + str(getpid()) + "] running, ppid=" + str(getppid()))
+    let s = 0
+    let i = 0
+    while i < 1000 {
+        s = s + i
+        i = i + 1
+    }
+    print("[child] sum=" + str(s))
+    execve("/bin/sh", ["/bin/sh", "-c", "exit 7"], [])
+} else {
+    print("Forked PID: " + str(child))
+    let w = waitpid(child, 0)
+    print("Child exit code: " + str(w["exit_code"]))
 }
+print("")
+
+// ── 4. Shared memory IPC ─────────────────────────────────────────
+print("─── Shared Memory IPC ───")
+let shm_key = 0xBEEF + getpid()
+let shm_id  = shm_create(shm_key, 256)
+let ipc_msg = "kernel-ipc:" + token
+shm_write(shm_id, ipc_msg)
+let ipc_got = shm_read(shm_id, len(ipc_msg))
+print("IPC ok: " + str(ipc_msg == ipc_got))
+shm_remove(shm_id)
+print("")
+
+// ── 5. Signal handling ───────────────────────────────────────────
+print("─── Signals ───")
+signal_trap(10)
+signal_send(getpid(), 10)
+sleep_us(1000)
+print("SIGUSR1 delivered: " + str(signal_check(10)))
+signal_reset(10)
+print("")
+
+// ── 6. Epoll I/O event loop ──────────────────────────────────────
+print("─── Epoll ───")
+let pp  = pipe_create()
+let ep  = epoll_create()
+epoll_add(ep, pp["read_fd"], 1)
+fd_write(pp["write_fd"], "epoll-data")
+let evts = epoll_wait(ep, 4, 100)
+print("Events fired: " + str(len(evts)))
+if len(evts) > 0 {
+    print("Data: " + fd_read(pp["read_fd"], 64))
+}
+fd_close(pp["read_fd"])
+fd_close(pp["write_fd"])
+fd_close(ep)
+print("")
+
+// ── 7. inotify file watching ─────────────────────────────────────
+print("─── inotify ───")
+let ifd  = inotify_init()
+let mask = IN_CREATE() | IN_DELETE()
+let wd   = inotify_add_watch(ifd, "/tmp", mask)
+let tfile = "/tmp/knull_mk_" + str(getpid()) + ".tmp"
+let tfd = open(tfile, O_CREAT() | O_WRONLY() | O_TRUNC(), 0o600)
+fd_close(tfd)
+let ievents = inotify_read(ifd)
+print("inotify event count: " + str(len(ievents)))
+if len(ievents) > 0 {
+    print("Detected file: " + ievents[0]["name"])
+}
+inotify_rm_watch(ifd, wd)
+fd_close(ifd)
+file_remove(tfile)
+print("")
+
+// ── 8. /proc introspection ───────────────────────────────────────
+print("─── /proc ───")
+let ps  = proc_status()
+print("Name    : " + ps["Name"])
+print("VmRSS   : " + ps["VmRSS"])
+print("Threads : " + ps["Threads"])
+let maps = proc_self_maps()
+let xmaps = filter(maps, |m| contains(m["perms"], "x"))
+print("Exec regions: " + str(len(xmaps)))
+print("Open FDs    : " + str(len(proc_fds())))
+let plist = proc_list()
+print("Visible procs: " + str(len(plist)))
+print("")
+
+// ── 9. Benchmark ─────────────────────────────────────────────────
+print("─── Benchmark ───")
+let t0  = monotonic_ns()
+let acc = 0
+let k   = 0
+while k < 100000 {
+    acc = acc + k
+    k   = k + 1
+}
+let elapsed = (monotonic_ns() - t0) / 1000
+print("sum(0..100000)=" + str(acc) + "  time=" + str(elapsed) + " µs")
+print("")
+
+// ── 10. Network utils ────────────────────────────────────────────
+print("─── Network ───")
+let ips = dns_lookup("localhost")
+print("localhost→" + str(ips))
+print("127.0.0.1 int=" + str(ip_to_int("127.0.0.1")))
+print("")
+
+print("═══ Demo complete ═══")

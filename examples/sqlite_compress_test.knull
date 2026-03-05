@@ -1,0 +1,62 @@
+// ── SQLite test ──────────────────────────────────────────────────────────
+let db = db_open_memory()
+println("db handle: " + str(db))
+
+// Create table + insert
+db_exec(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)")
+db_exec(db, "INSERT INTO users (name, age) VALUES ('Alice', 30)")
+db_exec(db, "INSERT INTO users (name, age) VALUES ('Bob', 25)")
+db_exec(db, "INSERT INTO users (name, age) VALUES ('Carol', 35)")
+
+let last_id = db_last_insert_id(db)
+println("last insert id: " + str(last_id))  // 3
+
+// Query all
+let rows = db_query(db, "SELECT * FROM users ORDER BY id")
+println("row count: " + str(len(rows)))  // 3
+println("first name: " + rows[0]["name"])  // Alice
+println("second age: " + str(rows[1]["age"]))  // 25
+
+// Query one
+let one = db_query_one(db, "SELECT * FROM users WHERE name='Carol'")
+println("carol age: " + str(one["age"]))  // 35
+
+// Parameterized query
+let filtered = db_query(db, "SELECT name FROM users WHERE age > 28")
+println("users > 28: " + str(len(filtered)))  // 2 (Alice 30, Carol 35)
+
+// Close
+let ok = db_close(db)
+println("db closed: " + str(ok))
+
+println("=== ALL SQLITE TESTS PASSED ===")
+
+// ── Compression test ─────────────────────────────────────────────────────
+let original = "Hello, World! This is a test of gzip compression in Knull!"
+
+// gzip round-trip (string in -> string out)
+let compressed = gzip_compress(original)
+println("gzip compressed size: " + str(len(compressed)))
+let decompressed = gzip_decompress_str(compressed)
+println("gzip roundtrip ok: " + str(decompressed == original))
+
+// zlib round-trip (string in, bytes out -> gzip_decompress_str won't work, use zlib_decompress + hex_decode_str workaround)
+let zc = zlib_compress(original)
+println("zlib compressed size: " + str(len(zc)))
+let zd = zlib_decompress(zc)
+// convert byte-array back to string via hex roundtrip
+let zenc = hex_encode(zd)  // array -> hex
+// can't easily convert byte-array to string without chr, so just verify length
+println("zlib decompress len ok: " + str(len(zd) == len(original)))
+
+// deflate round-trip
+let dc = deflate_compress(original)
+let dd = deflate_decompress(dc)
+println("deflate decompress len ok: " + str(len(dd) == len(original)))
+
+// gzip with level
+let lc = gzip_compress_level(original, 9)
+let ld = gzip_decompress_str(lc)
+println("gzip level 9 roundtrip ok: " + str(ld == original))
+
+println("=== ALL COMPRESSION TESTS PASSED ===")

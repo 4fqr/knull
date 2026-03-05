@@ -1,0 +1,50 @@
+// ── chr / ord / str_bytes / bytes_str ────────────────────────────────────
+println("chr(65) = " + chr(65))         // A
+println("chr(9829) = " + chr(9829))     // ♥
+println("ord('A') = " + str(ord("A"))) // 65
+let bs = str_bytes("Hi!")
+println("str_bytes('Hi!'): " + str(bs))  // [72, 105, 33]
+let s2 = bytes_str([72, 101, 108, 108, 111])
+println("bytes_str: " + s2)              // Hello
+let chars = str_chars("abc")
+println("str_chars: " + str(chars))
+
+// ── sprintf ───────────────────────────────────────────────────────────────
+println(sprintf("Hello %s, you are %d years old!", "Alice", 30))
+println(sprintf("Pi is approximately %.4f", 3.14159265))
+println(sprintf("Hex: 0x%08X", 255))     // 0x000000FF
+println(sprintf("%-10s|", "left"))       // left-aligned
+println(sprintf("%010d", 42))            // zero-padded
+println(sprintf("Binary of 10: %b", 10))// 1010
+
+// ── AES-128 ECB round-trip ────────────────────────────────────────────────
+let key = aes128_key_from_str("secretkey123456!")
+let plaintext = str_bytes("Hello, AES World")  // exactly 16 bytes
+let encrypted = aes128_ecb_encrypt(plaintext, key)
+let decrypted = aes128_ecb_decrypt(encrypted, key)
+println("AES-128 ECB roundtrip: " + str(decrypted == plaintext))
+
+// test with padding (non-block-aligned input)
+let plain2 = str_bytes("Short message")  // 13 bytes, needs padding
+let enc2 = aes128_ecb_encrypt(plain2, key)
+let dec2 = aes128_ecb_decrypt(enc2, key)
+println("AES-128 ECB padded roundtrip: " + str(dec2 == plain2))
+
+// ── AES-128 CBC round-trip ────────────────────────────────────────────────
+let iv = aes128_key_from_str("initvector123456")
+let cbc_enc = aes128_cbc_encrypt(plaintext, key, iv)
+let cbc_dec = aes128_cbc_decrypt(cbc_enc, key, iv)
+println("AES-128 CBC roundtrip: " + str(cbc_dec == plaintext))
+
+// longer message
+let long_msg = str_bytes("This is a longer message that spans multiple AES blocks.")
+let long_enc = aes128_cbc_encrypt(long_msg, key, iv)
+let long_dec = aes128_cbc_decrypt(long_enc, key, iv)
+println("AES-128 CBC long roundtrip: " + str(long_dec == long_msg))
+
+// ── str_repeat / str_pad ─────────────────────────────────────────────────
+println(str_repeat("ab", 3))            // ababab
+println("[" + str_pad_left("hi", 8, " ") + "]")   // [      hi]
+println("[" + str_pad_right("hi", 8, "-") + "]")  // [hi------]
+
+println("=== ALL STRING/AES TESTS PASSED ===")

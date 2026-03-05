@@ -1,169 +1,88 @@
-# Building Knull from Source
+# Building Knull
 
-This guide covers how to build the Knull compiler from source.
+---
 
 ## Prerequisites
 
-- **Rust** (1.70+)
+- **Rust** 1.70+ (`rustup` recommended)
 - **Git**
-- **Linux/macOS/Windows**
-
-## Quick Install (All OS)
-
-### Linux / macOS
-
-```bash
-curl -sSL https://raw.githubusercontent.com/4fqr/knull/master/install.sh | bash
-```
-
-Then add to PATH:
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-### Windows
-
-```powershell
-# Install Rust from https://rustup.rs
-git clone https://github.com/4fqr/knull.git
-cd knull\src
-cargo build --release --no-default-features
-copy target\release\knull.exe C:\Windows\System32\
-```
+- **LLVM** 14+ (optional, for `--features llvm-backend`)
+- **GCC / Clang** (for C codegen backend)
 
 ---
 
-## Manual Build
-
-### Linux / macOS
+## Quick Build (No LLVM)
 
 ```bash
-# Clone the repository
 git clone https://github.com/4fqr/knull.git
-cd knull
-
-# Build the compiler
-cd src
+cd knull/src
 cargo build --release --no-default-features
-
-# Verify
-../target/release/knull --version
+./target/release/knull version
 ```
 
-### Windows
-
-```powershell
-# Clone the repository
-git clone https://github.com/4fqr/knull.git
-cd knull\src
-
-# Build
-cargo build --release --no-default-features
-
-# Verify
-..\target\release\knull.exe --version
-```
-
----
-
-## Build Commands
+## Build with LLVM
 
 ```bash
-# Development build (faster, no optimizations)
-cargo build
+# Install LLVM (Ubuntu/Debian)
+sudo apt install llvm-14 llvm-14-dev
 
-# Release build (slower, optimized)
+cd knull/src
 cargo build --release
+```
 
-# Build without default features
+## Debug Build
+
+```bash
+cd src
 cargo build --no-default-features
-
-# Run tests
-cargo test
-
-# Format code
-cargo fmt
+# Binary: target/debug/knull
 ```
 
----
-
-## Output
-
-The compiled binary is located at:
-
-- **Linux/macOS**: `target/release/knull`
-- **Windows**: `target/release/knull.exe`
-
----
-
-## Installation
-
-### Local (Linux/macOS)
+## Run Tests
 
 ```bash
-# Copy to ~/.local/bin
-cp target/release/knull ~/.local/bin/
+# Rust unit tests
+cd src && cargo test --no-default-features
 
-# Or add to PATH
-export PATH="$PWD/target/release:$PATH"
+# Knull integration tests
+cd ..
+bash test_all.sh
+# Expected: 33 passed, 0 failed
 ```
 
-### System-wide (Linux/macOS)
+## Build Targets
 
-```bash
-# Requires sudo
-sudo cp target/release/knull /usr/local/bin/knull
-```
+| Target | Command |
+|--------|---------|
+| Native (interpreter) | `cargo build --no-default-features` |
+| Native (LLVM) | `cargo build --features llvm-backend` |
+| WASM output | `knull build --target wasm32 file.knull` |
+| C codegen | `knull build file.knull` (default) |
 
-### Windows
+## Install Locally
 
-```cmd
-copy target\release\knull.exe C:\Windows\System32\
-```
-
----
-
-## Troubleshooting
-
-### "command not found: knull"
-
-Add to PATH:
 ```bash
 # Linux/macOS
-export PATH="$HOME/.local/bin:$PATH"
+cp src/target/release/knull ~/.local/bin/
 
-# Add to ~/.bashrc or ~/.zshrc for permanent
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+# Or use the install script
+bash install.sh
 ```
 
-### Slow build times
-
-Use cached builds:
-```bash
-cargo build
-```
-
----
-
-## Verification
+## Uninstall
 
 ```bash
-# Check version
-knull --version
-
-# Run a test file
-echo 'println "Knull works!"' > test.knull
-knull run test.knull
+bash uninstall.sh
+# or
+rm ~/.local/bin/knull
 ```
 
-Expected output:
-```
-Running: test.knull
-Lexed X tokens
-Parsed successfully
-Knull works!
-```
+## Feature Flags
 
----
+| Flag | Description |
+|------|-------------|
+| `llvm-backend` | Enable LLVM compilation |
+| `lsp` | Enable LSP language server |
+| `debugger` | Enable interactive debugger |
 
-For more help, see [docs/GUIDE.md](docs/GUIDE.md)
+Default (no flags): interpreter + C codegen only.

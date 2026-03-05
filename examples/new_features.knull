@@ -1,0 +1,309 @@
+// =============================================================================
+// NEW FEATURES SHOWCASE
+// =============================================================================
+// Demonstrates ALL new language features added in the latest upgrade:
+//   f-strings, lambdas/closures, maps, tuples, pipeline operator,
+//   method chaining, functional programming, JSON, and more.
+
+fn main() {
+    demo_fstrings()
+    demo_lambdas()
+    demo_maps()
+    demo_tuples()
+    demo_pipeline()
+    demo_method_chaining()
+    demo_functional()
+    demo_json()
+    demo_builtins()
+}
+
+// ── F-String Interpolation ────────────────────────────────────────────────────
+
+fn demo_fstrings() {
+    println("=== F-Strings ===")
+
+    let name = "Knull"
+    let version = 2
+    let pi = 3.14159
+
+    // f"..." syntax
+    println(f"Hello from {name} v{version}!")
+    println(f"Pi is approximately {pi}")
+    println(f"2 + 2 = {2 + 2}")
+    println(f"Name length: {name.len()}")
+    println(f"UPPERCASE: {name.upper()}")
+
+    // Template string with backticks
+    let user = "world"
+    println(`Hello, ${user}!`)
+    println(`Math: ${10 * 10} = 100`)
+
+    println("")
+}
+
+// ── Lambdas / Closures ────────────────────────────────────────────────────────
+
+fn demo_lambdas() {
+    println("=== Lambdas & Closures ===")
+
+    // Basic lambda
+    let double = |x| x * 2
+    println(f"double(5) = {double(5)}")
+
+    // Multi-parameter lambda
+    let add = |a, b| a + b
+    println(f"add(3, 4) = {add(3, 4)}")
+
+    // Lambda capturing outer variable (closure)
+    let factor = 10
+    let scale = |x| x * factor
+    println(f"scale(7) = {scale(7)}")
+
+    // Higher-order function
+    let apply_twice = |f, x| f(f(x))
+    println(f"apply_twice(double, 3) = {apply_twice(double, 3)}")
+
+    // Zero-arg lambda written with ||
+    let greet = || "Hello, Knull!"
+    println(greet())
+
+    println("")
+}
+
+// ── Maps / Dicts ──────────────────────────────────────────────────────────────
+
+fn demo_maps() {
+    println("=== Maps ===")
+
+    // Map literal
+    let person = {"name": "Alice", "age": 30, "active": true}
+    println(f"Name: {person.get(\"name\")}")
+    println(f"Age: {person.get(\"age\")}")
+
+    // Map operations
+    let updated = person.set("age", 31)
+    println(f"Updated age: {updated.get(\"age\")}")
+
+    // Keys & values
+    println(f"Keys: {keys(person)}")
+    println(f"Has 'name': {has_key(person, \"name\")}")
+    println(f"Has 'email': {has_key(person, \"email\")}")
+
+    // Merging maps
+    let extra = {"email": "alice@example.com", "role": "admin"}
+    let full = merge_maps(person, extra)
+    println(f"Full profile keys: {keys(full)}")
+
+    // from_pairs
+    let pairs = [["x", 1], ["y", 2], ["z", 3]]
+    let coords = from_pairs(pairs)
+    println(f"Coords x={coords.get(\"x\")}, y={coords.get(\"y\")}, z={coords.get(\"z\")}")
+
+    println("")
+}
+
+// ── Tuples ────────────────────────────────────────────────────────────────────
+
+fn demo_tuples() {
+    println("=== Tuples ===")
+
+    let point = (10, 20)
+    println(f"Point: {point}")
+
+    let rgb = (255, 128, 0)
+    println(f"RGB: {rgb}")
+
+    // Tuple from function
+    let minmax = get_minmax([3, 1, 4, 1, 5, 9, 2, 6])
+    println(f"Min/Max tuple: {minmax}")
+
+    println("")
+}
+
+fn get_minmax(arr) {
+    let mn = arr[0]
+    let mx = arr[0]
+    let i = 1
+    while i < arr.len() {
+        if arr[i] < mn { mn = arr[i] }
+        if arr[i] > mx { mx = arr[i] }
+        i = i + 1
+    }
+    return (mn, mx)
+}
+
+// ── Pipeline Operator ─────────────────────────────────────────────────────────
+
+fn demo_pipeline() {
+    println("=== Pipeline |> ===")
+
+    // Pipeline chains: left value becomes first arg of right call
+    let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    // Instead of nested calls, use |>
+    // nums |> filter_fn(|x| x % 2 == 0) |> map_fn(|x| x * x)
+    let even = filter_fn(nums, |x| x % 2 == 0)
+    let squares = map_fn(even, |x| x * x)
+    println(f"Even squares: {squares}")
+
+    // Using pipeline syntax
+    let result = nums |> filter_fn(|x| x > 5)
+    println(f"Greater than 5: {result}")
+
+    println("")
+}
+
+// ── Method Chaining ───────────────────────────────────────────────────────────
+
+fn demo_method_chaining() {
+    println("=== Method Chaining ===")
+
+    // String methods
+    let raw = "  Hello, World!  "
+    println(f"trim: '{raw.trim()}'")
+    println(f"upper: '{raw.trim().upper()}'")
+    println(f"replace: '{raw.trim().replace(\"World\", \"Knull\")}'")
+    println(f"split: {raw.trim().split(\", \")}")
+
+    // Number methods
+    let n = -42
+    println(f"abs({n}) = {n.abs()}")
+    println(f"is_even({n}) = {n.is_even()}")
+    println(f"to_hex: {n.abs().to_hex()}")
+
+    // Float methods
+    let f = 2.7
+    println(f"ceil({f}) = {f.ceil()}")
+    println(f"floor({f}) = {f.floor()}")
+    println(f"sqrt(16.0) = {16.0.sqrt()}")
+
+    // Array methods
+    let arr = [5, 2, 8, 1, 9, 3]
+    println(f"sorted: {arr.sort()}")
+    println(f"reversed: {arr.reverse()}")
+    println(f"sum: {arr.sum()}")
+    println(f"min: {arr.min()}")
+    println(f"max: {arr.max()}")
+    println(f"unique: {[1,2,2,3,3,3].unique()}")
+    println(f"contains 8: {arr.contains(8)}")
+
+    println("")
+}
+
+// ── Functional Programming ────────────────────────────────────────────────────
+
+fn demo_functional() {
+    println("=== Functional Programming ===")
+
+    let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    // map
+    let doubled = map_fn(nums, |x| x * 2)
+    println(f"map(*2): {doubled}")
+
+    // filter
+    let odds = filter_fn(nums, |x| x % 2 != 0)
+    println(f"filter(odd): {odds}")
+
+    // reduce
+    let total = reduce(nums, |acc, x| acc + x, 0)
+    println(f"reduce(sum): {total}")
+
+    let product = reduce([1, 2, 3, 4, 5], |acc, x| acc * x, 1)
+    println(f"reduce(product): {product}")
+
+    // find_fn
+    let first_gt5 = find_fn(nums, |x| x > 5)
+    println(f"first > 5: {first_gt5}")
+
+    // flat_map
+    let nested = flat_map([1, 2, 3], |x| [x, x * 10])
+    println(f"flat_map: {nested}")
+
+    // for_each (side effects)
+    print("for_each: ")
+    for_each([1, 2, 3], |x| print(str(x) + " "))
+    println("")
+
+    // call()
+    let sqr = |x| x * x
+    println(f"call(sqr, 9) = {call(sqr, 9)}")
+
+    // Composing
+    let pipeline = |xs|
+        reduce(
+            map_fn(filter_fn(xs, |x| x % 2 == 0), |x| x * x),
+            |a, b| a + b,
+            0
+        )
+    println(f"sum of squares of evens: {pipeline(nums)}")
+
+    println("")
+}
+
+// ── JSON ──────────────────────────────────────────────────────────────────────
+
+fn demo_json() {
+    println("=== JSON ===")
+
+    // Encode
+    let data = {"name": "Alice", "scores": [98, 87, 95], "active": true}
+    let json_str = json_encode(data)
+    println(f"JSON: {json_str}")
+
+    // Decode
+    let parsed = json_decode("{\"x\":1,\"y\":2,\"z\":3}")
+    println(f"Decoded x={parsed.get(\"x\")}")
+
+    // Array to JSON
+    let arr_json = json_encode([1, 2, 3, 4, 5])
+    println(f"Array JSON: {arr_json}")
+
+    println("")
+}
+
+// ── New Builtins ──────────────────────────────────────────────────────────────
+
+fn demo_builtins() {
+    println("=== New Builtins ===")
+
+    // typeof
+    println(f"typeof(42) = {typeof(42)}")
+    println(f"typeof(3.14) = {typeof(3.14)}")
+    println(f"typeof(\"hi\") = {typeof(\"hi\")}")
+    println(f"typeof([1,2]) = {typeof([1,2])}")
+    println(f"typeof({{}}) = {typeof({})}")
+    println(f"typeof(null) = {typeof(null)}")
+
+    // hash
+    println(f"hash(\"hello\") = {hash(\"hello\")}")
+
+    // uuid
+    println(f"uuid = {uuid()}")
+
+    // array()
+    let r = array(range(1, 6))
+    println(f"range(1..6) = {r}")
+
+    // bool / str / num conversions
+    println(f"bool(0) = {bool(0)}")
+    println(f"bool(1) = {bool(1)}")
+    println(f"str(42) = {str(42)}")
+    println(f"num(\"123\") = {num(\"123\")}")
+
+    // not
+    println(f"not(true) = {not(true)}")
+    println(f"not(false) = {not(false)}")
+
+    // coalesce / if_null
+    println(f"coalesce(null, null, 42) = {coalesce(null, null, 42)}")
+
+    // bit ops
+    println(f"bit_and(12, 10) = {bit_and(12, 10)}")
+    println(f"bit_or(12, 10) = {bit_or(12, 10)}")
+    println(f"bit_xor(12, 10) = {bit_xor(12, 10)}")
+    println(f"bit_shl(1, 4) = {bit_shl(1, 4)}")
+
+    println("")
+    println("All features demonstrated successfully!")
+}

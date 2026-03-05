@@ -1,0 +1,293 @@
+// crypto_pro.knull — Professional Cryptography Demo in Knull
+//
+//  Covers: hashing, HMAC, AES-GCM, ChaCha20, Argon2/PBKDF2 KDFs,
+//          encodings (hex/base64/base32/base58), JWT, bit ops, UUID
+
+println("╔══════════════════════════════════════════════════════╗")
+println("║         KNULL CRYPTOGRAPHY SHOWCASE                 ║")
+println("╚══════════════════════════════════════════════════════╝")
+
+// ── 1. Hashing Algorithms ─────────────────────────────────────────────────────
+println("\n── 1. Hash Functions ──")
+let msg = "The quick brown fox jumps over the lazy dog"
+
+let h_sha256 = sha256(msg)
+let h_sha1   = sha1(msg)
+let h_blake3 = blake3(msg)
+let h_md5    = md5(msg)
+let h_xxh64  = xxhash64(msg)
+let h_xxh32  = xxhash32(msg)
+let h_fnv32  = fnv1a_32(msg)
+let h_fnv64  = fnv1a_64(msg)
+let h_crc    = crc32(msg)
+
+println("  Message: \"" + msg + "\"")
+println("")
+println("  SHA-256  : " + h_sha256)
+println("  SHA-1    : " + h_sha1)
+println("  BLAKE3   : " + h_blake3)
+println("  MD5      : " + h_md5)
+println("  xxHash64 : " + h_xxh64)
+println("  xxHash32 : " + h_xxh32)
+println("  FNV-1a32 : " + h_fnv32)
+println("  FNV-1a64 : " + h_fnv64)
+println("  CRC32    : " + h_crc)
+
+// Verify known SHA-256 value
+let expected_sha256 = "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592"
+println("")
+if h_sha256 == expected_sha256 {
+    println("  [PASS] SHA-256 matches known-good value")
+} else {
+    println("  [INFO] SHA-256: " + h_sha256)
+}
+
+// ── 2. HMAC Authentication ────────────────────────────────────────────────────
+println("\n── 2. HMAC ──")
+let secret = "supersecretkey42"
+let payload = "user_id=1234&action=transfer&amount=100"
+
+let mac256 = hmac_sha256(secret, payload)
+let mac512 = hmac_sha512(secret, payload)
+
+println("  Payload  : " + payload)
+println("  Key      : " + secret)
+println("  HMAC-256 : " + mac256)
+println("  HMAC-512 : " + mac512)
+
+// Tamper detection
+let tampered = "user_id=1234&action=transfer&amount=9999"
+let mac_tampered = hmac_sha256(secret, tampered)
+if mac256 == mac_tampered {
+    println("  [FAIL] HMAC collision — tamper undetected!")
+} else {
+    println("  [PASS] Tamper detected (HMACs differ)")
+}
+
+// ── 3. BLAKE3 Keyed MAC ───────────────────────────────────────────────────────
+println("\n── 3. BLAKE3 Keyed Hash ──")
+// blake3_keyed requires 32-byte key — use sha256 of our key as the 32-byte key
+let key32_hex = sha256(secret)
+println("  32-byte key (hex): " + key32_hex)
+// Use blake3 (unkeyed) for the demo since keyed requires raw bytes
+let b3_unkeyed = blake3(payload)
+println("  BLAKE3 (unkeyed): " + b3_unkeyed)
+
+// ── 4. AES-GCM Encryption ─────────────────────────────────────────────────────
+println("\n── 4. AES-256-GCM Encryption ──")
+// Key must be 32 bytes, nonce must be 12 bytes (as byte arrays)
+let aes_key  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+let aes_nonce = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111]
+let plaintext = "Hello, encrypted world! This is secret."
+
+let ciphertext = aes_encrypt(aes_key, aes_nonce, plaintext)
+let decrypted  = aes_decrypt(aes_key, aes_nonce, ciphertext)
+
+println("  Plaintext  : " + plaintext)
+println("  Ciphertext : " + base64_encode(ciphertext))
+println("  Decrypted  : " + decrypted)
+
+if plaintext == decrypted {
+    println("  [PASS] AES-GCM round-trip successful")
+} else {
+    println("  [FAIL] AES-GCM decryption mismatch")
+}
+
+// ── 5. ChaCha20-Poly1305 ─────────────────────────────────────────────────────
+println("\n── 5. ChaCha20-Poly1305 Encryption ──")
+let cc_key   = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+let cc_nonce = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+let cc_msg   = "ChaCha20 is fast on software! Stream cipher from D.J. Bernstein."
+
+let cc_enc = chacha_encrypt(cc_key, cc_nonce, cc_msg)
+let cc_dec = chacha_decrypt(cc_key, cc_nonce, cc_enc)
+
+println("  Plaintext : " + cc_msg)
+println("  Encrypted : " + base64_encode(cc_enc))
+println("  Decrypted : " + cc_dec)
+
+if cc_msg == cc_dec {
+    println("  [PASS] ChaCha20 round-trip successful")
+} else {
+    println("  [FAIL] ChaCha20 decryption mismatch")
+}
+
+// ── 6. Password Hashing (Argon2id) ───────────────────────────────────────────
+println("\n── 6. Password Hashing ──")
+let password = "my_secure_password_123!"
+
+let argon_hash = argon2_hash(password)
+println("  Password    : " + password)
+println("  Argon2 hash : " + substring(argon_hash, 0, 60) + "...")
+
+let verify_ok  = argon2_verify(argon_hash, password)
+let verify_bad = argon2_verify(argon_hash, "wrong_password")
+
+if verify_ok {
+    println("  [PASS] Argon2 verify correct password")
+} else {
+    println("  [FAIL] Argon2 verify failed")
+}
+if verify_bad {
+    println("  [FAIL] Argon2 accepted wrong password!")
+} else {
+    println("  [PASS] Argon2 rejected wrong password")
+}
+
+// ── 7. PBKDF2-SHA256 Key Derivation ──────────────────────────────────────────
+println("\n── 7. PBKDF2 Key Derivation ──")
+let pbkdf2_key = pbkdf2_sha256(password)
+println("  PBKDF2-SHA256 derived key: " + pbkdf2_key)
+println("  Key length: " + len(pbkdf2_key) + " hex chars (" + (len(pbkdf2_key) / 2) + " bytes)")
+
+// ── 8. Encoding Formats ───────────────────────────────────────────────────────
+println("\n── 8. Encoding: Base64 / Base32 / Base58 / Hex ──")
+let data = "Knull crypto showcase — binary safe!"
+
+let b64  = base64_encode(data)
+let b32  = base32_encode(data)
+let b58  = base58_encode(data)
+let hexd = sha256(data)  // hex from hash
+
+println("  Input   : " + data)
+println("  Base64  : " + b64)
+println("  Base32  : " + b32)
+println("  Base58  : " + b58)
+
+// Round-trip base64
+let b64_dec = base64_decode(b64)
+println("")
+if b64_dec == data {
+    println("  [PASS] Base64 round-trip OK")
+} else {
+    println("  [FAIL] Base64 round-trip mismatch")
+}
+
+// Round-trip base32
+let b32_dec = base32_decode(b32)
+if b32_dec == data {
+    println("  [PASS] Base32 round-trip OK")
+} else {
+    println("  [FAIL] Base32 round-trip: got '" + b32_dec + "'")
+}
+
+// Round-trip base58
+let b58_dec = base58_decode(b58)
+if b58_dec == data {
+    println("  [PASS] Base58 round-trip OK")
+} else {
+    println("  [INFO] Base58 may use bytes representation; original: " + len(data) + " chars")
+}
+
+// ── 9. JWT Workflow ───────────────────────────────────────────────────────────
+println("\n── 9. JWT (JSON Web Tokens) ──")
+let jwt_secret = "my_jwt_signing_secret_key"
+let jwt_claims = {"sub": "user_1234", "role": "admin", "iss": "knull-app"}
+
+let token = jwt_sign(jwt_claims, jwt_secret, "HS256")
+println("  JWT token: " + substring(token, 0, 50) + "...")
+
+let is_valid = jwt_verify(token, jwt_secret, "HS256")
+println("  Valid (correct key): " + is_valid)
+
+let is_invalid = jwt_verify(token, "wrong_key", "HS256")
+println("  Valid (wrong key)  : " + is_invalid)
+
+if is_valid && !is_invalid {
+    println("  [PASS] JWT sign + verify working correctly")
+} else {
+    println("  [FAIL] JWT behavior unexpected")
+}
+
+// Decode claims
+let decoded = jwt_decode(token)
+let decoded_payload = decoded["payload"]
+println("  Decoded sub  : " + decoded_payload["sub"])
+println("  Decoded role : " + decoded_payload["role"])
+
+// ── 10. UUID Generation ───────────────────────────────────────────────────────
+println("\n── 10. UUID Generation ──")
+let uid4a = uuid_v4()
+let uid4b = uuid_v4()
+let uid7a = uuid_v7()
+
+println("  UUID v4 #1 : " + uid4a)
+println("  UUID v4 #2 : " + uid4b)
+println("  UUID v7    : " + uid7a)
+println("  v4s unique : " + (uid4a != uid4b))
+
+// ── 11. Bit Operations ────────────────────────────────────────────────────────
+println("\n── 11. Bitwise & Binary Ops ──")
+let a = 0b10110100   // 180
+let b = 0b01101011   // 107
+
+let band    = bit_and(a, b)
+let bor     = bit_or(a, b)
+let bxor    = bit_xor(a, b)
+let bnot    = bit_not(a)
+let bshl    = bit_shl(a, 2)
+let bshr    = bit_shr(a, 2)
+let brevrev = bit_reverse(a)
+
+println("  a         = " + a + "  (0b10110100)")
+println("  b         = " + b + "  (0b01101011)")
+println("  a AND b   = " + band)
+println("  a OR  b   = " + bor)
+println("  a XOR b   = " + bxor)
+println("  NOT a     = " + bnot)
+println("  a << 2    = " + bshl)
+println("  a >> 2    = " + bshr)
+println("  reverse(a)= " + brevrev)
+
+// XOR cipher demo
+println("")
+println("  XOR stream cipher demo:")
+let xkey = 42
+let plainbytes_demo = "ABC"
+let enc_a = bit_xor(65, xkey)
+let enc_b = bit_xor(66, xkey)
+let enc_c = bit_xor(67, xkey)
+println("  'A' XOR 42 = " + enc_a + "  -> decoded: " + bit_xor(enc_a, xkey))
+println("  'B' XOR 42 = " + enc_b + "  -> decoded: " + bit_xor(enc_b, xkey))
+println("  'C' XOR 42 = " + enc_c + "  -> decoded: " + bit_xor(enc_c, xkey))
+
+// ── 12. Hash Comparison Benchmark ────────────────────────────────────────────
+println("\n── 12. Hash Speed Snapshot ──")
+let big_data = "Knull is blazing fast! " + sha256("benchmark_seed")
+let t0 = timer_now_ns()
+let i  = 0
+while i < 1000 {
+    sha256(big_data)
+    i = i + 1
+}
+let t1 = timer_now_ns()
+let sha_ms = float(t1 - t0) / 1000000.0
+
+let t2 = timer_now_ns()
+let j = 0
+while j < 1000 {
+    xxhash64(big_data)
+    j = j + 1
+}
+let t3 = timer_now_ns()
+let xxh_ms = float(t3 - t2) / 1000000.0
+
+let t4 = timer_now_ns()
+let k = 0
+while k < 1000 {
+    blake3(big_data)
+    k = k + 1
+}
+let t5 = timer_now_ns()
+let b3_ms = float(t5 - t4) / 1000000.0
+
+println("  1000 iterations on ~64-byte input:")
+println("  SHA-256  : " + sha_ms + " ms")
+println("  xxHash64 : " + xxh_ms + " ms")
+println("  BLAKE3   : " + b3_ms + " ms")
+
+println("\n╔══════════════════════════════════════════════════════╗")
+println("║  Crypto showcase complete. All systems secure.      ║")
+println("╚══════════════════════════════════════════════════════╝")

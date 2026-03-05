@@ -1,0 +1,129 @@
+// ──────────────────────────────────────────────────────────────────────────────
+//  financial_model.knull — Knull Finance Library Demo
+//  Shows: Black-Scholes, NPV/IRR, mortgage, Black-Scholes Greeks (manual),
+//         compound interest, CAGR, Sharpe ratio
+// ──────────────────────────────────────────────────────────────────────────────
+
+println("═══════════════════════════════════════════════")
+println("    KNULL FINANCIAL MODELLING SUITE             ")
+println("═══════════════════════════════════════════════")
+
+// ── 1. Black-Scholes Option Pricing ──────────────────────────────────────────
+println("\n── Black-Scholes Option Pricing ──")
+let S  = 100.0   // Spot price
+let K  = 100.0   // Strike price
+let T  = 1.0     // Time to expiry (years)
+let r  = 0.05    // Risk-free rate
+let v  = 0.2     // Volatility (20%)
+
+let call_price = finance_black_scholes_call(S, K, T, r, v)
+let put_price  = finance_black_scholes_put(S, K, T, r, v)
+
+println("  Spot:        $" + S)
+println("  Strike:      $" + K)
+println("  Volatility:  " + (v * 100.0) + "%")
+println("  Risk-free:   " + (r * 100.0) + "%")
+println("  Call price:  $" + call_price)
+println("  Put price:   $" + put_price)
+println("  Put-call parity check: " + (call_price - put_price))
+
+// ── 2. Net Present Value & IRR ────────────────────────────────────────────────
+println("\n── NPV & IRR Analysis ──")
+let cash_flows = [-100000.0, 30000.0, 35000.0, 40000.0, 45000.0]
+let discount   = 0.1
+
+let npv = finance_npv(discount, cash_flows)
+let irr = finance_irr(cash_flows)
+
+println("  Cash flows: " + cash_flows)
+println("  Discount rate: " + (discount * 100.0) + "%")
+println("  NPV: $" + npv)
+println("  IRR: " + (irr * 100.0) + "%")
+
+if npv > 0.0 {
+    println("  → Project is PROFITABLE (positive NPV)")
+} else {
+    println("  → Project is NOT profitable")
+}
+
+// ── 3. Loan / Mortgage Calculator ────────────────────────────────────────────
+println("\n── Mortgage Calculator ──")
+let principal = 400000.0
+let ann_rate  = 0.065
+let years     = 30
+
+let monthly_pmt = finance_mortgage(principal, ann_rate, years)
+let total_paid  = monthly_pmt * (years * 12.0)
+let total_int   = total_paid - principal
+
+println("  Loan:           $" + principal)
+println("  Annual rate:    " + (ann_rate * 100.0) + "%")
+println("  Term:           " + years + " years")
+println("  Monthly pmt:    $" + monthly_pmt)
+println("  Total paid:     $" + total_paid)
+println("  Total interest: $" + total_int)
+
+// ── 4. Compound Interest & CAGR ──────────────────────────────────────────────
+println("\n── Compound Interest & CAGR ──")
+let invest  = 10000.0
+let rate    = 0.08
+let periods = 20
+
+let fv   = finance_compound(invest, rate, 1, periods)
+let cagr = finance_cagr(invest, fv, periods)
+
+println("  Principal:  $" + invest)
+println("  Rate (8%):  annual compounding")
+println("  After " + periods + " years: $" + fv)
+println("  CAGR check: " + (cagr * 100.0) + "%")
+
+// ── 5. Future Value / PV of Annuity ──────────────────────────────────────────
+println("\n── Annuity ──")
+let pmt  = 500.0
+let nper = 360      // 30 years monthly
+
+let fv_ann = finance_fv(ann_rate / 12.0, nper, -pmt, 0.0)
+let pv_ann = finance_pv(ann_rate / 12.0, nper, pmt, 0.0)
+
+println("  Monthly payment: $" + pmt)
+println("  FV of annuity (30yr@6.5%): $" + fv_ann)
+println("  PV of annuity:             $" + pv_ann)
+
+// ── 6. Sharpe Ratio ───────────────────────────────────────────────────────────
+println("\n── Sharpe Ratio ──")
+// Monthly portfolio returns over 12 months
+let port_returns = [0.02, -0.01, 0.03, 0.015, -0.005, 0.04, 0.01, 0.025, -0.02, 0.03, 0.02, 0.035]
+let rf_monthly   = 0.0025  // ~3% annual = 0.25% per month
+
+let sharpe = finance_sharpe(port_returns, rf_monthly)
+println("  Monthly returns (12mo): " + port_returns)
+println("  Risk-free (monthly):    " + rf_monthly)
+println("  Sharpe ratio:           " + sharpe)
+
+if sharpe > 1.0 {
+    println("  → Good risk-adjusted return (Sharpe > 1)")
+} else {
+    println("  → Below average risk-adjusted return")
+}
+
+// ── 7. ROI Comparison ─────────────────────────────────────────────────────────
+println("\n── Portfolio ROI Comparison ──")
+let inv_names = ["Stock A", "Bond B", "RE Fund", "Crypto"]
+let inv_cost  = [10000.0, 10000.0, 10000.0, 10000.0]
+let inv_val   = [13500.0, 10800.0, 15200.0, 7300.0]
+
+let i = 0
+while i < len(inv_names) {
+    let roi  = finance_roi(inv_val[i], inv_cost[i])
+    let pct  = roi * 100.0
+    if roi >= 0.0 {
+        println("  " + inv_names[i] + ": ROI = +" + pct + "%")
+    } else {
+        println("  " + inv_names[i] + ": ROI = " + pct + "%")
+    }
+    i = i + 1
+}
+
+println("\n═══════════════════════════════════════════════")
+println("  Financial model complete.")
+println("═══════════════════════════════════════════════")
