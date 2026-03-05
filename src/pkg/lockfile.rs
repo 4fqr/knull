@@ -287,7 +287,6 @@ pub fn detect_cycles(graph: &HashMap<String, Vec<String>>) -> Option<Vec<String>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
     use tempfile::TempDir;
 
     #[test]

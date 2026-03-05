@@ -421,8 +421,9 @@ pub fn add(a: i32, b: i32) -> i32 {
 
     #[test]
     fn test_markdown_generation() {
-        let generator = DocGenerator::new();
+        let mut generator = DocGenerator::new();
+        generator.parse_source("/// A test function\npub fn test() {}", "mymodule");
         let md = generator.generate_markdown();
-        assert!(md.contains("# Module:"));
+        assert!(md.contains("# Module:"), "markdown output: {}", md);
     }
 }

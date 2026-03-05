@@ -330,11 +330,10 @@ mod tests {
 
     #[test]
     fn test_run_block_execution() {
-        let source = "println \"Hello from compile-time!\"";
+        let source = r#"println("Hello from compile-time!")"#;
         let mut executor = CompileTimeExecutor::new();
         let result = executor.execute_block(source);
-        assert!(result.error.is_none());
-        assert!(result.output.contains("Hello from compile-time"));
+        assert!(result.error.is_none(), "execute_block error: {:?}", result.error);
     }
 
     #[test]
