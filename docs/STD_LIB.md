@@ -189,14 +189,14 @@ Methods called as `arr.method()`:
 
 | Function | Description |
 |----------|-------------|
-| `spawn { block }` | start thread, returns handle |
-| `handle.join()` | wait for result |
-| `channel()` | create channel |
-| `ch.send(v)` | send value (blocking) |
-| `ch.recv()` | receive value (blocking) |
-| `mutex()` | create mutex |
-| `m.lock()` | acquire lock, returns guard |
-| `guard.unlock()` | release lock |
+| `spawn { block }` | start thread, returns int handle (also usable as statement) |
+| `thread_join(h)` | wait for result from spawned block or thread_spawn |
+| `thread_spawn(fn, args...)` | spawn a function in a new thread, returns int handle |
+| `thread_try_recv(h)` | non-blocking poll; returns null if not done |
+| `chan_create()` | create channel, returns `{ "id": N }` |
+| `chan_send(id, v)` | send value (blocking) |
+| `chan_recv(id)` | receive value (blocking) |
+| `sleep_ms(ms)` | sleep current thread |
 
 ---
 

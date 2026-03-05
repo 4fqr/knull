@@ -1,14 +1,17 @@
 // =============================================================================
-// KNULLDB - A Complete Embedded Database Engine
+// KNULLDB - CONCEPT DEMO
 // =============================================================================
-// Features:
-// - SQL-like query language
-// - B+ tree indexes
-// - Transaction support (MVCC)
-// - ACID compliance
-// - Query optimizer
-// - Stored procedures
+// NOTE: This is a TEXT SIMULATION. It prints output as if a database were
+// running but does NOT implement real SQL parsing, B+ trees, or persistence.
+// For a real database in Knull, use the sqlite package (packages/sqlite/)
+// or write a simple in-memory key-value store using maps.
+//
+// What a real in-memory KV store looks like in Knull:
+//   let db = {}
+//   db = db.set("key", "value")
+//   println(db["key"])
 // =============================================================================
+// STATUS: concept demo - prints simulated database output only
 
 fn main() {
     println("=================================================")

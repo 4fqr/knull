@@ -1,4 +1,5 @@
-// Knull OS - Bare Metal Operating System Demo
+// Knull OS - CONCEPT DEMO - prints simulated OS output, not a real OS kernel
+// STATUS: text simulation only - does not run on bare metal
 
 fn main() {
     println("=========================================")

@@ -1,6 +1,10 @@
 // =============================================================================
-// KNULL GUI FRAMEWORK - Real SDL2 Implementation  
+// KNULL GUI FRAMEWORK - CONCEPT DEMO
 // =============================================================================
+// NOTE: This requires SDL2 bindings which are NOT currently implemented.
+// It prints text simulating what a GUI framework would output.
+// For real GUI work, use FFI to call SDL2 directly (see sdl_demo.knull).
+// STATUS: concept demo - text simulation only
 
 fn main() {
     println("=====================================")

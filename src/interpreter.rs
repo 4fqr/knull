@@ -1232,11 +1232,27 @@ impl Interpreter {
             // ── Spawn ─────────────────────────────────────────────────────────
             ASTNode::Spawn(body) => {
                 let body_clone = *body.clone();
+                let (tx, rx) = std::sync::mpsc::channel::<Value>();
+                let funcs_clone: Vec<(String, Vec<String>, ASTNode)> = self.functions
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.params.clone(), v.body.clone()))
+                    .collect();
                 thread::spawn(move || {
-                    let mut interp = Interpreter::new();
-                    let _ = interp.execute_node(&body_clone);
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        let mut interp = Interpreter::new();
+                        for (name, params, body) in funcs_clone {
+                            interp.functions.insert(name.clone(), FunctionDef { name, params, body });
+                        }
+                        let _ = interp.execute_node(&body_clone);
+                        interp.return_value.take().unwrap_or(Value::Null)
+                    }));
+                    let val = result.unwrap_or(Value::Null);
+                    let _ = tx.send(val);
                 });
-                Ok(Value::Null)
+                self.thread_counter += 1;
+                let id = self.thread_counter;
+                self.thread_results.insert(id, rx);
+                Ok(Value::Int(id))
             }
             // ── Match expression with guards ──────────────────────────────────
             ASTNode::Match { expr, arms } => {
@@ -3534,12 +3550,12 @@ impl Interpreter {
                 } else { None }
             }
             // ── JSON serialization ────────────────────────────────────────────
-            "json_encode" | "to_json" | "json" => {
+            "json_encode" | "to_json" | "json" | "json_stringify" => {
                 if let Some(val) = args.first() {
                     Some(Ok(Value::String(Self::value_to_json(val))))
                 } else { Some(Ok(Value::String("null".to_string()))) }
             }
-            "json_decode" | "from_json" | "parse_json" => {
+            "json_decode" | "from_json" | "parse_json" | "json_parse" => {
                 if let Some(val) = args.first() {
                     Some(Ok(Self::json_to_value(&val.as_string())))
                 } else { Some(Ok(Value::Null)) }

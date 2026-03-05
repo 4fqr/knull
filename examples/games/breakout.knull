@@ -1,13 +1,15 @@
 // =============================================================================
-// KNULL BREAKOUT - ADVANCED GRAPHICS GAME
+// KNULL BREAKOUT - CONCEPT DEMO
 // =============================================================================
-// A complete breakout-style game with:
-// - Real-time rendering
-// - Collision detection
-// - Particle effects
-// - Score system
-// - Multiple levels
+// NOTE: This is a TEXT SIMULATION that prints what a game would look like.
+// It does NOT do real-time rendering (Knull has no graphics API yet).
+// For a real game you would need SDL2 bindings (see sdl_demo.knull).
+//
+// What this demonstrates:
+// - Console output to simulate a game UI
+// - Conceptual structure of a game loop
 // =============================================================================
+// STATUS: concept demo - prints text, no real rendering or input
 
 fn main() {
     println("=================================================")

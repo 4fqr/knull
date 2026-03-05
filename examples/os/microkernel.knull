@@ -1,17 +1,17 @@
 // =============================================================================
-// KNULL MICROKERNEL - A Complete 64-bit Operating System Kernel
+// KNULL MICROKERNEL - CONCEPT DEMO
 // =============================================================================
-// This is a REAL working OS kernel written in Knull
-// It can boot on real hardware or QEMU
+// NOTE: This is a TEXT SIMULATION. It prints kernel boot messages but does
+// NOT implement a real operating system kernel. Writing a real OS requires:
+//   - Bare-metal execution (no host OS)
+//   - Inline assembly for CPU setup
+//   - Custom linker scripts
+//   - None of which is currently supported by the Knull interpreter.
 //
-// Features:
-// - 64-bit protected mode
-// - Memory management (page tables)
-// - Process scheduling
-// - System calls
-// - Simple file system (FAT12)
-// - Shell
+// What this demonstrates:
+// - OS architecture concepts through simulated output
 // =============================================================================
+// STATUS: concept demo - prints simulated kernel output only
 
 // =============================================================================
 // KERNEL CONFIGURATION

@@ -1,7 +1,9 @@
 // =============================================================================
-// BOOTLOADER - THE BAREMETAL
+// BOOTLOADER - CONCEPT DEMO
 // =============================================================================
-// A simple bootloader stub demonstrating Knull's bare metal capabilities
+// NOTE: This does NOT compile to a real bootloader or run on bare metal.
+// It prints text describing what a bootloader would do.
+// STATUS: text simulation only
 
 fn main() {
     println("Knull Bootloader Demo")

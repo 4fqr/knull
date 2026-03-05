@@ -175,8 +175,19 @@ Truthiness: `false` and `null` are falsy; everything else (including `0`, `""`, 
 
 ## 7. Concurrency
 
-- `spawn { block }` → JoinHandle (new OS thread)
-- `handle.join()` → blocks until thread completes, returns last value from thread
+**`spawn` blocks** — returns an integer join handle:
+```knull
+let h = spawn {
+    let result = expensive_computation()
+    return result
+}
+let value = thread_join(h)   // blocks until thread completes, returns its value
+```
+
+- `spawn { block }` can be used as an expression (returns `int` handle) or as a statement (fire-and-forget)
+- `thread_join(handle)` — blocks and returns the value from `return` in the spawned block
+- `thread_spawn(fn, args...)` — alternative: spawn a named function, returns int handle
+- `thread_try_recv(handle)` — non-blocking poll; returns `null` if not done yet
 
 **Channels** (synchronous rendezvous):
 ```knull
@@ -187,9 +198,10 @@ let v = chan_recv(id)        // blocking receive
 ```
 
 **Important limitations:**
-- Closures passed to `spawn` capture values by copy at creation time, not by reference. Mutations inside the spawned thread are not visible to the parent thread.
-- Cross-thread channel communication works correctly only when the channel id is passed as a direct value argument (not via closure capture).
-- For simple parallel workloads without shared state, `spawn`/`join` works reliably.
+- The spawned block gets a copy of all defined functions but NOT the parent's variable bindings. Pass data by returning it (via `thread_join`) or via channels.
+- Mutations inside the spawned thread are not visible to the parent thread.
+- Cross-thread channel communication works correctly only when the channel id is passed as a direct value argument.
+- For simple parallel workloads without shared state, `spawn`/`thread_join` works reliably.
 
 ---
 

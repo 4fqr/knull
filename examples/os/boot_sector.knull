@@ -1,12 +1,12 @@
 // =============================================================================
-// KNULL BOOT SECTOR - 16-bit Real Mode
+// KNULL BOOT SECTOR - CONCEPT DEMO
 // =============================================================================
-// This compiles to a 512-byte boot sector that:
-// 1. Loads from BIOS/MBR
-// 2. Switches to protected mode
-// 3. Loads the kernel
-// 4. Jumps to kernel
+// NOTE: This does NOT compile to a real boot sector. It prints text showing
+// what a boot sequence would look like. Writing an actual boot sector
+// requires raw binary output, BIOS-specific code, and features not supported
+// by the current Knull toolchain.
 // =============================================================================
+// STATUS: concept demo - prints simulated boot output only
 
 fn main() {
     println("==============================================")

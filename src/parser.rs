@@ -1373,6 +1373,12 @@ impl Parser {
             TokenKind::Try => {
                 self.parse_try_catch()
             }
+            // ── spawn { body } as expression → returns join handle ───────────
+            TokenKind::Spawn => {
+                self.advance();
+                let body = self.parse_block()?;
+                Ok(ASTNode::Spawn(Box::new(body)))
+            }
             // ── Anonymous function: fn(x, y) { body } ───────────────────────
             TokenKind::Fn => {
                 self.advance(); // consume `fn`
