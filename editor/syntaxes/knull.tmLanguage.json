@@ -12,6 +12,11 @@
       "end": "\\*/"
     },
     {
+      "name": "string.quoted.triple",
+      "begin": "\"\"\"",
+      "end": "\"\"\""
+    },
+    {
       "name": "string.quoted.double",
       "begin": "\"",
       "end": "\"",
@@ -62,6 +67,10 @@
       "match": "==|!=|<=|>=|&&|\\|\\||<<|>>|\\+=|-=|\\*=|/=|%=|&=|\\|=|^=|<<=|>>="
     },
     {
+      "name": "variable.other.assignment",
+      "match": "=>|->|::|\\?\\.|\\?|:"
+    },
+    {
       "name": "punctuation.terminator",
       "match": ";"
     },
@@ -92,5 +101,5 @@
   ],
   "scopeName": "source.knull",
   "fileTypes": ["knull"],
-  "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  "uuid": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
 }

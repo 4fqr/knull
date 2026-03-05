@@ -250,10 +250,10 @@ fn demonstrate_loops() {
     
     // While loop with multiple iterations
     println("Doubling values starting from 1:")
-    let val = 1
-    while val < 100 {
-        print(val + " ")
-        val = val * 2
+    let dbl = 1
+    while dbl < 100 {
+        print(dbl + " ")
+        dbl = dbl * 2
     }
     println("")
     
@@ -263,8 +263,8 @@ fn demonstrate_loops() {
     while row <= 3 {
         let col = 1
         while col <= 3 {
-            let product = row * col
-            print(product + " ")
+            let prod = row * col
+            print(prod + " ")
             col = col + 1
         }
         println("")

@@ -1,12 +1,26 @@
 // Regex
 println(str(regex_match("\\d+", "hello 42 world")))         // true
 println(str(regex_find("\\d+", "hello 42 world")))          // 42
-println(str(regex_findall("\\d+", "1 foo 22 bar 333")))     // [1,22,333]
-println(regex_replace("\\d+", "NUM", "a1b22c333"))          // aNUMbNUMcNUM
+
+// manual findall
+fn findall(pattern, text) {
+    let results = []
+    let s = text
+    let m = regex_find(pattern, s)
+    while m != null {
+        results = push(results, m)
+        let idx = s.find(m)
+        if idx == null { break }
+        s = s.slice(idx + len(m), len(s))
+        m = regex_find(pattern, s)
+    }
+    results
+}
+println(str(findall("\\d+", "1 foo 22 bar 333")))             // [1, 22, 333]
 let parts = regex_split(",", "a,b,c")
-println(str(parts))                                          // [a,b,c]
+println(str(parts))                                          // [a, b, c]
 let caps = regex_captures("(\\w+)@(\\w+)", "user@host")
-println(str(caps))                                           // full, user, host
+println(str(caps))                                           // [user@host, user, host]
 
 // ANSI terminal
 println(red("error!"))

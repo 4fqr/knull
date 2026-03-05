@@ -2,8 +2,6 @@
 // KNULL DEMO - Working Features
 // =============================================================================
 
-module demo
-
 fn main() {
     println("=== KNULL DEMO ===")
     println("")

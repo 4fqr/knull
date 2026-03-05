@@ -24,6 +24,10 @@ flycheck*
 *.dll
 *.exe
 *.out
+self_hosted/output
+self_hosted/output.c
+self_hosted/*.c
+self_hosted/output*
 
 # Test outputs
 *.log
