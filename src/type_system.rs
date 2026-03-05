@@ -3,8 +3,8 @@
 //! Implements static type checking with inference for the Expert and God modes.
 //! Includes linear types, effect inference, and capability types.
 
-use crate::effects::{Effect, EffectChecker, EffectSet};
-use crate::linear_check::{LinearChecker, LinearKind};
+use crate::effects::{EffectChecker, EffectSet};
+use crate::linear_check::LinearChecker;
 use crate::parser::ASTNode;
 use crate::parser::Literal;
 use std::collections::HashMap;

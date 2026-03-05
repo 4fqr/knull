@@ -5,7 +5,6 @@
 //! and use-after-free bugs.
 
 use crate::parser::ASTNode;
-use crate::parser::Literal;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

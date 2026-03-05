@@ -42,7 +42,7 @@ impl Lockfile {
         }
     }
 
-    pub fn generate(manifest: &PackageManifest, resolved: &[ResolvedDep]) -> Self {
+    pub fn generate(_manifest: &PackageManifest, resolved: &[ResolvedDep]) -> Self {
         let packages: Vec<LockedPackage> = resolved
             .iter()
             .map(|dep| LockedPackage {

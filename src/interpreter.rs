@@ -17,14 +17,11 @@ use flate2::Compression;
 use flate2::write::{GzEncoder, ZlibEncoder, DeflateEncoder};
 use flate2::read::{GzDecoder, ZlibDecoder, DeflateDecoder};
 use tungstenite;
-use native_tls;
 use libloading;
 use minifb;
 
 // ── New god-mode crates ──────────────────────────────────────────────────────
 use crossbeam_channel;
-use dashmap::DashMap;
-use rayon::prelude::*;
 use std::sync::atomic::{AtomicI64, Ordering};
 use chrono::{Local, Utc, TimeZone, Datelike, Timelike};
 use uuid::Uuid;
@@ -36,7 +33,7 @@ use strsim;
 use rand::RngCore;
 use rand::rngs::OsRng;
 // AES-GCM / ChaCha20 / AEAD
-use aes_gcm::{Aes256Gcm, AesGcm};
+use aes_gcm::Aes256Gcm;
 use aes_gcm::aead::{Aead, KeyInit as AeadKeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, KeyInit as ChaChaKeyInit};
 // Ed25519 / X25519
@@ -45,11 +42,11 @@ use x25519_dalek::{StaticSecret, PublicKey as X25519PublicKey};
 // RSA
 use rsa::{RsaPrivateKey, RsaPublicKey, Pkcs1v15Encrypt};
 // HMAC / SHA* / BLAKE3
-use hmac::{Hmac, Mac};
+use hmac::Hmac;
 use sha2::{Sha256, Sha512, Digest as Sha2Digest};
-use sha3::{Sha3_256, Sha3_512, Digest as Sha3Digest};
+use sha3::{Sha3_256, Sha3_512};
 // Argon2 / PBKDF2
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
 use pbkdf2::pbkdf2_hmac;
 // CSV / XML / YAML
@@ -57,23 +54,21 @@ use csv as csv_crate;
 use quick_xml;
 use serde_yaml;
 // TUI / Crossterm
-use ratatui::{Terminal, backend::CrosstermBackend};
 use crossterm::{
     terminal as ct_terminal,
     execute,
     cursor,
     style::{self as ct_style, Color as CtColor, Attribute},
-    event::{self as ct_event, Event as CtEvent, KeyCode, KeyEvent, KeyModifiers, MouseEvent},
+    event::{self as ct_event, Event as CtEvent, KeyCode, KeyEvent, KeyModifiers},
 };
 // Compression
 use lz4_flex;
 use zstd;
 // ── Batch 9 imports ────────────────────────────────────────────────────────
-use nalgebra::{DMatrix, DVector, Matrix3, Matrix4, Vector2, Vector3, Vector4, Quaternion, UnitQuaternion};
+use nalgebra::{DMatrix, Vector3};
 use rustfft::{FftPlanner, num_complex::Complex};
-use ndarray::{Array1, Array2};
-use glam::{Vec2, Vec3, Vec4, Mat3, Mat4, Quat};
-use petgraph::graph::{DiGraph, UnGraph, NodeIndex, EdgeIndex};
+
+use petgraph::graph::{DiGraph, UnGraph, NodeIndex};
 use petgraph::algo::{dijkstra, astar, bellman_ford, toposort, connected_components, is_cyclic_directed};
 use petgraph::visit::EdgeRef;
 use xxhash_rust::xxh3::xxh3_64;
@@ -83,21 +78,17 @@ use bs58;
 use rmp_serde;
 use bincode;
 use jsonwebtoken::{encode as jwt_encode, decode as jwt_decode_fn, Header as JwtHeader, Algorithm as JwtAlgorithm, EncodingKey, DecodingKey, Validation};
-use handlebars::Handlebars;
-use similar::{ChangeTag, TextDiff};
+
 use fancy_regex::Regex as FancyRegex;
-use sysinfo::{System, Cpu, Process, Disks, Networks, Pid as SysinfoPid, LoadAvg};
+use sysinfo::System;
 use walkdir::WalkDir;
-use glob::glob;
-use itertools::Itertools;
+
 use hound;
-use byteorder::{BigEndian, LittleEndian, ByteOrder};
-use indexmap::IndexMap;
+
 use std::process::{Command, Stdio};
 use std::f64::consts::PI;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::path::Path;
-use std::f64::consts::PI as F64_PI;
 
 
 // Signal flag table: signum -> received count
@@ -926,6 +917,7 @@ impl Interpreter {
     }
 
     /// Evaluate an expression
+    #[allow(unreachable_patterns)]
     pub fn evaluate(&mut self, node: &ASTNode) -> Result<Value, String> {
         match node {
             ASTNode::Literal(lit) => Ok(self.literal_to_value(lit)),
@@ -2356,6 +2348,7 @@ impl Interpreter {
     }
 
     /// Call a built-in function
+    #[allow(unreachable_patterns)]
     fn call_builtin(&mut self, name: &str, args: &[Value]) -> Option<Result<Value, String>> {
         match name {
             "print" => {
@@ -2940,7 +2933,7 @@ impl Interpreter {
                     let width = args[1].as_int() as usize;
                     let pad = args.get(2).map(|v| v.as_string()).unwrap_or_else(|| " ".to_string());
                     let pad_char = pad.chars().next().unwrap_or(' ');
-                    let padded = format!("{:>width$}", s, width = width).replace(' ', &pad_char.to_string());
+                    let _padded = format!("{:>width$}", s, width = width).replace(' ', &pad_char.to_string());
                     Some(Ok(Value::String(format!("{}{}", pad_char.to_string().repeat(width.saturating_sub(s.len())), s))))
                 } else { Some(Err("pad_left(s, width [, char]) requires 2+ args".to_string())) }
             }
@@ -4169,7 +4162,7 @@ impl Interpreter {
                     }
                 };
                 // Count padding before stripping
-                let pad = s.chars().rev().take_while(|&c| c == '=').count();
+                let _pad = s.chars().rev().take_while(|&c| c == '=').count();
                 let chars: Vec<char> = s.trim_end_matches('=').chars().collect();
                 let mut bytes = Vec::new();
                 let mut i = 0;
@@ -4346,9 +4339,9 @@ impl Interpreter {
             // ── Sorting with comparator ────────────────────────────────────────
             "sort_by" => {
                 if args.len() >= 2 {
-                    if let Value::Array(mut arr) = args[0].clone() {
+                    if let Value::Array(arr) = args[0].clone() {
                         let key_fn = args[1].clone();
-                        let mut keys: Vec<Value> = arr.iter()
+                        let keys: Vec<Value> = arr.iter()
                             .map(|item| self.call_value(key_fn.clone(), vec![item.clone()]).unwrap_or(Value::Null))
                             .collect();
                         // Stable sort by key
@@ -6266,7 +6259,7 @@ impl Interpreter {
             // base64_decode_bytes(b64_string) -> array of ints
             "base64_decode_bytes" | "b64_decode_bytes" => {
                 // Delegate to base64_decode and convert
-                if let Some(v) = args.first() {
+                if let Some(_v) = args.first() {
                     let decoded = {
                         let a = args[0].clone();
                         match self.call_builtin("base64_decode", &[a]) {
@@ -6313,10 +6306,10 @@ impl Interpreter {
                 let flags = args.get(1).map(|v| v.as_int()).unwrap_or(0) as libc::c_int;
                 let mut status: libc::c_int = 0;
                 let ret  = unsafe { libc::waitpid(pid, &mut status, flags) };
-                let exited   = unsafe { libc::WIFEXITED(status) };
-                let code     = unsafe { libc::WEXITSTATUS(status) };
-                let signaled = unsafe { libc::WIFSIGNALED(status) };
-                let sig      = unsafe { libc::WTERMSIG(status) };
+                let exited   = libc::WIFEXITED(status);
+                let code     = libc::WEXITSTATUS(status);
+                let signaled = libc::WIFSIGNALED(status);
+                let sig      = libc::WTERMSIG(status);
                 let mut m = HashMap::new();
                 m.insert("pid".to_string(),       Value::Int(ret as i64));
                 m.insert("status".to_string(),    Value::Int(status as i64));
@@ -7713,7 +7706,7 @@ impl Interpreter {
                     Some(lib) => {
                         let sym_bytes = format!("{}\0", sym);
                         let raw_ptr: usize = unsafe {
-                            match lib.get::<unsafe extern fn()>(sym_bytes.as_bytes()) {
+                            match lib.get::<unsafe extern "C" fn()>(sym_bytes.as_bytes()) {
                                 Ok(sym) => *sym as usize,
                                 Err(e) => return Some(Err(format!("dlsym: {}", e))),
                             }
@@ -7734,7 +7727,7 @@ impl Interpreter {
                     Some(&ptr) => {
                         let iargs: Vec<i64> = args[1..].iter().map(|v| v.as_int()).collect();
                         let result: i64 = unsafe {
-                            let f: unsafe extern fn(i64, i64, i64, i64, i64, i64) -> i64 = std::mem::transmute(ptr);
+                            let f: unsafe extern "C" fn(i64, i64, i64, i64, i64, i64) -> i64 = std::mem::transmute(ptr);
                             let a = |i: usize| iargs.get(i).copied().unwrap_or(0);
                             f(a(0), a(1), a(2), a(3), a(4), a(5))
                         };
@@ -7836,7 +7829,7 @@ impl Interpreter {
                         *map.entry(sig).or_insert(0) += 1;
                     }
                 }
-                unsafe { libc::signal(sig, handler as libc::sighandler_t); }
+                unsafe { libc::signal(sig, handler as *const () as libc::sighandler_t); }
                 Some(Ok(Value::Null))
             }
             // signal_reset(signum) — clear counter
@@ -8162,8 +8155,8 @@ impl Interpreter {
                 let mut m = HashMap::new();
                 m.insert("pid".to_string(), Value::Int(ret as i64));
                 m.insert("status".to_string(), Value::Int(status as i64));
-                m.insert("exited".to_string(), Value::Bool(unsafe { libc::WIFEXITED(status) }));
-                m.insert("code".to_string(), Value::Int(unsafe { libc::WEXITSTATUS(status) } as i64));
+                m.insert("exited".to_string(), Value::Bool(libc::WIFEXITED(status)));
+                m.insert("code".to_string(), Value::Int(libc::WEXITSTATUS(status) as i64));
                 Some(Ok(Value::Map(m)))
             }
 
@@ -8674,7 +8667,7 @@ impl Interpreter {
                 if args.len() < 3 { return Some(Err("inotify_add_watch(fd, path, mask)".to_string())); }
                 let fd   = args[0].as_int() as libc::c_int;
                 let path = args[1].as_string();
-                let mask = args[2].as_int() as libc::uint32_t;
+                let mask = args[2].as_int() as u32;
                 let cs = std::ffi::CString::new(path).unwrap();
                 let wd = unsafe { libc::inotify_add_watch(fd, cs.as_ptr(), mask) };
                 if wd < 0 { Some(Err(format!("inotify_add_watch: errno {}", unsafe { *libc::__errno_location() }))) }
@@ -10314,7 +10307,7 @@ impl Interpreter {
                 let ts = args[0].as_int();
                 match Local.timestamp_opt(ts, 0).single() {
                     Some(dt) => {
-                        use chrono::{Datelike, Timelike, IsoWeek};
+                        use chrono::{Datelike, Timelike};
                         let wd = match dt.weekday() {
                             chrono::Weekday::Mon => "Monday",
                             chrono::Weekday::Tue => "Tuesday",
@@ -12756,7 +12749,7 @@ impl Interpreter {
         let lu = nalgebra::linalg::LU::new(m);
         let l = lu.l();
         let u = lu.u();
-        let p = lu.p();
+        let _p = lu.p();
         let dm_to_val = |mat: &DMatrix<f64>| -> Value {
             Value::Array((0..mat.nrows())
                 .map(|i| Value::Array((0..mat.ncols()).map(|j| Value::Float(mat[(i, j)])).collect()))
@@ -15205,7 +15198,7 @@ impl Interpreter {
         }
 
         "sys_disk_list" => {
-            let sys = self.sysinfo_sys.get_or_insert_with(|| {
+            let _sys = self.sysinfo_sys.get_or_insert_with(|| {
                 let mut s = System::new_all();
                 s.refresh_all();
                 s
@@ -15228,7 +15221,7 @@ impl Interpreter {
         }
 
         "sys_network_list" => {
-            let sys = self.sysinfo_sys.get_or_insert_with(|| {
+            let _sys = self.sysinfo_sys.get_or_insert_with(|| {
                 let mut s = System::new_all();
                 s.refresh_all();
                 s
@@ -17423,7 +17416,6 @@ impl Interpreter {
     let negative = int_part.starts_with('-');
     let digits = if negative { &int_part[1..] } else { int_part };
     let mut grouped = String::new();
-    let mut count = 0usize;
     for (i, ch) in digits.chars().rev().enumerate() {
         if i > 0 && i % 3 == 0 {
             // push separator in reverse
@@ -17432,7 +17424,6 @@ impl Interpreter {
             }
         }
         grouped.insert(0, ch);
-        count += 1;
     }
     let mut result = if negative {
         format!("-{}", grouped)

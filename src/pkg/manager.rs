@@ -582,7 +582,7 @@ knull.lock
             .map_err(|e| format!("Failed to create output directory: {}", e))?;
 
         // Compile
-        let source = fs::read_to_string(&entry_path)
+        let _source = fs::read_to_string(&entry_path)
             .map_err(|e| format!("Failed to read entry file: {}", e))?;
 
         // Use knull compiler

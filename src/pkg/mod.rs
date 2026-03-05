@@ -13,10 +13,13 @@ pub mod manager;
 pub mod semver;
 
 // Re-export commonly used items
+#[allow(unused_imports)]
 pub use lockfile::{LockedPackage, Lockfile, ResolvedDep};
+#[allow(unused_imports)]
 pub use manager::{
     find_nearest_manifest, BuildConfig, PackageInfo, PackageManager, PackageManifest,
 };
+#[allow(unused_imports)]
 pub use semver::{compare_versions, parse_constraint, parse_version, satisfies};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

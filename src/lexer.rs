@@ -304,7 +304,7 @@ impl Lexer {
     pub fn tokenize(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
 
-        'outer: while let Some(c) = self.peek() {
+        while let Some(c) = self.peek() {
             // ── Whitespace ────────────────────────────────────────────────
             if c.is_whitespace() {
                 self.advance();

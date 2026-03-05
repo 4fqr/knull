@@ -490,7 +490,7 @@ impl BindingGenerator {
 pub mod c_functions {
     use super::*;
 
-    pub fn printf(format: &str, args: &[FFIValue]) -> i32 {
+    pub fn printf(format: &str, _args: &[FFIValue]) -> i32 {
         println!("[C] printf: {}", format);
         0
     }
@@ -522,19 +522,14 @@ pub mod c_functions {
 }
 
 pub mod cpp_functions {
-    use super::*;
-
-    pub fn std__cout__flush() {
+    #[allow(non_snake_case)] pub fn std__cout__flush() {
         println!("[C++] std::cout::flush()");
     }
-
-    pub fn std__cout__operator_lt_lt(value: i64) {
+    #[allow(non_snake_case)] pub fn std__cout__operator_lt_lt(value: i64) {
         print!("{}", value);
     }
-
-    pub fn std__string__constructor() -> usize {
+    #[allow(non_snake_case)] pub fn std__string__constructor() -> usize {
         0
     }
-
-    pub fn std__string__destructor(_ptr: usize) {}
+    #[allow(non_snake_case)] pub fn std__string__destructor(_ptr: usize) {}
 }

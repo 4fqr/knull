@@ -189,7 +189,7 @@ impl EffectChecker {
             } => {
                 self.push_scope();
                 let mut sig = FunctionSignature::new();
-                for param in params {
+                for _param in params {
                     sig.params.push(EffectSet::new());
                 }
 

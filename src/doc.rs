@@ -3,7 +3,7 @@
 //! Parses /// comments and generates HTML/Markdown documentation.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct DocComment {
@@ -141,7 +141,7 @@ impl DocGenerator {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let mut func_doc = FunctionDoc {
+        let func_doc = FunctionDoc {
             name,
             signature: signature.to_string(),
             description,
@@ -302,7 +302,7 @@ impl DocGenerator {
         for (_, module) in &self.modules {
             for func in &module.functions {
                 let key = format!("{}::{}", module.name, func.name);
-                let mut see_also = func.see_also.clone();
+                let see_also = func.see_also.clone();
                 refs.insert(key, see_also);
             }
         }

@@ -262,7 +262,6 @@ impl MacroParser {
                     break;
                 }
             } else if tokens[i].kind == TokenKind::Semicolon {
-                i += 1;
                 break;
             } else {
                 i += 1;
@@ -576,7 +575,7 @@ impl MacroExpander {
         Some(bindings)
     }
 
-    fn match_single_token(&self, capture: &CaptureGroup, token: &Token) -> Option<Token> {
+    fn match_single_token(&self, _capture: &CaptureGroup, token: &Token) -> Option<Token> {
         Some(token.clone())
     }
 
