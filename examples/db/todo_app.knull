@@ -1,0 +1,65 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// TODO App — real SQLite persistence using the sqlite package
+// Run:  knull run examples/db/todo_app.knull
+// ─────────────────────────────────────────────────────────────────────────────
+
+import "packages/sqlite/src/lib.knull"
+
+fn main() {
+    let db = connect(":memory:")
+
+    // create table
+    create_table(db, "todos", [
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "title TEXT NOT NULL",
+        "done INTEGER DEFAULT 0",
+        "created TEXT"
+    ])
+
+    // seed some tasks
+    db_insert(db, "todos", {title: "Buy groceries",   done: 0, created: "2024-01-01"})
+    db_insert(db, "todos", {title: "Write Knull code", done: 0, created: "2024-01-02"})
+    db_insert(db, "todos", {title: "Read a book",      done: 1, created: "2024-01-03"})
+    db_insert(db, "todos", {title: "Go for a run",     done: 0, created: "2024-01-04"})
+    db_insert(db, "todos", {title: "Learn Rust",        done: 1, created: "2024-01-05"})
+
+    println("=== All TODOs ===")
+    let all = select_all(db, "todos")
+    let i = 0
+    while i < len(all) {
+        let row = all[i]
+        let done_str = "[ ]"
+        if row["done"] == 1 { done_str = "[x]" }
+        println(done_str + " " + str(row["id"]) + ". " + str(row["title"]))
+        i = i + 1
+    }
+
+    println("")
+    println("Total tasks: " + str(db_count(db, "todos")))
+
+    // mark task 1 done
+    update_where(db, "todos", "done = 1", "id = 1")
+    println("")
+    println("=== After completing task 1 ===")
+    let updated = select_where(db, "todos", "id = 1")
+    let row1 = updated[0]
+    println("[x] " + str(row1["id"]) + ". " + str(row1["title"]) + "  ✓")
+
+    // delete completed
+    delete_where(db, "todos", "done = 1")
+    println("")
+    println("=== Pending tasks only ===")
+    let pending = select_where(db, "todos", "done = 0")
+    let j = 0
+    while j < len(pending) {
+        let r = pending[j]
+        println("[ ] " + str(r["id"]) + ". " + str(r["title"]))
+        j = j + 1
+    }
+
+    println("")
+    println("Pending count: " + str(db_count(db, "todos")))
+    println("Done! (database was in-memory — replace ':memory:' with 'todos.db' for persistence)")
+}
+
+main()

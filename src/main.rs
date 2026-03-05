@@ -47,7 +47,7 @@ const ASCII_ART: &str = r#"
 
 #[derive(Parser)]
 #[command(name = "knull")]
-#[command(version = "1.0.0")]
+#[command(version = "2.1.0")]
 #[command(about = "The Knull Programming Language", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -245,7 +245,7 @@ fn show_version() {
     println!(
         "  {} {} — {}",
         "Knull".bright_green().bold(),
-        "v2.0.0".bright_white(),
+        "v2.1.0".bright_white(),
         "The God Programming Language".bright_yellow()
     );
     println!();
@@ -254,6 +254,14 @@ fn show_version() {
     #[cfg(not(feature = "llvm-backend"))]
     println!("  Backend: Interpreter + C codegen");
     println!("  Edition: 2024");
+    println!();
+    println!("{}", "WHAT'S NEW in v2.1.0:".bright_white().bold());
+    println!("  + Real-time minifb GUI (gui_rect, gui_line, gui_circle, gui_circle_outline,");
+    println!("    gui_rect_outline, gui_rgb, gui_set_title, gui_size)");
+    println!("  + Working packages: json, http, crypto, sqlite");
+    println!("  + Snake & Pong game examples");
+    println!("  + SQLite TODO app example");
+    println!("  + JSON / Crypto package demos");
 }
 
 fn show_help() {
@@ -261,7 +269,7 @@ fn show_help() {
     println!(
         "  {} {} — {}",
         "Knull".bright_green().bold(),
-        "v2.0.0".bright_white(),
+        "v2.1.0".bright_white(),
         "The God Programming Language".bright_yellow()
     );
     println!();
@@ -289,11 +297,31 @@ fn show_help() {
     println!("  -h, --help      Print help");
     println!("  -V, --version   Print version");
     println!();
+    println!("{}", "STDLIB HIGHLIGHTS:".bright_white().bold());
+    println!("  {}  Windowed GUI, drawing primitives",     "gui_*             ".bright_yellow());
+    println!("  {}  SQLite database (rusqlite backed)",    "db_*              ".bright_yellow());
+    println!("  {}  HTTP client (GET/POST/PUT/DELETE)",    "http_*            ".bright_yellow());
+    println!("  {}  SHA-256, MD5, base64, random",        "sha256  base64_*  ".bright_yellow());
+    println!("  {}  Parse/stringify JSON",                 "json_parse  json_stringify".bright_yellow());
+    println!("  {}  Spawned threads, channels",            "spawn   chan      ".bright_yellow());
+    println!("  {}  FFI / syscall / fork / exec",          "ffi_*   syscall   ".bright_yellow());
+    println!("  {}  Image load/save/resize/pixel",         "img_*             ".bright_yellow());
+    println!();
+    println!("{}", "PACKAGES:".bright_white().bold());
+    println!("  {}  JSON helpers (parse/stringify/merge/has)", "import \"packages/json/src/lib.knull\"   ".bright_green());
+    println!("  {}  HTTP helpers (get_json/post_json)",    "import \"packages/http/src/lib.knull\"   ".bright_green());
+    println!("  {}  Crypto (hash/hmac/base64/token)",      "import \"packages/crypto/src/lib.knull\" ".bright_green());
+    println!("  {}  SQLite ORM helpers",                   "import \"packages/sqlite/src/lib.knull\" ".bright_green());
+    println!();
     println!("{}", "EXAMPLES:".bright_white().bold());
     println!("  knull run hello.knull");
     println!("  knull eval 'println(42 * 2)'");
     println!("  knull repl");
     println!("  knull build --release main.knull -o myapp");
+    println!("  knull run examples/games/snake.knull");
+    println!("  knull run examples/games/pong.knull");
+    println!("  knull run examples/db/todo_app.knull");
+    println!("  knull run examples/json_demo.knull");
     println!();
     println!("{}", "https://github.com/4fqr/knull".bright_black());
 }

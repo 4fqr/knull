@@ -1,0 +1,151 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Snake — real minifb game in Knull
+// Controls: Arrow keys (Up/Down/Left/Right)  ·  Q to quit
+// Run:  knull run examples/games/snake.knull
+// ─────────────────────────────────────────────────────────────────────────────
+
+let CELL  = 16          // pixels per cell
+let COLS  = 40          // grid columns
+let ROWS  = 30          // grid rows
+let W     = COLS * CELL
+let H     = ROWS * CELL
+
+// Colors
+let COL_BG    = gui_rgb(20,  20,  20)
+let COL_SNAKE = gui_rgb(80, 220, 100)
+let COL_HEAD  = gui_rgb(180, 255, 100)
+let COL_FOOD  = gui_rgb(255,  80,  80)
+let COL_GRID  = gui_rgb(30,  30,  30)
+
+// ── snake body: array of {x, y} maps (index 0 = head)
+fn make_snake() {
+    let s = []
+    s[0] = {x: 10, y: 15}
+    s[1] = {x:  9, y: 15}
+    s[2] = {x:  8, y: 15}
+    return s
+}
+
+// ── place food at a random cell
+fn random_food() {
+    return {x: rand() % COLS, y: rand() % ROWS}
+}
+
+// ── draw a grid cell  (col = x, row = y, color)
+fn draw_cell(win, col, row, color) {
+    gui_rect(win, col * CELL + 1, row * CELL + 1, CELL - 2, CELL - 2, color)
+}
+
+// ── check if snake hits itself
+fn hits_self(snake, hx, hy) {
+    let i = 1
+    while i < len(snake) {
+        if snake[i]["x"] == hx && snake[i]["y"] == hy { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn main() {
+    let win  = gui_window("Snake", W, H)
+    let snake = make_snake()
+    let food  = random_food()
+    let dx = 1   // direction
+    let dy = 0
+    let score = 0
+    let running = true
+    let frame = 0
+    let speed = 8   // update every N frames
+
+    while gui_is_open(win) && running {
+        // ── input
+        let keys = gui_get_keys(win)
+        let ki = 0
+        while ki < len(keys) {
+            let k = keys[ki]
+            if k == "Right" && dx != -1 { dx = 1;  dy = 0 }
+            if k == "Left"  && dx !=  1 { dx = -1; dy = 0 }
+            if k == "Down"  && dy != -1 { dx = 0;  dy = 1 }
+            if k == "Up"    && dy !=  1 { dx = 0;  dy = -1 }
+            if k == "Q"     { running = false }
+            ki = ki + 1
+        }
+
+        // ── update every <speed> frames
+        frame = frame + 1
+        if frame >= speed {
+            frame = 0
+            let hx = snake[0]["x"] + dx
+            let hy = snake[0]["y"] + dy
+
+            // wall collision
+            if hx < 0 || hx >= COLS || hy < 0 || hy >= ROWS { running = false }
+
+            // self collision
+            if hits_self(snake, hx, hy) { running = false }
+
+            if running {
+                // prepend new head
+                let new_snake = []
+                new_snake[0] = {x: hx, y: hy}
+                let si = 0
+                while si < len(snake) {
+                    new_snake[si + 1] = snake[si]
+                    si = si + 1
+                }
+                snake = new_snake
+
+                // eat food?
+                if hx == food["x"] && hy == food["y"] {
+                    score = score + 10
+                    food = random_food()
+                    if speed > 2 { speed = speed - 1 }
+                } else {
+                    // remove tail
+                    let trimmed = []
+                    let ti = 0
+                    while ti < len(snake) - 1 {
+                        trimmed[ti] = snake[ti]
+                        ti = ti + 1
+                    }
+                    snake = trimmed
+                }
+            }
+        }
+
+        // ── draw
+        gui_fill(win, COL_BG)
+
+        // grid dots
+        let gx = 0
+        while gx < COLS {
+            let gy = 0
+            while gy < ROWS {
+                gui_set_pixel(win, gx * CELL, gy * CELL, COL_GRID)
+                gy = gy + 1
+            }
+            gx = gx + 1
+        }
+
+        // food
+        draw_cell(win, food["x"], food["y"], COL_FOOD)
+
+        // snake
+        let si = 0
+        while si < len(snake) {
+            let col = COL_SNAKE
+            if si == 0 { col = COL_HEAD }
+            draw_cell(win, snake[si]["x"], snake[si]["y"], col)
+            si = si + 1
+        }
+
+        gui_set_title(win, "Snake  —  Score: " + str(score))
+        gui_present(win)
+        sleep(16)
+    }
+
+    println("Game Over! Final score: " + str(score))
+    gui_close(win)
+}
+
+main()

@@ -1,0 +1,45 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Crypto Package Demo  —  using packages/crypto
+// Run:  knull run examples/crypto_demo.knull
+// ─────────────────────────────────────────────────────────────────────────────
+
+import "packages/crypto/src/lib.knull"
+
+fn main() {
+    println("=== Knull Crypto Demo ===")
+    println("")
+
+    // Basic hashing
+    let msg = "Hello, Knull!"
+    println("Message:  " + msg)
+    println("SHA-256:  " + hash_sha256(msg))
+    println("MD5:      " + hash_md5(msg))
+    println("")
+
+    // Base64
+    let encoded = encode_base64(msg)
+    let decoded = decode_base64(encoded)
+    println("Base64 encoded: " + encoded)
+    println("Base64 decoded: " + decoded)
+    println("")
+
+    // Password hashing
+    let password = "secret123"
+    let hashed   = hash_password(password)
+    println("Password:        " + password)
+    println("Hashed:          " + hashed)
+    println("Verify (correct): " + str(verify_password(password, hashed)))
+    println("Verify (wrong):   " + str(verify_password("wrong", hashed)))
+    println("")
+
+    // Token generation
+    let token = token_generate()
+    println("Random token: " + token)
+    println("")
+
+    // Checksum
+    let data = "important file data..."
+    println("Checksum: " + checksum(data))
+}
+
+main()

@@ -1,0 +1,106 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Pong — 2-player real-time minifb game in Knull
+// P1: W/S keys   ·   P2: Up/Down arrows   ·   Q to quit
+// Run:  knull run examples/games/pong.knull
+// ─────────────────────────────────────────────────────────────────────────────
+
+let W = 800
+let H = 600
+let PAD_W = 12
+let PAD_H = 80
+let BALL_R = 8
+let PAD_SPEED = 5
+let COL_BG  = gui_rgb(10, 10, 10)
+let COL_FG  = gui_rgb(240, 240, 240)
+let COL_P1  = gui_rgb(80, 180, 255)
+let COL_P2  = gui_rgb(255, 120, 80)
+let COL_BALL = gui_rgb(255, 220, 50)
+
+fn clamp(v, lo, hi) {
+    if v < lo { return lo }
+    if v > hi { return hi }
+    return v
+}
+
+fn abs_val(x) {
+    if x < 0 { return 0 - x }
+    return x
+}
+
+fn main() {
+    let win = gui_window("Pong", W, H)
+
+    let p1y = (H - PAD_H) / 2
+    let p2y = (H - PAD_H) / 2
+    let bx  = W / 2
+    let by  = H / 2
+    let bdx = 4
+    let bdy = 3
+    let score1 = 0
+    let score2 = 0
+
+    while gui_is_open(win) {
+        let keys = gui_get_keys(win)
+        let ki = 0
+        while ki < len(keys) {
+            let k = keys[ki]
+            if k == "W"    { p1y = clamp(p1y - PAD_SPEED, 0, H - PAD_H) }
+            if k == "S"    { p1y = clamp(p1y + PAD_SPEED, 0, H - PAD_H) }
+            if k == "Up"   { p2y = clamp(p2y - PAD_SPEED, 0, H - PAD_H) }
+            if k == "Down" { p2y = clamp(p2y + PAD_SPEED, 0, H - PAD_H) }
+            if k == "Q"    { gui_close(win); return }
+            ki = ki + 1
+        }
+
+        // move ball
+        bx = bx + bdx
+        by = by + bdy
+
+        // wall bounce
+        if by <= BALL_R || by >= H - BALL_R { bdy = 0 - bdy }
+
+        // paddle 1 (left)  x=20
+        let p1x = 20
+        if bx - BALL_R <= p1x + PAD_W && by >= p1y && by <= p1y + PAD_H {
+            bdx = abs_val(bdx)
+        }
+
+        // paddle 2 (right)  x=W-20-PAD_W
+        let p2x = W - 20 - PAD_W
+        if bx + BALL_R >= p2x && by >= p2y && by <= p2y + PAD_H {
+            bdx = 0 - abs_val(bdx)
+        }
+
+        // scoring
+        if bx < 0 {
+            score2 = score2 + 1
+            bx = W / 2; by = H / 2
+            bdx = 4; bdy = 3
+        }
+        if bx > W {
+            score1 = score1 + 1
+            bx = W / 2; by = H / 2
+            bdx = -4; bdy = -3
+        }
+
+        // draw
+        gui_fill(win, COL_BG)
+        // centre line
+        let ly = 0
+        while ly < H {
+            gui_rect(win, W/2 - 1, ly, 2, 8, COL_FG)
+            ly = ly + 20
+        }
+        // paddles
+        gui_rect(win, p1x, p1y, PAD_W, PAD_H, COL_P1)
+        gui_rect(win, p2x, p2y, PAD_W, PAD_H, COL_P2)
+        // ball
+        gui_circle(win, bx, by, BALL_R, COL_BALL)
+
+        gui_set_title(win, "Pong  —  P1: " + str(score1) + "  ·  P2: " + str(score2))
+        gui_present(win)
+        sleep(16)
+    }
+}
+
+main()

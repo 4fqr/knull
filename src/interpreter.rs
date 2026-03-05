@@ -7951,6 +7951,179 @@ impl Interpreter {
                 self.gui_windows.remove(&args[0].as_int());
                 Some(Ok(Value::Null))
             }
+            // gui_rgb(r, g, b) -> packed 0xRRGGBB color
+            "gui_rgb" => {
+                if args.len() < 3 { return Some(Err("gui_rgb(r, g, b)".to_string())); }
+                let r = (args[0].as_int() as u32) & 0xFF;
+                let g = (args[1].as_int() as u32) & 0xFF;
+                let b = (args[2].as_int() as u32) & 0xFF;
+                Some(Ok(Value::Int((r << 16 | g << 8 | b) as i64)))
+            }
+            // gui_size(handle) -> {w, h}
+            "gui_size" => {
+                if args.is_empty() { return Some(Err("gui_size(handle)".to_string())); }
+                let id = args[0].as_int();
+                match self.gui_windows.get(&id) {
+                    Some((win, _)) => {
+                        let (w, h) = win.get_size();
+                        let mut m = HashMap::new();
+                        m.insert("w".to_string(), Value::Int(w as i64));
+                        m.insert("h".to_string(), Value::Int(h as i64));
+                        Some(Ok(Value::Map(m)))
+                    }
+                    None => Some(Err(format!("gui_size: no window {}", id))),
+                }
+            }
+            // gui_rect(handle, x, y, w, h, rgb) — filled rectangle
+            "gui_rect" => {
+                if args.len() < 6 { return Some(Err("gui_rect(h, x, y, w, h, rgb)".to_string())); }
+                let id  = args[0].as_int();
+                let rx  = args[1].as_int() as i64;
+                let ry  = args[2].as_int() as i64;
+                let rw  = args[3].as_int() as i64;
+                let rh  = args[4].as_int() as i64;
+                let rgb = args[5].as_int() as u32;
+                match self.gui_windows.get_mut(&id) {
+                    Some((win, buf)) => {
+                        let (ww, wh) = win.get_size();
+                        let ww = ww as i64; let wh = wh as i64;
+                        for py in ry..(ry + rh) {
+                            if py < 0 || py >= wh { continue; }
+                            for px in rx..(rx + rw) {
+                                if px < 0 || px >= ww { continue; }
+                                buf[(py as usize) * (ww as usize) + (px as usize)] = rgb;
+                            }
+                        }
+                        Some(Ok(Value::Null))
+                    }
+                    None => Some(Err(format!("gui_rect: no window {}", id))),
+                }
+            }
+            // gui_rect_outline(handle, x, y, w, h, rgb) — rectangle outline only
+            "gui_rect_outline" => {
+                if args.len() < 6 { return Some(Err("gui_rect_outline(h, x, y, w, h, rgb)".to_string())); }
+                let id  = args[0].as_int();
+                let rx  = args[1].as_int() as i64;
+                let ry  = args[2].as_int() as i64;
+                let rw  = args[3].as_int() as i64;
+                let rh  = args[4].as_int() as i64;
+                let rgb = args[5].as_int() as u32;
+                match self.gui_windows.get_mut(&id) {
+                    Some((win, buf)) => {
+                        let (ww, wh) = win.get_size();
+                        let ww = ww as i64; let wh = wh as i64;
+                        let set = |buf: &mut Vec<u32>, px: i64, py: i64| {
+                            if px >= 0 && px < ww && py >= 0 && py < wh {
+                                buf[(py as usize) * (ww as usize) + (px as usize)] = rgb;
+                            }
+                        };
+                        for px in rx..(rx + rw) { set(buf, px, ry); set(buf, px, ry + rh - 1); }
+                        for py in ry..(ry + rh) { set(buf, rx, py); set(buf, rx + rw - 1, py); }
+                        Some(Ok(Value::Null))
+                    }
+                    None => Some(Err(format!("gui_rect_outline: no window {}", id))),
+                }
+            }
+            // gui_line(handle, x0, y0, x1, y1, rgb) — Bresenham anti-clipped line
+            "gui_line" => {
+                if args.len() < 6 { return Some(Err("gui_line(h, x0, y0, x1, y1, rgb)".to_string())); }
+                let id  = args[0].as_int();
+                let mut x0 = args[1].as_int() as i64;
+                let mut y0 = args[2].as_int() as i64;
+                let x1  = args[3].as_int() as i64;
+                let y1  = args[4].as_int() as i64;
+                let rgb = args[5].as_int() as u32;
+                match self.gui_windows.get_mut(&id) {
+                    Some((win, buf)) => {
+                        let (ww, wh) = win.get_size();
+                        let ww = ww as i64; let wh = wh as i64;
+                        let dx = (x1 - x0).abs();
+                        let dy = -(y1 - y0).abs();
+                        let sx: i64 = if x0 < x1 { 1 } else { -1 };
+                        let sy: i64 = if y0 < y1 { 1 } else { -1 };
+                        let mut err = dx + dy;
+                        loop {
+                            if x0 >= 0 && x0 < ww && y0 >= 0 && y0 < wh {
+                                buf[(y0 as usize) * (ww as usize) + (x0 as usize)] = rgb;
+                            }
+                            if x0 == x1 && y0 == y1 { break; }
+                            let e2 = 2 * err;
+                            if e2 >= dy { err += dy; x0 += sx; }
+                            if e2 <= dx { err += dx; y0 += sy; }
+                        }
+                        Some(Ok(Value::Null))
+                    }
+                    None => Some(Err(format!("gui_line: no window {}", id))),
+                }
+            }
+            // gui_circle(handle, cx, cy, r, rgb) — filled circle
+            "gui_circle" => {
+                if args.len() < 5 { return Some(Err("gui_circle(h, cx, cy, r, rgb)".to_string())); }
+                let id  = args[0].as_int();
+                let cx  = args[1].as_int() as i64;
+                let cy  = args[2].as_int() as i64;
+                let cr  = args[3].as_int() as i64;
+                let rgb = args[4].as_int() as u32;
+                match self.gui_windows.get_mut(&id) {
+                    Some((win, buf)) => {
+                        let (ww, wh) = win.get_size();
+                        let ww = ww as i64; let wh = wh as i64;
+                        for py in (cy - cr)..=(cy + cr) {
+                            if py < 0 || py >= wh { continue; }
+                            let dy  = py - cy;
+                            let dx  = ((cr * cr - dy * dy) as f64).sqrt() as i64;
+                            for px in (cx - dx)..=(cx + dx) {
+                                if px < 0 || px >= ww { continue; }
+                                buf[(py as usize) * (ww as usize) + (px as usize)] = rgb;
+                            }
+                        }
+                        Some(Ok(Value::Null))
+                    }
+                    None => Some(Err(format!("gui_circle: no window {}", id))),
+                }
+            }
+            // gui_circle_outline(handle, cx, cy, r, rgb) — circle outline (midpoint)
+            "gui_circle_outline" => {
+                if args.len() < 5 { return Some(Err("gui_circle_outline(h, cx, cy, r, rgb)".to_string())); }
+                let id  = args[0].as_int();
+                let cx  = args[1].as_int() as i64;
+                let cy  = args[2].as_int() as i64;
+                let cr  = args[3].as_int() as i64;
+                let rgb = args[4].as_int() as u32;
+                match self.gui_windows.get_mut(&id) {
+                    Some((win, buf)) => {
+                        let (ww, wh) = win.get_size();
+                        let ww = ww as i64; let wh = wh as i64;
+                        let mut x = cr; let mut y: i64 = 0;
+                        let mut p = 1 - cr;
+                        let draw = |buf: &mut Vec<u32>, px: i64, py: i64| {
+                            if px >= 0 && px < ww && py >= 0 && py < wh {
+                                buf[(py as usize) * (ww as usize) + (px as usize)] = rgb;
+                            }
+                        };
+                        while x >= y {
+                            draw(buf, cx+x, cy+y); draw(buf, cx-x, cy+y);
+                            draw(buf, cx+x, cy-y); draw(buf, cx-x, cy-y);
+                            draw(buf, cx+y, cy+x); draw(buf, cx-y, cy+x);
+                            draw(buf, cx+y, cy-x); draw(buf, cx-y, cy-x);
+                            y += 1;
+                            if p <= 0 { p += 2*y + 1; } else { x -= 1; p += 2*(y-x) + 1; }
+                        }
+                        Some(Ok(Value::Null))
+                    }
+                    None => Some(Err(format!("gui_circle_outline: no window {}", id))),
+                }
+            }
+            // gui_set_title(handle, title) — update window title at runtime
+            "gui_set_title" => {
+                if args.len() < 2 { return Some(Err("gui_set_title(h, title)".to_string())); }
+                let id    = args[0].as_int();
+                let title = args[1].as_string();
+                match self.gui_windows.get_mut(&id) {
+                    Some((win, _)) => { win.set_title(&title); Some(Ok(Value::Null)) }
+                    None => Some(Err(format!("gui_set_title: no window {}", id))),
+                }
+            }
 
             // ── Process: fork / exec ──────────────────────────────────────────
             // fork() -> pid (0 in child, child_pid in parent)

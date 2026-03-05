@@ -8,7 +8,7 @@
  |_|\_\\_| |_|\\__,_|_|_|
 ```
 
-**The God Programming Language** — v2.0.0
+**The God Programming Language** — v2.1.0
 
 Simple as Python. Fast as C. Powerful as Assembly.
 
@@ -31,6 +31,11 @@ Knull is a unified systems programming language designed to span the full spectr
 - **Higher-order functions**: `map`, `filter`, `reduce`, `sorted_by`, `enumerate`, `zip`
 - **Rich string API**: `len`, `upper`, `lower`, `split`, `contains`, `replace`, `trim`, …
 - **File I/O**, **Networking (TCP/UDP/HTTP/WebSocket)**, **Threading**
+- **Real-time GUI** with drawing primitives (`gui_rect`, `gui_line`, `gui_circle`, `gui_fill`, …)
+- **SQLite database** built-in via rusqlite (`db_open`, `db_exec`, `db_query`, …)
+- **Crypto builtins**: SHA-256, MD5, base64, random bytes, token generation
+- **Working packages**: `json`, `http`, `crypto`, `sqlite` — importable with `import "packages/…"`
+- **Snake & Pong** game examples (real-time minifb rendering)
 - **C FFI**, **inline assembly**, **syscalls**
 - **WebAssembly** output target
 - **Interactive REPL** with persistent state, multi-line input, introspection commands
@@ -228,7 +233,7 @@ knull build --target wasm32 app.knull
 ```
 $ knull repl
 
-  Knull v2.0.0  —  The God Programming Language
+  Knull v2.1.0  —  The God Programming Language
 
 knull❯ let x = 42
 knull❯ x * 2
@@ -252,8 +257,7 @@ Multi-line: enter a `{` and keep typing — the `...` prompt waits for you to cl
 ```knull
 // Math
 abs(n)  sqrt(n)  pow(a,b)  floor(n)  ceil(n)
-min(a,b)  max(a,b)  min(array)  max(array)
-sin(x)  cos(x)  tan(x)  log(x)
+min(a,b)  max(a,b)  sin(x)  cos(x)  tan(x)  log(x)
 
 // Arrays
 len(arr)  push(arr, x)  pop(arr)  reverse(arr)
@@ -262,26 +266,59 @@ reduce(arr, fn, init)  sorted_by(arr, fn)
 zip(a, b)  flatten(arr)  join(arr, sep)  enumerate(arr)
 
 // Strings
-s.len()  s.upper()  s.lower()  s.trim()
-s.split(sep)  s.contains(sub)  s.replace(old, new)
-s.starts_with(p)  s.ends_with(s)  s.chars()
+len(s)  upper(s)  lower(s)  trim(s)
+split(s, sep)  contains(s, sub)  replace(s, old, new)
+starts_with(s, p)  ends_with(s, suf)
 
 // Conversion
-to_string(x)  to_int(s)  to_float(s)  type_of(x)
-parse_int(s)  parse_float(s)
+str(x)  to_int(s)  to_float(s)  typeof(x)
 
 // File I/O
-file_read(p)  file_write(p,s)  file_append(p,s)
+read_file(p)  write_file(p, s)  append_file(p, s)
 file_exists(p)  file_remove(p)  dir_list(p)  mkdir(p)
 
-// Network
-http_get(url)  http_post(url, body)
-tcp_connect(host, port)  tcp_send(c, msg)  tcp_recv(c, n)
+// Network / HTTP
+http_get(url)  http_post(url, body, content_type)
+http_put(url, body, content_type)  http_delete(url)
+tcp_connect(host, port)
+
+// Database (SQLite — built-in)
+db_open(path)  db_open_memory()
+db_exec(h, sql)  db_query(h, sql)  db_query_one(h, sql)
+db_last_insert_id(h)
+
+// GUI / Graphics (minifb framebuffer)
+gui_window(title, w, h)  gui_fill(h, rgb)  gui_present(h)
+gui_set_pixel(h, x, y, rgb)  gui_rect(h, x, y, w, h, rgb)
+gui_rect_outline(h, x, y, w, h, rgb)
+gui_line(h, x0, y0, x1, y1, rgb)
+gui_circle(h, cx, cy, r, rgb)  gui_circle_outline(h, cx, cy, r, rgb)
+gui_rgb(r, g, b)  gui_size(h)  gui_set_title(h, t)
+gui_is_open(h)  gui_get_keys(h)  gui_get_mouse(h)
+gui_close(h)
+
+// Crypto
+sha256(s)  md5(s)  base64_encode(s)  base64_decode(s)  random_bytes(n)
+
+// JSON
+json_parse(s)  json_stringify(v)
 
 // System
 time()  time_millis()  sleep(ms)  exec(cmd)
-env_get(k)  env_set(k, v)  get_hostname()
+env_get(k)  env_set(k, value)
+rand()  exit(code)
 ```
+
+### Packages
+
+Import packages with `import "packages/<name>/src/lib.knull"`:
+
+| Package | Import | Key Functions |
+|---------|--------|---------------|
+| JSON helpers | `import "packages/json/src/lib.knull"` | `parse`, `stringify`, `merge`, `has`, `json_keys` |
+| HTTP helpers | `import "packages/http/src/lib.knull"` | `get`, `post`, `get_json`, `post_json`, `build_query` |
+| Crypto helpers | `import "packages/crypto/src/lib.knull"` | `hash_password`, `verify_password`, `token_generate`, `hmac_simple` |
+| SQLite ORM | `import "packages/sqlite/src/lib.knull"` | `connect`, `create_table`, `db_insert`, `select_all`, `select_where`, `db_count` |
 
 ---
 

@@ -164,8 +164,83 @@ Methods called as `arr.method()`:
 
 | Function | Description |
 |----------|-------------|
-| `json_parse(s)` | string → value |
-| `json_stringify(v)` | value → string |
+| `json_parse(s)` | JSON string → value (map/array/number/string/bool/null) |
+| `json_stringify(v)` | value → compact JSON string |
+| `json_encode(v)` | alias for `json_stringify` |
+| `parse_json(s)` | alias for `json_parse` |
+
+---
+
+## Database (SQLite)
+
+Built-in SQLite via rusqlite — no external dependencies needed.
+
+| Function | Description |
+|----------|-------------|
+| `db_open(path)` | open or create SQLite file, returns handle |
+| `db_open_memory()` | open in-memory SQLite database |
+| `db_exec(h, sql)` | run INSERT / CREATE / UPDATE / DELETE |
+| `db_query(h, sql)` | SELECT → array of maps |
+| `db_query_one(h, sql)` | SELECT → single map (or null) |
+| `db_last_insert_id(h)` | last auto-increment row id |
+
+Package wrapper at `packages/sqlite/src/lib.knull` adds: `connect`, `create_table`, `db_insert`, `select_all`, `select_where`, `update_where`, `delete_where`, `db_count`, `begin_transaction`, `commit`, `rollback`.
+
+---
+
+## GUI / Graphics (minifb)
+
+Hardware-accelerated framebuffer window via minifb.
+
+| Function | Description |
+|----------|-------------|
+| `gui_window(title, w, h)` | open window, returns int handle |
+| `gui_fill(h, rgb)` | fill entire buffer with colour |
+| `gui_set_pixel(h, x, y, rgb)` | set single pixel |
+| `gui_rect(h, x, y, w, h, rgb)` | filled rectangle |
+| `gui_rect_outline(h, x, y, w, h, rgb)` | rectangle outline |
+| `gui_line(h, x0, y0, x1, y1, rgb)` | Bresenham line |
+| `gui_circle(h, cx, cy, r, rgb)` | filled circle |
+| `gui_circle_outline(h, cx, cy, r, rgb)` | circle outline (midpoint) |
+| `gui_present(h)` | flush buffer to screen |
+| `gui_is_open(h)` | → bool (window still open) |
+| `gui_get_keys(h)` | → array of key name strings |
+| `gui_get_mouse(h)` | → `{x, y, left, right, middle}` |
+| `gui_rgb(r, g, b)` | pack r,g,b (0-255) into 0xRRGGBB |
+| `gui_size(h)` | → `{w, h}` pixel dimensions |
+| `gui_set_title(h, title)` | update window title |
+| `gui_close(h)` | close and destroy window |
+
+Colors are packed `int` values: `0xRRGGBB`. Use `gui_rgb(r,g,b)` for convenience.
+
+---
+
+## Image Processing
+
+| Function | Description |
+|----------|-------------|
+| `img_new(w, h)` | create blank RGBA image handle |
+| `img_load(path)` | load PNG/JPEG/BMP/GIF from file |
+| `img_save(h, path)` | save image to file |
+| `img_width(h)` | width in pixels |
+| `img_height(h)` | height in pixels |
+| `img_resize(h, w, h)` | resize image |
+| `img_get_pixel(h, x, y)` | → `{r, g, b, a}` |
+| `img_set_pixel(h, x, y, r, g, b, a)` | set pixel RGBA |
+
+---
+
+## Crypto
+
+| Function | Description |
+|----------|-------------|
+| `sha256(s)` | SHA-256 hex string |
+| `md5(s)` | MD5 hex string |
+| `base64_encode(s)` | base64 encode |
+| `base64_decode(s)` | base64 decode |
+| `random_bytes(n)` | n random bytes as hex string |
+
+Package wrapper at `packages/crypto/src/lib.knull` adds: `hash_sha256`, `hash_md5`, `encode_base64`, `decode_base64`, `hash_password`, `verify_password`, `hmac_simple`, `token_generate`.
 
 ---
 
@@ -173,15 +248,14 @@ Methods called as `arr.method()`:
 
 | Function | Description |
 |----------|-------------|
-| `http_get(url)` | GET → string |
-| `http_post(url, body)` | POST → string |
-| `http_post_json(url, v)` | POST JSON → string |
-| `tcp_connect(host, port)` | → connection |
-| `conn.send(data)` | send data |
-| `conn.recv()` | receive string |
-| `conn.close()` | close connection |
-| `tcp_listen(host, port)` | → server |
-| `server.accept()` | → connection |
+| `http_get(url)` | GET → body string |
+| `http_post(url, body, content_type)` | POST → body string |
+| `http_put(url, body, content_type)` | PUT → body string |
+| `http_delete(url)` | DELETE → body string |
+| `tcp_connect(host, port)` | → connection handle |
+| `tcp_listen(host, port)` | → server handle |
+
+Package wrapper at `packages/http/src/lib.knull` adds: `get_json`, `post_json`, `put_json`, `fetch`, `download`, `build_query`.
 
 ---
 
@@ -209,3 +283,4 @@ Methods called as `arr.method()`:
 | `assert_eq(a, b)` | assert equality |
 | `panic(msg)` | terminate with message |
 | `trace(v)` | print and return v |
+

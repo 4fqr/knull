@@ -1,0 +1,38 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// JSON Package Demo  —  using packages/json
+// Run:  knull run examples/json_demo.knull
+// ─────────────────────────────────────────────────────────────────────────────
+
+import "packages/json/src/lib.knull"
+
+fn main() {
+    // parse JSON string
+    let raw = "{\"name\":\"Alice\",\"age\":30,\"scores\":[95,87,92]}"
+    let data = parse(raw)
+    println("Name: " + str(data["name"]))
+    println("Age:  " + str(data["age"]))
+
+    // modify and re-encode
+    data = set(data, "age", 31)
+    data = set(data, "city", "Berlin")
+    println("")
+    println("Updated JSON:")
+    println(stringify(data))
+
+    // check key existence
+    println("")
+    println("Has 'city': " + str(has(data, "city")))
+    println("Has 'email': " + str(has(data, "email")))
+
+    // merge two objects
+    let extra = {"email": "alice@example.com", "verified": true}
+    let merged = merge(data, extra)
+    println("")
+    println("Merged:")
+    println(stringify(merged))
+
+    println("")
+    println("Keys: " + stringify(json_keys(merged)))
+}
+
+main()
